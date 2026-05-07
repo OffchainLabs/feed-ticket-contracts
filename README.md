@@ -15,7 +15,7 @@ There are fundamentally three pieces in the onchain system.
 
 The `TicketWindow` contract sells ticket tokens.
 
-The `Ticket` contract is an ERC-721 representing the tickets themselves.
+The `Ticket` contract is an ERC-1155 representing the tickets themselves.
 
 The `ApiKeyRegistry` contract maps ticket holder accounts to hashes of API keys.
 
@@ -106,7 +106,7 @@ modifier lazyUpdateRoundState() {
 
 Note that for simplicity, we could also track _non transferrable_ ticket ownership in the `TicketWindow` contract itself. If we decide to do that then we don't need a separate `Ticket` contract.
 
-We can also merge the `TicketWindow` and `Ticket` contracts so the sale contract is also the ERC-721 contract. This would save a little bit of gas.
+We can also merge the `TicketWindow` and `Ticket` contracts so the sale contract is also the ERC-1155 contract. This would save a little bit of gas.
 
 ## `ApiKeyRegistry`
 
