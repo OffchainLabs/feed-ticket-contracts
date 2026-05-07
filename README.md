@@ -51,7 +51,7 @@ In addition to the public state, the `TicketWindow` has the following view funct
     - `return _roundEnd + roundsMissed() * roundDuration`
 - `excessTicketsSold()` - the total "extra" number of tickets that have been sold as of the last round relative to the "targeted" number.
     - `if (_roundNumber == roundNumber()) return _excessTicketsSold;`
-    - `else return max(0, ticket.totalSupplyInRound(_roundNumber) - roundsMissed() * targetTicketsPerRound)`
+    - `else return max(0, _excessTicketsSold + ticket.totalSupplyInRound(_roundNumber) - roundsMissed() * targetTicketsPerRound)`
 - `currentPrice()` - the ticket price for the current round
     - see `fake_exponential` in https://eips.ethereum.org/EIPS/eip-4844
     - `return fake_exponential(minimumPrice, excessTicketsSold(), priceUpdateFraction)`
