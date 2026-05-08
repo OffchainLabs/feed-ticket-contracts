@@ -104,8 +104,7 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         require(ticketsSold[_roundNumber] < maxTicketsPerRound, "Max tickets sold for this round");
         require(!hasTicket[msg.sender][_roundNumber], "Cannot buy two tickets in one round");
 
-        uint256 midTime = _roundStart + roundDuration / 2;
-        if (block.timestamp < midTime && _roundNumber > 0) {
+        if (_roundNumber > 0 && block.timestamp < _roundStart + roundDuration / 2) {
             require(
                 hasTicket[msg.sender][_roundNumber - 1],
                 "Must have ticket from previous round to purchase in first half of round"
