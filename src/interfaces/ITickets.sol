@@ -83,17 +83,49 @@ interface ITickets {
     /// @param  round The round to query.
     function ticketsSold(uint256 round) external view returns (uint256);
 
+    /// @notice Number of full rounds that have elapsed since the stored round start.
     function roundsElapsedSinceStored() external view returns (uint256);
+
+    /// @notice Current round number. Tickets bought in `roundNumber() - 1` are active;
+    ///         tickets bought in `roundNumber()` are still being sold.
     function roundNumber() external view returns (uint256);
+
+    /// @notice Start timestamp of the current round (inclusive).
     function roundStart() external view returns (uint256);
+
+    /// @notice End timestamp of the current round (exclusive).
     function roundEnd() external view returns (uint256);
+
+    /// @notice Total tickets sold in excess of the cumulative target as of the end of last round.
     function excessTicketsSold() external view returns (uint256);
+
+    /// @notice Ticket price for the current round.
     function currentPrice() external view returns (uint256);
 
+    /// @notice Purchase one ticket for the current round. Caller must send exactly `currentPrice()` value.
+    ///         In the first half of a round, only holders of a ticket from the previous round may purchase.
+    /// @param  expectedRound Round the caller expects to be current. Reverts if it does not match.
     function purchaseTicket(uint256 expectedRound) external payable;
+
+    /// @notice Set the account that receives sale proceeds. Takes effect immediately.
+    /// @param  newBeneficiary The new beneficiary. Must be non-zero.
     function setBeneficiary(address newBeneficiary) external;
+
+    /// @notice Queue a new round duration. Takes effect next active round.
+    /// @param  newDuration The new duration of each round. Must be non-zero.
     function setRoundDuration(uint256 newDuration) external;
+
+    /// @notice Queue a new hard cap on tickets sold per round. Takes effect next active round.
+    /// @param  newMax The new max tickets per round. Must be non-zero.
     function setMaxTicketsPerRound(uint256 newMax) external;
+
+    /// @notice Queue a new target tickets per round. Takes effect next active round.
+    /// @param  newTarget The new target tickets per round. Must be non-zero.
     function setTargetTicketsPerRound(uint256 newTarget) external;
+
+    /// @notice Queue new pricing parameters. Takes effect next active round.
+    ///         May cause a discontinuous jump in the current price.
+    /// @param  newMinimumPrice        The new minimum ticket price. Must be non-zero.
+    /// @param  newPriceUpdateFraction The new price update fraction. Must be non-zero.
     function setPricingParams(uint256 newMinimumPrice, uint256 newPriceUpdateFraction) external;
 }
