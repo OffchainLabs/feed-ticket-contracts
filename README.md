@@ -25,8 +25,6 @@ Admin setters are queued and applied in a future round. Specifically, updates ar
 
 We update round information lazily on the first state mutating call during the round. We keep this state private since it can be stale. We expose view functions that will apply appropriate changes to stored round information before returning it. It's possible that there are no mutating calls during a round, so we must be able to apply changes caused by multiple dead rounds in constant time.
 
-There's obviously room for optimizations but they're out of scope of the spec.
-
 `Tickets` has the following public state:
 - `beneficiary` - account that receives sale proceeds
 - `roundDuration` - the duration of a round
@@ -197,7 +195,16 @@ contract ApiKeyRegistry {
 
 # How Buyers Use the System
 
+1. [One time] Generate an API key and record its hash in the `ApiKeyRegistry` using the account that will purchase tickets
+1. [Each Round] Purchase tickets through the `Tickets` contract
+
+Buyers can choose to use a smart contract to do both steps to avoid having a pile of money sitting on a hot EOA.
+
 # How the Sequencer Uses the System
+
+The sequencer subscribes to `TicketPurchased` to reconstruct the list of ticket holders for each round in real time.
+
+When a round ends/advances, the sequencer takes the full list of ticket holders for the newly active round and queries the `ApiKeyRegistry` to get key hashes. Any overlap between the previously active ticket holder set and currently active ticket holder set should not have their websocket connections closed. Everyone who was in the previous set and not in the new set has their connection closed. When a new connection comes in, the provided API key is hashed and checked against the list of currently active key hashes.
 
 # Secondary Markets
 
