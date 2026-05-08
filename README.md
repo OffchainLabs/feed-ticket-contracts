@@ -173,6 +173,28 @@ modifier lazyUpdateRoundState() {
 
 ## `ApiKeyRegistry`
 
+The `ApiKeyRegistry` simply maps user accounts to hashes of user generated API keys that will be used to authenticate with the sequencer.
+
+```solidity
+contract ApiKeyRegistry {
+    mapping(address => bytes32) public keyHash;
+
+    event KeyHashUpdated(address indexed user, bytes32 newKeyHash);
+
+    function registerKeyHash(bytes32 newKeyHash) external {
+        keyHash[msg.sender] = newKeyHash;
+        emit KeyHashUpdated(msg.sender, newKeyHash);
+    }
+
+    function getMultipleKeyHashes(address[] calldata accounts) external view returns (bytes32[] memory hashes) {
+        hashes = new bytes32[](accounts.length);
+        for (uint256 i = 0; i < accounts.length; i++) {
+            hashes[i] = keyHash[accounts[i]];
+        }
+    }
+}
+```
+
 # How Buyers Use the System
 
 # How the Sequencer Uses the System
