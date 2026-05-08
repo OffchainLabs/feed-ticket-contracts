@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.20;
 
-import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import {AccessControlEnumerableUpgradeable} from
+    "@openzeppelin/contracts-upgradeable/access/extensions/AccessControlEnumerableUpgradeable.sol";
 import {ITickets} from "./interfaces/ITickets.sol";
 
-contract Tickets is ITickets, AccessControlUpgradeable {
+contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     bytes32 public constant BENEFICIARY_SETTER = keccak256("BENEFICIARY_SETTER");
     bytes32 public constant MARKET_PARAMS_SETTER = keccak256("MARKET_PARAMS_SETTER");
 
@@ -35,7 +36,7 @@ contract Tickets is ITickets, AccessControlUpgradeable {
     }
 
     function initialize(address initialAdmin) external initializer {
-        __AccessControl_init();
+        __AccessControlEnumerable_init();
         _grantRole(DEFAULT_ADMIN_ROLE, initialAdmin);
     }
 
