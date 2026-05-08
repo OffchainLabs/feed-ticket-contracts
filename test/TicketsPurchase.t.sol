@@ -131,7 +131,10 @@ contract TicketsPurchaseTest is BaseTicketsTest {
         uint256 price = tickets.currentPrice();
         vm.deal(buyer, price);
         vm.prank(buyer);
+        vm.cool(address(tickets));
+        vm.cool(address(impl));
         tickets.purchaseTicket{value: price}(2);
+        vm.snapshotGasLastCall("first-purchase");
 
         assertEq(tickets.exposed_storedRoundNumber(), 2);
         assertEq(tickets.exposed_storedRoundStart(), DEPLOY_TIMESTAMP + 2 * ROUND_DURATION);
@@ -151,7 +154,10 @@ contract TicketsPurchaseTest is BaseTicketsTest {
 
         vm.deal(otherBuyer, price);
         vm.prank(otherBuyer);
+        vm.cool(address(tickets));
+        vm.cool(address(impl));
         tickets.purchaseTicket{value: price}(2);
+        vm.snapshotGasLastCall("second-purchase");
 
         assertTrue(tickets.hasTicket(buyer, 2));
         assertTrue(tickets.hasTicket(otherBuyer, 2));
