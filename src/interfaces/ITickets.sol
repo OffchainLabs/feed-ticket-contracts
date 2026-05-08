@@ -14,6 +14,11 @@ interface ITickets {
     /// @param  price The price paid for the ticket.
     event TicketPurchased(address indexed buyer, uint256 indexed round, uint256 price);
 
+    /// @notice Emitted when accumulated sale proceeds are forwarded to the beneficiary.
+    /// @param  beneficiary The account that received the proceeds.
+    /// @param  amount      The amount forwarded.
+    event ProceedsDistributed(address indexed beneficiary, uint256 amount);
+
     /// @notice Emitted when the beneficiary is updated. Takes effect immediately.
     /// @param  newBeneficiary The new account that will receive sale proceeds.
     event BeneficiarySet(address indexed newBeneficiary);
@@ -106,6 +111,9 @@ interface ITickets {
     ///         In the first half of a round, only holders of a ticket from the previous round may purchase.
     /// @param  expectedRound Round the caller expects to be current. Reverts if it does not match.
     function purchaseTicket(uint256 expectedRound) external payable;
+
+    /// @notice Forward all accumulated sale proceeds to the current beneficiary. Permissionless.
+    function distributeSaleProceeds() external;
 
     /// @notice Set the account that receives sale proceeds. Takes effect immediately.
     /// @param  newBeneficiary The new beneficiary. Must be non-zero.
