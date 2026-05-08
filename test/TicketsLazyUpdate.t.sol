@@ -79,5 +79,33 @@ contract TicketsLazyUpdateTest is BaseTicketsTest {
         assertEq(tickets.exposed_storedExcessTicketsSold(), expectedExcess);
     }
 
-    // TODO: test lazy update modifier sets admin config
+    function test_lazyUpdateRoundState_appliesQueuedAdminConfig() public {
+        uint256 newDuration = 2 hours;
+        uint256 newTarget = 150;
+        uint256 newMax = 300;
+        uint256 newMinPrice = 2 ether;
+        uint256 newFraction = 75;
+
+        vm.startPrank(marketParamsSetter);
+        tickets.setRoundDuration(newDuration);
+        tickets.setTargetTicketsPerRound(newTarget);
+        tickets.setMaxTicketsPerRound(newMax);
+        tickets.setPricingParams(newMinPrice, newFraction);
+        vm.stopPrank();
+
+        vm.warp(DEPLOY_TIMESTAMP + ROUND_DURATION);
+        tickets.exposed_lazyUpdateRoundState();
+
+        assertEq(tickets.roundDuration(), newDuration);
+        assertEq(tickets.targetTicketsPerRound(), newTarget);
+        assertEq(tickets.maxTicketsPerRound(), newMax);
+        assertEq(tickets.minimumPrice(), newMinPrice);
+        assertEq(tickets.priceUpdateFraction(), newFraction);
+
+        assertEq(tickets.nextRoundDuration(), 0);
+        assertEq(tickets.nextTargetTicketsPerRound(), 0);
+        assertEq(tickets.nextMaxTicketsPerRound(), 0);
+        assertEq(tickets.nextMinimumPrice(), 0);
+        assertEq(tickets.nextPriceUpdateFraction(), 0);
+    }
 }
