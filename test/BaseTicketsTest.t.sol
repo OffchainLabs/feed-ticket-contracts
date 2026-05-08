@@ -1,0 +1,70 @@
+// SPDX-License-Identifier: UNLICENSED
+pragma solidity ^0.8.20;
+
+// forge-lint: disable-start
+
+import {Test} from "forge-std/Test.sol";
+import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+import {Tickets} from "../src/Tickets.sol";
+
+contract TicketsHarness is Tickets {
+    function exposed_storedRoundNumber() external view returns (uint256) {
+        return _roundNumber;
+    }
+
+    function exposed_storedRoundStart() external view returns (uint256) {
+        return _roundStart;
+    }
+
+    function exposed_storedExcessTicketsSold() external view returns (uint256) {
+        return _excessTicketsSold;
+    }
+
+    function exposed_setTicketsSold(uint256 round, uint256 amount) external {
+        ticketsSold[round] = amount;
+    }
+
+    function exposed_lazyUpdateRoundState() external lazyUpdateRoundState {}
+}
+
+abstract contract BaseTicketsTest is Test {
+    TicketsHarness impl;
+    TicketsHarness tickets;
+
+    address proxyAdmin = makeAddr("proxyAdmin");
+    address defaultAdmin = makeAddr("defaultAdmin");
+    address beneficiarySetter = makeAddr("beneficiarySetter");
+    address marketParamsSetter = makeAddr("marketParamsSetter");
+    address beneficiary = makeAddr("beneficiary");
+
+    uint256 constant ROUND_DURATION = 1 hours;
+    uint256 constant TARGET_TICKETS = 100;
+    uint256 constant MAX_TICKETS = 200;
+    uint256 constant MINIMUM_PRICE = 1 ether;
+    uint256 constant PRICE_UPDATE_FRACTION = 50;
+
+    uint256 constant DEPLOY_TIMESTAMP = 1_700_000_000;
+
+    function setUp() public virtual {
+        vm.warp(DEPLOY_TIMESTAMP);
+        impl = new TicketsHarness();
+        tickets = TicketsHarness(address(new TransparentUpgradeableProxy(address(impl), proxyAdmin, _initData())));
+    }
+
+    function _initData() internal view returns (bytes memory) {
+        return abi.encodeCall(
+            Tickets.initialize,
+            (
+                defaultAdmin,
+                beneficiarySetter,
+                marketParamsSetter,
+                beneficiary,
+                ROUND_DURATION,
+                TARGET_TICKETS,
+                MAX_TICKETS,
+                MINIMUM_PRICE,
+                PRICE_UPDATE_FRACTION
+            )
+        );
+    }
+}
