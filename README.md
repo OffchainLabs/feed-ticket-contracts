@@ -8,30 +8,31 @@ The basic mechanism is as follows:
 - In the second half of the round, _anyone_ can purchase a ticket.
 - Once the round ends the newly purchased become "active", while tickets from prior rounds become "inactive" (i.e. the sequencer no longer respects the old tickets and starts respecting the new ones)
 - Once the round ends, the next one begins immediately with a new price which is set by an EIP-4844 like mechanism. 
+- Limit 1 ticket per customer
 
 # Specification
 
-There are fundamentally three pieces in the onchain system. 
+There are fundamentally two pieces in the onchain system. 
 
-The `TicketWindow` contract sells ticket tokens.
-
-`Tickets` is an ERC-1155 contract representing the tickets themselves.
+The `Tickets` contract sells and tracks tickets.
 
 The `ApiKeyRegistry` contract maps ticket holder accounts to hashes of API keys.
 
-## `TicketWindow`
+## `Tickets`
 
 We update round information lazily on the first state mutating call during the round. We keep this state private since it can be stale. We expose view functions that will apply appropriate changes to stored round information before returning it. It's possible that there are no mutating calls during a round, so we must be able to apply changes caused by multiple dead rounds in constant time.
 
 There's obviously room for optimizations but they're out of scope of the spec.
 
-The `TicketWindow` has the following public state:
+`Tickets` has the following public state:
 - `beneficiary` - account that receives sale proceeds
 - `roundDuration` - the duration of a round
 - `targetTicketsPerRound` - the targeted number of tickets to sell per round
 - `maxTicketsPerRound` - the maximum tickets that can be sold per round
 - `minimumPrice` - the minimum ticket price
 - `priceUpdateFraction` - a parameter of the pricing function
+- `hasTicket` - maps user => roundnum => bool
+- `ticketsSold` - maps roundnum => numtickets
 
 Private state (updated lazily per round):
 - `_roundNumber` - the recorded current round number
@@ -39,7 +40,7 @@ Private state (updated lazily per round):
 - `_roundEnd` - end timestamp of the recorded current round (exclusive)
 - `_excessTicketsSold` - the total "extra" number of tickets that have been sold as of the last stored round relative to the "targeted" number.
 
-In addition to the public state, the `TicketWindow` has the following view functions:
+In addition to the public state, `Tickets` has the following view functions:
 - `roundsMissed()`
     - `return block.timestamp < _roundEnd ? 0 : (block.timestamp - _roundEnd) / roundDuration + 1`
 - `roundNumber()`
@@ -51,26 +52,28 @@ In addition to the public state, the `TicketWindow` has the following view funct
     - `return _roundEnd + roundsMissed() * roundDuration`
 - `excessTicketsSold()` - the total "extra" number of tickets that have been sold as of the last round relative to the "targeted" number.
     - `if (_roundNumber == roundNumber()) return _excessTicketsSold;`
-    - `else return max(0, _excessTicketsSold + tickets.totalSupply(_roundNumber) - roundsMissed() * targetTicketsPerRound)`
+    - `else return max(0, _excessTicketsSold + ticketsSold[_roundNumber] - roundsMissed() * targetTicketsPerRound)`
 - `currentPrice()` - the ticket price for the current round
     - see `fake_exponential` in https://eips.ethereum.org/EIPS/eip-4844
     - `return fake_exponential(minimumPrice, excessTicketsSold(), priceUpdateFraction)`
         - to get an idea of how to set `priceUpdateFraction`, see the "Base fee per blob gas update rule" in EIP-4844
 
-`TicketWindow` has the following mutative functions:
+`Tickets` has the following mutative functions:
 
 ```solidity
 function purchaseTicket(uint256 expectedRound) external payable lazyUpdateRoundState {
     require(expectedRound == _roundNumber, "Round number mismatch");
     require(msg.value == currentPrice(), "Incorrect ticket price");
-    require(tickets.totalSupply(_roundNumber) < maxTicketsPerRound, "Max tickets sold for this round");
+    require(ticketsSold[_roundNumber] < maxTicketsPerRound, "Max tickets sold for this round");
+    require(!hasTicket[msg.sender][_roundNumber], "Cannot buy two tickets in one round");
 
     uint256 midTime = (_roundStart + _roundEnd) / 2;
     if (block.timestamp < midTime && _roundNumber > 0) {
-        require(tickets.balanceOf(msg.sender, _roundNumber - 1) > 0, "Must have ticket from previous round to purchase in first half of round");
+        require(hasTicket[msg.sender][_roundNumber - 1], "Must have ticket from previous round to purchase in first half of round");
     }
 
-    tickets.mint(msg.sender, _roundNumber, 1); // mint 1 token with id=_roundNumber
+    ticketsSold[_roundNumber]++;
+    hasTicket[msg.sender][_roundNumber] = true;
     beneficiary.call{value: msg.value}("");
 
     emit TicketPurchased(...);
@@ -105,18 +108,12 @@ modifier lazyUpdateRoundState() {
 }
 ```
 
-## `Tickets`
-
-The tickets are ERC-1155 tokens where the `id` is the round number, specifically we'll use the OZ "Supply" extension.
-
-https://github.com/OpenZeppelin/openzeppelin-contracts/blob/5fd1781b1454fd1ef8e722282f86f9293cacf256/contracts/token/ERC1155/extensions/ERC1155Supply.sol
-
-Note that for simplicity, we could also track _non transferrable_ ticket ownership in the `TicketWindow` contract itself. If we decide to do that then we don't need a separate `Tickets` contract.
-
-We can also merge the `TicketWindow` and `Tickets` contracts so the sale contract is also the ERC-1155 contract. This would save a little bit of gas.
-
 ## `ApiKeyRegistry`
 
 # How Buyers Use the System
 
 # How the Sequencer Uses the System
+
+# Secondary Markets
+
+Despite tickets being non-transferrable, a secondary market can still be built. It could look something like a bunch of vault contracts (one per ticket). Users would purchase tickets _through_ the vault contracts, which would then each purchase a ticket. Ownership of these vaults grants owners the ability to interact with the `ApiKeyRegistry` _through_ the vault, and ownership _could_ be transferrable.
