@@ -36,9 +36,29 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         _;
     }
 
-    function initialize(address initialAdmin) external initializer {
+    function initialize(
+        address defaultAdmin,
+        address beneficiarySetter,
+        address marketParamsSetter,
+        address _beneficiary,
+        uint256 _roundDuration,
+        uint256 _targetTicketsPerRound,
+        uint256 _maxTicketsPerRound,
+        uint256 _minimumPrice,
+        uint256 _priceUpdateFraction
+    ) external initializer {
         __AccessControlEnumerable_init();
-        _grantRole(DEFAULT_ADMIN_ROLE, initialAdmin);
+
+        _grantRole(DEFAULT_ADMIN_ROLE, defaultAdmin);
+        _grantRole(BENEFICIARY_SETTER, beneficiarySetter);
+        _grantRole(MARKET_PARAMS_SETTER, marketParamsSetter);
+
+        beneficiary = _beneficiary;
+        roundDuration = _roundDuration;
+        targetTicketsPerRound = _targetTicketsPerRound;
+        maxTicketsPerRound = _maxTicketsPerRound;
+        minimumPrice = _minimumPrice;
+        priceUpdateFraction = _priceUpdateFraction;
     }
 
     function roundsElapsedSinceStored() external view returns (uint256) {}
