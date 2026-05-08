@@ -81,10 +81,16 @@ function purchaseTicket(uint256 expectedRound) external payable lazyUpdateRoundS
 
     ticketsSold[_roundNumber]++;
     hasTicket[msg.sender][_roundNumber] = true;
-    (bool success,) = beneficiary.call{value: msg.value}("");
-    require(success, "Payment failed");
 
     emit TicketPurchased(...);
+}
+```
+
+```solidity
+function distributeSaleProceeds() external {
+    (bool success,) = beneficiary.call{value: address(this).balance}("");
+    require(success, "Payment failed");
+    emit ProceedsDistributed(...);
 }
 ```
 
@@ -239,3 +245,7 @@ The mechanism assumes that in the first half of the round, only previous round t
 ## Timelocked Admin
 
 We should consider putting the admin behind a timelock to boost confidence in the market rules not changing unpredictably. I would imagine we want this contract to have a similar setup to the ELA where the DAO controls the proxy and OCL controls a few select levers.
+
+## Granular Ownership
+
+Currently there's a single owner that can call all admin functions. In production we'll likely want separate admin roles.
