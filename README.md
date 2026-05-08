@@ -96,28 +96,28 @@ function distributeSaleProceeds() external {
 
 ```solidity
 // Takes effect immediately
-setBeneficiary(address newBeneficiary) external onlyOwner lazyUpdateRoundState {
+setBeneficiary(address newBeneficiary) external onlyRole(BENEFICIARY_SETTER) lazyUpdateRoundState {
     require(newBeneficiary != address(0), "Zero beneficiary");
     beneficiary = newBeneficiary;
     emit BeneficiarySet(...);
 }
 
 // Takes effect next round
-setRoundDuration(uint256 newDuration) external onlyOwner lazyUpdateRoundState {
+setRoundDuration(uint256 newDuration) external onlyRole(MARKET_PARAMS_SETTER) lazyUpdateRoundState {
     require(newDuration != 0, "Zero round duration");
     nextRoundDuration = newDuration;
     emit RoundDurationQueued(...);
 }
 
 // Takes effect next round
-setMaxTicketsPerRound(uint256 newMax) external onlyOwner lazyUpdateRoundState {
+setMaxTicketsPerRound(uint256 newMax) external onlyRole(MARKET_PARAMS_SETTER) lazyUpdateRoundState {
     require(newMax != 0, "Zero max tickets per round");
     nextMaxTicketsPerRound = newMax;
     emit MaxTicketsPerRoundQueued(...);
 }
 
 // Takes effect next round
-setTargetTicketsPerRound(uint256 newTarget) external onlyOwner lazyUpdateRoundState {
+setTargetTicketsPerRound(uint256 newTarget) external onlyRole(MARKET_PARAMS_SETTER) lazyUpdateRoundState {
     require(newTarget != 0, "Zero target tickets per round");
     nextTargetTicketsPerRound = newTarget;
     emit TargetTicketsPerRoundQueued(...);
@@ -128,7 +128,7 @@ setTargetTicketsPerRound(uint256 newTarget) external onlyOwner lazyUpdateRoundSt
 setPricingParams(
     uint256 newMinimumPrice,
     uint256 newPriceUpdateFraction
-) external onlyOwner lazyUpdateRoundState {
+) external onlyRole(MARKET_PARAMS_SETTER) lazyUpdateRoundState {
     require(newMinimumPrice != 0, "Zero minimum price");
     require(newPriceUpdateFraction != 0, "Zero price update fraction");
     nextMinimumPrice = newMinimumPrice;
@@ -174,6 +174,14 @@ modifier lazyUpdateRoundState() {
     _;
 }
 ```
+
+### Admin Roles
+
+`Tickets` has three admin roles:
+
+- `DEFAULT_ADMIN`: Can assign all other roles to accounts
+- `BENEFICIARY_SETTER`: Can set the beneficiary account
+- `MARKET_PARAMS_SETTER`: Can set parameters of the market (eg minimum price, target ticket count, etc)
 
 ## `ApiKeyRegistry`
 
@@ -245,7 +253,3 @@ The mechanism assumes that in the first half of the round, only previous round t
 ## Timelocked Admin
 
 We should consider putting the admin behind a timelock to boost confidence in the market rules not changing unpredictably. I would imagine we want this contract to have a similar setup to the ELA where the DAO controls the proxy and OCL controls a few select levers.
-
-## Granular Ownership
-
-Currently there's a single owner that can call all admin functions. In production we'll likely want separate admin roles.
