@@ -209,3 +209,19 @@ When a round ends/advances, the sequencer takes the full list of ticket holders 
 # Secondary Markets
 
 Despite tickets being non-transferrable, a secondary market can still be built. It could look something like a bunch of vault contracts (one per ticket). Users would purchase tickets _through_ the vault contracts, which would then each purchase a ticket. Ownership of these vaults grants owners the ability to interact with the `ApiKeyRegistry` _through_ the vault, and ownership _could_ be transferrable.
+
+# Continuous Pricing Across Param Updates
+
+The price is `currentPrice = fake_exponential(M, E, F) ≈ M · e^(E/F)` where `M = minimumPrice`, `E = excessTicketsSold`, `F = priceUpdateFraction`. As written, changing `nextMinimumPrice` / `nextPriceUpdateFraction` causes the price to jump discontinuously.
+
+To make the price continuous across a pricing-param update, recompute `E` in `lazyUpdateRoundState` (at the moment the new params are applied) so that
+
+```
+M' · e^(E'/F') = M · e^(E/F)
+```
+
+Solving for `E'`:
+
+```
+E' = F' · ln(M/M') + E · F'/F
+```
