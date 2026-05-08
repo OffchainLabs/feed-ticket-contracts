@@ -2,8 +2,7 @@
 pragma solidity ^0.8.20;
 
 import {Test} from "forge-std/Test.sol";
-import {TransparentUpgradeableProxy} from
-    "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {Tickets} from "../src/Tickets.sol";
 
@@ -34,9 +33,7 @@ contract TicketsTest is Test {
     function setUp() public {
         vm.warp(DEPLOY_TIMESTAMP);
         impl = new TicketsHarness();
-        tickets = TicketsHarness(
-            address(new TransparentUpgradeableProxy(address(impl), proxyAdmin, _initData()))
-        );
+        tickets = TicketsHarness(address(new TransparentUpgradeableProxy(address(impl), proxyAdmin, _initData())));
     }
 
     function _initData() internal view returns (bytes memory) {
