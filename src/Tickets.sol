@@ -173,7 +173,7 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     /// @notice Approximates `factor * e^(numerator / denominator)` via a Taylor series with
     ///         integer arithmetic.
     /// @dev    Reference: EIP-4844 `fake_exponential` — https://eips.ethereum.org/EIPS/eip-4844
-    ///         Mirrors go-ethereum `fakeExponential`:
+    ///         See also go-ethereum's reference implementation:
     ///         https://github.com/ethereum/go-ethereum/blob/16a6531ac204c110ea4b51c7905b3f71595b8f0c/consensus/misc/eip4844/eip4844.go#L217
     function _fakeExponential(uint256 factor, uint256 numerator, uint256 denominator) internal pure returns (uint256) {
         uint256 i = 1;
