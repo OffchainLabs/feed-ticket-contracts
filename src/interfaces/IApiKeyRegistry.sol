@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.0;
 
 /// @title  API Key Registry
 /// @notice Maps user accounts to hashes of API keys used to authenticate with the sequencer.
