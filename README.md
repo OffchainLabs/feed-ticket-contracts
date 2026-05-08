@@ -8,7 +8,6 @@ The basic mechanism is as follows:
 - In the second half of the round, _anyone_ can purchase a ticket.
 - Once the round ends the newly purchased become "active", while tickets from prior rounds become "inactive" (i.e. the sequencer no longer respects the old tickets and starts respecting the new ones)
 - Once the round ends, the next one begins immediately with a new price which is set by an EIP-4844 like mechanism. 
-- Limit 1 ticket per customer
 
 # Specification
 
@@ -20,6 +19,10 @@ The `ApiKeyRegistry` contract maps ticket holder accounts to hashes of API keys.
 
 ## `Tickets`
 
+Limit 1 ticket per customer.
+
+Admin setters are queued so they only go into effect the following round.
+
 We update round information lazily on the first state mutating call during the round. We keep this state private since it can be stale. We expose view functions that will apply appropriate changes to stored round information before returning it. It's possible that there are no mutating calls during a round, so we must be able to apply changes caused by multiple dead rounds in constant time.
 
 There's obviously room for optimizations but they're out of scope of the spec.
@@ -27,29 +30,33 @@ There's obviously room for optimizations but they're out of scope of the spec.
 `Tickets` has the following public state:
 - `beneficiary` - account that receives sale proceeds
 - `roundDuration` - the duration of a round
+- `nextRoundDuration` - if set, upcoming rounds will use this duration
 - `targetTicketsPerRound` - the targeted number of tickets to sell per round
+- `nextTargetTicketsPerRound` - if set, upcoming rounds will use it
 - `maxTicketsPerRound` - the maximum tickets that can be sold per round
+- `nextMaxTicketsPerRound` - if set, upcoming rounds will use it
 - `minimumPrice` - the minimum ticket price
+- `nextMinimumPrice` - if set, upcoming rounds will use it
 - `priceUpdateFraction` - a parameter of the pricing function
+- `nextPriceUpdateFraction` - if set, upcoming rounds will use it
 - `hasTicket` - maps user => roundnum => bool
 - `ticketsSold` - maps roundnum => numtickets
 
 Private state (updated lazily per round):
 - `_roundNumber` - the recorded current round number
 - `_roundStart` - start timestamp of the recorded current round (inclusive)
-- `_roundEnd` - end timestamp of the recorded current round (exclusive)
 - `_excessTicketsSold` - the total "extra" number of tickets that have been sold as of the last stored round relative to the "targeted" number.
 
 In addition to the public state, `Tickets` has the following view functions:
 - `roundsElapsedSinceStored()`
-    - `return block.timestamp < _roundEnd ? 0 : (block.timestamp - _roundEnd) / roundDuration + 1`
+    - `return block.timestamp < _roundStart + roundDuration ? 0 : (block.timestamp - _roundStart) / roundDuration`
 - `roundNumber()`
     - `return _roundNumber + roundsElapsedSinceStored()`
     - tickets belonging to `roundNumber() - 1` are "active" while tickets belonging to `roundNumber()` are currently being sold
-- `roundStart()`
+- `roundStart()` - start timestamp of the current round (inclusive)
     - `return _roundStart + roundsElapsedSinceStored() * roundDuration`
-- `roundEnd()`
-    - `return _roundEnd + roundsElapsedSinceStored() * roundDuration`
+- `roundEnd()` - end timestamp of the current round (exclusive)
+    - `return _roundStart + (1 + roundsElapsedSinceStored()) * roundDuration`
 - `excessTicketsSold()` - the total "extra" number of tickets that have been sold as of the last round relative to the "targeted" number.
     - `if (_roundNumber == roundNumber()) return _excessTicketsSold;`
     - `else return max(0, _excessTicketsSold + ticketsSold[_roundNumber] - roundsElapsedSinceStored() * targetTicketsPerRound)`
@@ -67,7 +74,7 @@ function purchaseTicket(uint256 expectedRound) external payable lazyUpdateRoundS
     require(ticketsSold[_roundNumber] < maxTicketsPerRound, "Max tickets sold for this round");
     require(!hasTicket[msg.sender][_roundNumber], "Cannot buy two tickets in one round");
 
-    uint256 midTime = (_roundStart + _roundEnd) / 2;
+    uint256 midTime = _roundStart + roundDuration / 2;
     if (block.timestamp < midTime && _roundNumber > 0) {
         require(hasTicket[msg.sender][_roundNumber - 1], "Must have ticket from previous round to purchase in first half of round");
     }
@@ -82,12 +89,43 @@ function purchaseTicket(uint256 expectedRound) external payable lazyUpdateRoundS
 ```
 
 ```solidity
-setBeneficiary(...) external onlyOwner lazyUpdateRoundState {...}
-setRoundDuration(...) external onlyOwner lazyUpdateRoundState {...}
-setTargetTicketsPerRound(...) external onlyOwner lazyUpdateRoundState {...}
-setMaxTicketsPerRound(...) external onlyOwner lazyUpdateRoundState {...}
-setMinimumPrice(...) external onlyOwner lazyUpdateRoundState {...}
-setPriceUpdateFraction(...) external onlyOwner lazyUpdateRoundState {...}
+// Takes effect immediately
+setBeneficiary(address newBeneficiary) external onlyOwner lazyUpdateRoundState {
+    require(newBeneficiary != address(0), "Zero beneficiary");
+    beneficiary = newBeneficiary;
+    emit BeneficiarySet(...);
+}
+
+// Takes effect next round
+setRoundDuration(uint256 newDuration) external onlyOwner lazyUpdateRoundState {
+    require(newDuration != 0, "Zero round duration");
+    nextRoundDuration = newDuration;
+    emit RoundDurationSet(...);
+}
+
+// Takes effect next round
+setMaxTicketsPerRound(uint256 newMax) external onlyOwner lazyUpdateRoundState {
+    require(newMax != 0, "Zero max tickets per round");
+    nextMaxTicketsPerRound = newMax;
+    emit MaxTicketsPerRoundSet(...);
+}
+
+// Takes effect next round
+// Note that updates affecting pricing might make price jump wildly
+// TODO: maybe we can solve for _excessTicketsSold to 0 the jump
+setPricingParams(
+    uint256 newTargetTicketsPerRound,
+    uint256 newMinimumPrice,
+    uint256 newPriceUpdateFraction
+) external onlyOwner lazyUpdateRoundState {
+    require(newTargetTicketsPerRound != 0, "Zero target tickets per round");
+    require(newMinimumPrice != 0, "Zero minimum price");
+    require(newPriceUpdateFraction != 0, "Zero price update fraction");
+    nextTargetTicketsPerRound = newTargetTicketsPerRound;
+    nextMinimumPrice = newMinimumPrice;
+    nextPriceUpdateFraction = newPriceUpdateFraction;
+    emit PricingParamsSet(...);
+}
 ```
 
 Each mutative function uses the following modifier:
@@ -96,12 +134,31 @@ modifier lazyUpdateRoundState() {
     if (roundsElapsedSinceStored() > 0) {
         uint256 __roundNumber = roundNumber();
         uint256 __roundStart = roundStart();
-        uint256 __roundEnd = roundEnd();
         uint256 __excessTicketsSold = excessTicketsSold();
         _roundNumber = __roundNumber;
         _roundStart = __roundStart;
-        _roundEnd = __roundEnd;
         _excessTicketsSold = __excessTicketsSold;
+
+        if (nextRoundDuration != 0) {
+            roundDuration = nextRoundDuration;
+            nextRoundDuration = 0;
+        }
+        if (nextTargetTicketsPerRound != 0) {
+            targetTicketsPerRound = nextTargetTicketsPerRound;
+            nextTargetTicketsPerRound = 0;
+        }
+        if (nextMaxTicketsPerRound != 0) {
+            maxTicketsPerRound = nextMaxTicketsPerRound;
+            nextMaxTicketsPerRound = 0;
+        }
+        if (nextMinimumPrice != 0) {
+            minimumPrice = nextMinimumPrice;
+            nextMinimumPrice = 0;
+        }
+        if (nextPriceUpdateFraction != 0) {
+            priceUpdateFraction = nextPriceUpdateFraction;
+            nextPriceUpdateFraction = 0;
+        }
 
         emit RoundStateUpdated(...);
     }
