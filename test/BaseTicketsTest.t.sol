@@ -25,6 +25,14 @@ contract TicketsHarness is Tickets {
     }
 
     function exposed_lazyUpdateRoundState() external lazyUpdateRoundState {}
+
+    function exposed_fakeExponential(uint256 factor, uint256 numerator, uint256 denominator)
+        external
+        pure
+        returns (uint256)
+    {
+        return _fakeExponential(factor, numerator, denominator);
+    }
 }
 
 abstract contract BaseTicketsTest is Test {
