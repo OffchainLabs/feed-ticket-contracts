@@ -90,11 +90,40 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         return gross > consumed ? gross - consumed : 0;
     }
 
-    function currentPrice() external view returns (uint256) {}
+    function currentPrice() public view returns (uint256) {
+        return _fakeExponential(
+            minimumPrice,
+            excessTicketsSold(),
+            priceUpdateFraction
+        );
+    }
 
-    function purchaseTicket(uint256 expectedRound) external payable lazyUpdateRoundState {}
+    function purchaseTicket(uint256 expectedRound) external payable lazyUpdateRoundState {
+        require(expectedRound == _roundNumber, "Round number mismatch");
+        require(msg.value == currentPrice(), "Incorrect ticket price");
+        require(ticketsSold[_roundNumber] < maxTicketsPerRound, "Max tickets sold for this round");
+        require(!hasTicket[msg.sender][_roundNumber], "Cannot buy two tickets in one round");
 
-    function distributeSaleProceeds() external {}
+        uint256 midTime = _roundStart + roundDuration / 2;
+        if (block.timestamp < midTime && _roundNumber > 0) {
+            require(
+                hasTicket[msg.sender][_roundNumber - 1],
+                "Must have ticket from previous round to purchase in first half of round"
+            );
+        }
+
+        ticketsSold[_roundNumber]++;
+        hasTicket[msg.sender][_roundNumber] = true;
+
+        emit TicketPurchased(msg.sender, _roundNumber, msg.value);
+    }
+
+    function distributeSaleProceeds() external {
+        uint256 amount = address(this).balance;
+        (bool success,) = beneficiary.call{value: amount}("");
+        require(success, "Payment failed");
+        emit ProceedsDistributed(beneficiary, amount);
+    }
 
     function setBeneficiary(address newBeneficiary) external onlyRole(BENEFICIARY_SETTER) lazyUpdateRoundState {
         require(newBeneficiary != address(0), "Zero beneficiary");
