@@ -100,21 +100,21 @@ setBeneficiary(address newBeneficiary) external onlyOwner lazyUpdateRoundState {
 setRoundDuration(uint256 newDuration) external onlyOwner lazyUpdateRoundState {
     require(newDuration != 0, "Zero round duration");
     nextRoundDuration = newDuration;
-    emit RoundDurationSet(...);
+    emit RoundDurationQueued(...);
 }
 
 // Takes effect next round
 setMaxTicketsPerRound(uint256 newMax) external onlyOwner lazyUpdateRoundState {
     require(newMax != 0, "Zero max tickets per round");
     nextMaxTicketsPerRound = newMax;
-    emit MaxTicketsPerRoundSet(...);
+    emit MaxTicketsPerRoundQueued(...);
 }
 
 // Takes effect next round
 setTargetTicketsPerRound(uint256 newTarget) external onlyOwner lazyUpdateRoundState {
     require(newTarget != 0, "Zero target tickets per round");
     nextTargetTicketsPerRound = newTarget;
-    emit TargetTicketsPerRoundSet(...);
+    emit TargetTicketsPerRoundQueued(...);
 }
 
 // Takes effect next round
@@ -127,7 +127,7 @@ setPricingParams(
     require(newPriceUpdateFraction != 0, "Zero price update fraction");
     nextMinimumPrice = newMinimumPrice;
     nextPriceUpdateFraction = newPriceUpdateFraction;
-    emit PricingParamsSet(...);
+    emit PricingParamsQueued(...);
 }
 ```
 
