@@ -41,18 +41,18 @@ Private state (updated lazily per round):
 - `_excessTicketsSold` - the total "extra" number of tickets that have been sold as of the last stored round relative to the "targeted" number.
 
 In addition to the public state, `Tickets` has the following view functions:
-- `roundsMissed()`
+- `roundsElapsedSinceStored()`
     - `return block.timestamp < _roundEnd ? 0 : (block.timestamp - _roundEnd) / roundDuration + 1`
 - `roundNumber()`
-    - `return _roundNumber + roundsMissed()`
+    - `return _roundNumber + roundsElapsedSinceStored()`
     - tickets belonging to `roundNumber() - 1` are "active" while tickets belonging to `roundNumber()` are currently being sold
 - `roundStart()`
-    - `return _roundStart + roundsMissed() * roundDuration`
+    - `return _roundStart + roundsElapsedSinceStored() * roundDuration`
 - `roundEnd()`
-    - `return _roundEnd + roundsMissed() * roundDuration`
+    - `return _roundEnd + roundsElapsedSinceStored() * roundDuration`
 - `excessTicketsSold()` - the total "extra" number of tickets that have been sold as of the last round relative to the "targeted" number.
     - `if (_roundNumber == roundNumber()) return _excessTicketsSold;`
-    - `else return max(0, _excessTicketsSold + ticketsSold[_roundNumber] - roundsMissed() * targetTicketsPerRound)`
+    - `else return max(0, _excessTicketsSold + ticketsSold[_roundNumber] - roundsElapsedSinceStored() * targetTicketsPerRound)`
 - `currentPrice()` - the ticket price for the current round
     - see `fake_exponential` in https://eips.ethereum.org/EIPS/eip-4844
     - `return fake_exponential(minimumPrice, excessTicketsSold(), priceUpdateFraction)`
@@ -74,7 +74,8 @@ function purchaseTicket(uint256 expectedRound) external payable lazyUpdateRoundS
 
     ticketsSold[_roundNumber]++;
     hasTicket[msg.sender][_roundNumber] = true;
-    beneficiary.call{value: msg.value}("");
+    (bool success,) = beneficiary.call{value: msg.value}("");
+    require(success, "Payment failed");
 
     emit TicketPurchased(...);
 }
@@ -92,7 +93,7 @@ setPriceUpdateFraction(...) external onlyOwner lazyUpdateRoundState {...}
 Each mutative function uses the following modifier:
 ```solidity
 modifier lazyUpdateRoundState() {
-    if (roundsMissed() > 0) {
+    if (roundsElapsedSinceStored() > 0) {
         uint256 __roundNumber = roundNumber();
         uint256 __roundStart = roundStart();
         uint256 __roundEnd = roundEnd();
