@@ -253,3 +253,7 @@ The mechanism assumes that in the first half of the round, only previous round t
 ## Timelocked Admin
 
 We should consider putting the admin behind a timelock to boost confidence in the market rules not changing unpredictably. I would imagine we want this contract to have a similar setup to the ELA where the DAO controls the proxy and OCL controls a few select levers.
+
+## First round start in the future
+
+Currently, the first round starts immediately when the tickets contract is deployed. We may want to be able to specify a future time
