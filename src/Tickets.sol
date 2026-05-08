@@ -65,9 +65,5 @@ contract Tickets is ITickets, OwnableUpgradeable {
         lazyUpdateRoundState
     {}
 
-    function _fakeExponential(uint256 factor, uint256 numerator, uint256 denominator)
-        internal
-        pure
-        returns (uint256)
-    {}
+    function _fakeExponential(uint256 factor, uint256 numerator, uint256 denominator) internal pure returns (uint256) {}
 }
