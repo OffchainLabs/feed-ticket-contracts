@@ -2,12 +2,37 @@
 pragma solidity ^0.8.20;
 
 interface ITickets {
+    /// @notice Emitted when a ticket is purchased.
+    /// @param  buyer The account that purchased the ticket.
+    /// @param  round The round the ticket was purchased in.
+    /// @param  price The price paid for the ticket.
     event TicketPurchased(address indexed buyer, uint256 indexed round, uint256 price);
+
+    /// @notice Emitted when the beneficiary is updated. Takes effect immediately.
+    /// @param  newBeneficiary The new account that will receive sale proceeds.
     event BeneficiarySet(address indexed newBeneficiary);
+
+    /// @notice Emitted when a new round duration is queued. Takes effect next active round.
+    /// @param  newDuration The duration of each round.
     event RoundDurationSet(uint256 newDuration);
+
+    /// @notice Emitted when a new max tickets per round is queued. Takes effect next active round.
+    /// @param  newMax The maximum tickets that can be sold per round.
     event MaxTicketsPerRoundSet(uint256 newMax);
+
+    /// @notice Emitted when a new target tickets per round is queued. Takes effect next active round.
+    /// @param  newTarget The targeted number of tickets to sell per round.
     event TargetTicketsPerRoundSet(uint256 newTarget);
+
+    /// @notice Emitted when new pricing parameters are queued. Takes effect next active round.
+    /// @param  newMinimumPrice The minimum ticket price.
+    /// @param  newPriceUpdateFraction The price update fraction.
     event PricingParamsSet(uint256 newMinimumPrice, uint256 newPriceUpdateFraction);
+
+    /// @notice Emitted when stored round state is rolled forward by the lazy update modifier.
+    /// @param  roundNumber The newly stored current round number.
+    /// @param  roundStart The start timestamp of the newly stored current round (inclusive).
+    /// @param  excessTicketsSold The total tickets sold in excess of the target as of the new round.
     event RoundStateUpdated(uint256 indexed roundNumber, uint256 roundStart, uint256 excessTicketsSold);
 
     function beneficiary() external view returns (address);
