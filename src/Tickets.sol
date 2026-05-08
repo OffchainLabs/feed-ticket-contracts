@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.20;
 
-import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {ITickets} from "./interfaces/ITickets.sol";
 
-contract Tickets is ITickets, OwnableUpgradeable {
+contract Tickets is ITickets, AccessControlUpgradeable {
+    bytes32 public constant BENEFICIARY_SETTER = keccak256("BENEFICIARY_SETTER");
+    bytes32 public constant MARKET_PARAMS_SETTER = keccak256("MARKET_PARAMS_SETTER");
+
     address public beneficiary;
     uint256 public roundDuration;
     uint256 public nextRoundDuration;
@@ -31,8 +34,9 @@ contract Tickets is ITickets, OwnableUpgradeable {
         _;
     }
 
-    function initialize(address initialOwner) external initializer {
-        __Ownable_init(initialOwner);
+    function initialize(address initialAdmin) external initializer {
+        __AccessControl_init();
+        _grantRole(DEFAULT_ADMIN_ROLE, initialAdmin);
     }
 
     function roundsElapsedSinceStored() external view returns (uint256) {}
@@ -51,17 +55,17 @@ contract Tickets is ITickets, OwnableUpgradeable {
 
     function distributeSaleProceeds() external {}
 
-    function setBeneficiary(address newBeneficiary) external onlyOwner lazyUpdateRoundState {}
+    function setBeneficiary(address newBeneficiary) external onlyRole(BENEFICIARY_SETTER) lazyUpdateRoundState {}
 
-    function setRoundDuration(uint256 newDuration) external onlyOwner lazyUpdateRoundState {}
+    function setRoundDuration(uint256 newDuration) external onlyRole(MARKET_PARAMS_SETTER) lazyUpdateRoundState {}
 
-    function setMaxTicketsPerRound(uint256 newMax) external onlyOwner lazyUpdateRoundState {}
+    function setMaxTicketsPerRound(uint256 newMax) external onlyRole(MARKET_PARAMS_SETTER) lazyUpdateRoundState {}
 
-    function setTargetTicketsPerRound(uint256 newTarget) external onlyOwner lazyUpdateRoundState {}
+    function setTargetTicketsPerRound(uint256 newTarget) external onlyRole(MARKET_PARAMS_SETTER) lazyUpdateRoundState {}
 
     function setPricingParams(uint256 newMinimumPrice, uint256 newPriceUpdateFraction)
         external
-        onlyOwner
+        onlyRole(MARKET_PARAMS_SETTER)
         lazyUpdateRoundState
     {}
 
