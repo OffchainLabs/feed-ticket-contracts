@@ -63,13 +63,21 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         _roundStart = block.timestamp;
     }
 
-    function roundsElapsedSinceStored() external view returns (uint256) {}
+    function roundsElapsedSinceStored() public view returns (uint256) {
+        return (block.timestamp - _roundStart) / roundDuration;
+    }
 
-    function roundNumber() external view returns (uint256) {}
+    function roundNumber() external view returns (uint256) {
+        return _roundNumber + roundsElapsedSinceStored();
+    }
 
-    function roundStart() external view returns (uint256) {}
+    function roundStart() external view returns (uint256) {
+        return _roundStart + roundsElapsedSinceStored() * roundDuration;
+    }
 
-    function roundEnd() external view returns (uint256) {}
+    function roundEnd() external view returns (uint256) {
+        return _roundStart + (1 + roundsElapsedSinceStored()) * roundDuration;
+    }
 
     function excessTicketsSold() external view returns (uint256) {}
 
