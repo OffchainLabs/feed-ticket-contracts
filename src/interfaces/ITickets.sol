@@ -41,18 +41,46 @@ interface ITickets {
     /// @param  excessTicketsSold The total tickets sold in excess of the target as of the new round.
     event RoundStateUpdated(uint256 indexed roundNumber, uint256 roundStart, uint256 excessTicketsSold);
 
+    /// @notice Account that receives ticket sale proceeds.
     function beneficiary() external view returns (address);
+
+    /// @notice Duration of a round, in seconds.
     function roundDuration() external view returns (uint256);
+
+    /// @notice Queued round duration. Takes effect next active round; zero if none queued.
     function nextRoundDuration() external view returns (uint256);
+
+    /// @notice Targeted number of tickets to sell per round. Drives the pricing function.
     function targetTicketsPerRound() external view returns (uint256);
+
+    /// @notice Queued target tickets per round. Takes effect next active round; zero if none queued.
     function nextTargetTicketsPerRound() external view returns (uint256);
+
+    /// @notice Hard cap on tickets sold per round.
     function maxTicketsPerRound() external view returns (uint256);
+
+    /// @notice Queued max tickets per round. Takes effect next active round; zero if none queued.
     function nextMaxTicketsPerRound() external view returns (uint256);
+
+    /// @notice Minimum ticket price. Floor of the pricing function.
     function minimumPrice() external view returns (uint256);
+
+    /// @notice Queued minimum price. Takes effect next active round; zero if none queued.
     function nextMinimumPrice() external view returns (uint256);
+
+    /// @notice Parameter controlling how quickly price moves per excess ticket sold.
     function priceUpdateFraction() external view returns (uint256);
+
+    /// @notice Queued price update fraction. Takes effect next active round; zero if none queued.
     function nextPriceUpdateFraction() external view returns (uint256);
+
+    /// @notice Whether `user` purchased a ticket in `round`.
+    /// @param  user  The account to check.
+    /// @param  round The round to check.
     function hasTicket(address user, uint256 round) external view returns (bool);
+
+    /// @notice Number of tickets sold in `round`.
+    /// @param  round The round to query.
     function ticketsSold(uint256 round) external view returns (uint256);
 
     function roundsElapsedSinceStored() external view returns (uint256);
