@@ -45,9 +45,8 @@ There's obviously room for optimizations but they're out of scope of the spec.
 Private state (updated lazily per round):
 - `_roundNumber` - the recorded current round number
 - `_roundStart` - start timestamp of the recorded current round (inclusive)
+    - initialized to `block.timestamp`
 - `_excessTicketsSold` - the total "extra" number of tickets that have been sold as of the last stored round relative to the "targeted" number.
-
-TODO: specify constructor / initial state (initial `_roundStart`, `_roundNumber`, and how the genesis round bootstraps the priority gate).
 
 In addition to the public state, `Tickets` has the following view functions:
 - `roundsElapsedSinceStored()`
@@ -114,17 +113,20 @@ setMaxTicketsPerRound(uint256 newMax) external onlyOwner lazyUpdateRoundState {
 }
 
 // Takes effect next round
-// Note that updates affecting pricing might make price jump wildly
-// TODO: maybe we can solve for _excessTicketsSold to 0 the jump
+setTargetTicketsPerRound(uint256 newTarget) external onlyOwner lazyUpdateRoundState {
+    require(newTarget != 0, "Zero target tickets per round");
+    nextTargetTicketsPerRound = newTarget;
+    emit TargetTicketsPerRoundSet(...);
+}
+
+// Takes effect next round
+// Note that updates affecting pricing might make price jump suddenly
 setPricingParams(
-    uint256 newTargetTicketsPerRound,
     uint256 newMinimumPrice,
     uint256 newPriceUpdateFraction
 ) external onlyOwner lazyUpdateRoundState {
-    require(newTargetTicketsPerRound != 0, "Zero target tickets per round");
     require(newMinimumPrice != 0, "Zero minimum price");
     require(newPriceUpdateFraction != 0, "Zero price update fraction");
-    nextTargetTicketsPerRound = newTargetTicketsPerRound;
     nextMinimumPrice = newMinimumPrice;
     nextPriceUpdateFraction = newPriceUpdateFraction;
     emit PricingParamsSet(...);
