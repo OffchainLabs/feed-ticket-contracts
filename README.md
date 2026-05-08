@@ -206,6 +206,8 @@ The sequencer subscribes to `TicketPurchased` to reconstruct the list of ticket 
 
 When a round ends/advances, the sequencer takes the full list of ticket holders for the newly active round and queries the `ApiKeyRegistry` to get key hashes. Any overlap between the previously active ticket holder set and currently active ticket holder set should not have their websocket connections closed. Everyone who was in the previous set and not in the new set has their connection closed. When a new connection comes in, the provided API key is hashed and checked against the list of currently active key hashes.
 
+The sequencer will also have to subscribe to `KeyHashUpdated` events to keep the list of active key hashes up to date. Active ticket holders may rotate keys mid round. If there is an open connection using a key that has just been overwritten in the contract, it should be dropped.
+
 # Secondary Markets
 
 Despite tickets being non-transferrable, a secondary market can still be built. It could look something like a bunch of vault contracts (one per ticket). Users would purchase tickets _through_ the vault contracts, which would then each purchase a ticket. Ownership of these vaults grants owners the ability to interact with the `ApiKeyRegistry` _through_ the vault, and ownership _could_ be transferrable.
