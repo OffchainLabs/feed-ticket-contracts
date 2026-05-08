@@ -24,9 +24,9 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     mapping(address => mapping(uint256 => bool)) public hasTicket;
     mapping(uint256 => uint256) public ticketsSold;
 
-    uint256 private _roundNumber;
-    uint256 private _roundStart;
-    uint256 private _excessTicketsSold;
+    uint256 internal _roundNumber;
+    uint256 internal _roundStart;
+    uint256 internal _excessTicketsSold;
 
     constructor() {
         _disableInitializers();
@@ -59,6 +59,8 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         maxTicketsPerRound = _maxTicketsPerRound;
         minimumPrice = _minimumPrice;
         priceUpdateFraction = _priceUpdateFraction;
+
+        _roundStart = block.timestamp;
     }
 
     function roundsElapsedSinceStored() external view returns (uint256) {}

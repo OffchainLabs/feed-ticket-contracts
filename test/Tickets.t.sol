@@ -7,9 +7,15 @@ import {TransparentUpgradeableProxy} from
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {Tickets} from "../src/Tickets.sol";
 
+contract TicketsHarness is Tickets {
+    function exposed_roundStart() external view returns (uint256) {
+        return _roundStart;
+    }
+}
+
 contract TicketsTest is Test {
-    Tickets impl;
-    Tickets tickets;
+    TicketsHarness impl;
+    TicketsHarness tickets;
 
     address proxyAdmin = makeAddr("proxyAdmin");
     address defaultAdmin = makeAddr("defaultAdmin");
@@ -23,9 +29,18 @@ contract TicketsTest is Test {
     uint256 constant MINIMUM_PRICE = 1 ether;
     uint256 constant PRICE_UPDATE_FRACTION = 50;
 
+    uint256 constant DEPLOY_TIMESTAMP = 1_700_000_000;
+
     function setUp() public {
-        impl = new Tickets();
-        bytes memory initData = abi.encodeCall(
+        vm.warp(DEPLOY_TIMESTAMP);
+        impl = new TicketsHarness();
+        tickets = TicketsHarness(
+            address(new TransparentUpgradeableProxy(address(impl), proxyAdmin, _initData()))
+        );
+    }
+
+    function _initData() internal view returns (bytes memory) {
+        return abi.encodeCall(
             Tickets.initialize,
             (
                 defaultAdmin,
@@ -39,7 +54,6 @@ contract TicketsTest is Test {
                 PRICE_UPDATE_FRACTION
             )
         );
-        tickets = Tickets(address(new TransparentUpgradeableProxy(address(impl), proxyAdmin, initData)));
     }
 
     function test_initialize_setsState() public view {
@@ -49,6 +63,10 @@ contract TicketsTest is Test {
         assertEq(tickets.maxTicketsPerRound(), MAX_TICKETS);
         assertEq(tickets.minimumPrice(), MINIMUM_PRICE);
         assertEq(tickets.priceUpdateFraction(), PRICE_UPDATE_FRACTION);
+    }
+
+    function test_initialize_setsRoundStart() public view {
+        assertEq(tickets.exposed_roundStart(), DEPLOY_TIMESTAMP);
     }
 
     function test_initialize_grantsRoles() public view {
