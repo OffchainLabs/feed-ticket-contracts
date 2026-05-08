@@ -6,7 +6,7 @@ The basic mechanism is as follows:
 - Each round, up to some number of tickets are sold all with an equal price. Each round is an hour/day/week/etc.
 - In the first half of the round, only those who bought tickets in the _previous_ round can purchase tickets.
 - In the second half of the round, _anyone_ can purchase a ticket.
-- Once the round ends the newly purchased become "active", while tickets from prior rounds become "inactive" (i.e. the sequencer no longer respects the old tickets and starts respecting the new ones)
+- Once the round ends the newly purchased tickets become "active", while tickets from prior rounds become "inactive" (i.e. the sequencer no longer respects the old tickets and starts respecting the new ones)
 - Once the round ends, the next one begins immediately with a new price which is set by an EIP-4844 like mechanism. 
 
 # Specification
@@ -19,9 +19,9 @@ The `ApiKeyRegistry` contract maps ticket holder accounts to hashes of API keys.
 
 ## `Tickets`
 
-Limit 1 ticket per customer.
+Limit 1 ticket per customer per round.
 
-Admin setters are queued so they only go into effect the following round.
+Admin setters are queued and applied in a future round. Specifically, updates are applied the round after the next round with activity.
 
 We update round information lazily on the first state mutating call during the round. We keep this state private since it can be stale. We expose view functions that will apply appropriate changes to stored round information before returning it. It's possible that there are no mutating calls during a round, so we must be able to apply changes caused by multiple dead rounds in constant time.
 
@@ -47,9 +47,11 @@ Private state (updated lazily per round):
 - `_roundStart` - start timestamp of the recorded current round (inclusive)
 - `_excessTicketsSold` - the total "extra" number of tickets that have been sold as of the last stored round relative to the "targeted" number.
 
+TODO: specify constructor / initial state (initial `_roundStart`, `_roundNumber`, and how the genesis round bootstraps the priority gate).
+
 In addition to the public state, `Tickets` has the following view functions:
 - `roundsElapsedSinceStored()`
-    - `return block.timestamp < _roundStart + roundDuration ? 0 : (block.timestamp - _roundStart) / roundDuration`
+    - `return (block.timestamp - _roundStart) / roundDuration`
 - `roundNumber()`
     - `return _roundNumber + roundsElapsedSinceStored()`
     - tickets belonging to `roundNumber() - 1` are "active" while tickets belonging to `roundNumber()` are currently being sold
@@ -60,6 +62,7 @@ In addition to the public state, `Tickets` has the following view functions:
 - `excessTicketsSold()` - the total "extra" number of tickets that have been sold as of the last round relative to the "targeted" number.
     - `if (_roundNumber == roundNumber()) return _excessTicketsSold;`
     - `else return max(0, _excessTicketsSold + ticketsSold[_roundNumber] - roundsElapsedSinceStored() * targetTicketsPerRound)`
+    - max(0, ...) underflows in solidity. code's for illustration
 - `currentPrice()` - the ticket price for the current round
     - see `fake_exponential` in https://eips.ethereum.org/EIPS/eip-4844
     - `return fake_exponential(minimumPrice, excessTicketsSold(), priceUpdateFraction)`
