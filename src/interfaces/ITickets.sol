@@ -25,20 +25,20 @@ interface ITickets {
 
     /// @notice Emitted when a new round duration is queued. Takes effect next active round.
     /// @param  newDuration The duration of each round.
-    event RoundDurationSet(uint256 newDuration);
+    event RoundDurationQueued(uint256 newDuration);
 
     /// @notice Emitted when a new max tickets per round is queued. Takes effect next active round.
     /// @param  newMax The maximum tickets that can be sold per round.
-    event MaxTicketsPerRoundSet(uint256 newMax);
+    event MaxTicketsPerRoundQueued(uint256 newMax);
 
     /// @notice Emitted when a new target tickets per round is queued. Takes effect next active round.
     /// @param  newTarget The targeted number of tickets to sell per round.
-    event TargetTicketsPerRoundSet(uint256 newTarget);
+    event TargetTicketsPerRoundQueued(uint256 newTarget);
 
     /// @notice Emitted when new pricing parameters are queued. Takes effect next active round.
     /// @param  newMinimumPrice The minimum ticket price.
     /// @param  newPriceUpdateFraction The price update fraction.
-    event PricingParamsSet(uint256 newMinimumPrice, uint256 newPriceUpdateFraction);
+    event PricingParamsQueued(uint256 newMinimumPrice, uint256 newPriceUpdateFraction);
 
     /// @notice Emitted when stored round state is rolled forward by the lazy update modifier.
     /// @param  roundNumber The newly stored current round number.
