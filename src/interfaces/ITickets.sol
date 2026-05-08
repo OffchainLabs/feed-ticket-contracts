@@ -1,6 +1,12 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.20;
 
+/// @title  Tickets
+/// @notice Sells and tracks feed tickets that grant holders access to a premium sequencer feed.
+///         Up to a configurable cap of tickets are sold each round at a single price set by an
+///         EIP-4844 style update rule. In the first half of a round only previous round ticket
+///         holders may purchase; in the second half anyone may purchase. Tickets become active
+///         once the round in which they were purchased ends.
 interface ITickets {
     /// @notice Emitted when a ticket is purchased.
     /// @param  buyer The account that purchased the ticket.
