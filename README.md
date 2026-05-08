@@ -65,12 +65,12 @@ function purchaseTicket(uint256 expectedRound) external payable lazyUpdateRoundS
     require(msg.value == currentPrice(), "Incorrect ticket price");
     require(tickets.totalSupply(_roundNumber) < maxTicketsPerRound, "Max tickets sold for this round");
 
-    uint256 midTime = (roundStart + roundEnd) / 2;
-    if (block.timestamp < midTime) {
+    uint256 midTime = (_roundStart + _roundEnd) / 2;
+    if (block.timestamp < midTime && _roundNumber > 0) {
         require(tickets.balanceOf(msg.sender, _roundNumber - 1) > 0, "Must have ticket from previous round to purchase in first half of round");
     }
 
-    ticket.mintForRound(msg.sender, _roundNumber);
+    tickets.mint(msg.sender, _roundNumber, 1); // mint 1 token with id=_roundNumber
     beneficiary.call{value: msg.value}("");
 
     emit TicketPurchased(...);
