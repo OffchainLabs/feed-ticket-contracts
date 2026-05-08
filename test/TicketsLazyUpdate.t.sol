@@ -64,5 +64,20 @@ contract TicketsLazyUpdateTest is BaseTicketsTest {
         assertEq(tickets.excessTicketsSold(), 350 - 2 * TARGET_TICKETS);
     }
 
-    // TODO: test lazy update modifier works properly
+    function test_lazyUpdateRoundState_writesViewValuesToPrivateState() public {
+        tickets.exposed_setTicketsSold(0, 350);
+        vm.warp(DEPLOY_TIMESTAMP + 3 * ROUND_DURATION + 17);
+
+        uint256 expectedRound = tickets.roundNumber();
+        uint256 expectedStart = tickets.roundStart();
+        uint256 expectedExcess = tickets.excessTicketsSold();
+
+        tickets.exposed_lazyUpdateRoundState();
+
+        assertEq(tickets.exposed_storedRoundNumber(), expectedRound);
+        assertEq(tickets.exposed_storedRoundStart(), expectedStart);
+        assertEq(tickets.exposed_storedExcessTicketsSold(), expectedExcess);
+    }
+
+    // TODO: test lazy update modifier sets admin config
 }
