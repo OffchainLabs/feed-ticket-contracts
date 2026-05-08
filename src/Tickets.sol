@@ -32,7 +32,10 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         _disableInitializers();
     }
 
+    /// @dev Foundry linter suggests moving the logic into an internal function to save code size.
+    ///      https://www.getfoundry.sh/forge/linting/unwrapped-modifier-logic#unwrapped-modifier-logic
     modifier lazyUpdateRoundState() {
+        _lazyUpdateRoundState();
         _;
     }
 
@@ -67,11 +70,11 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         return (block.timestamp - _roundStart) / roundDuration;
     }
 
-    function roundNumber() external view returns (uint256) {
+    function roundNumber() public view returns (uint256) {
         return _roundNumber + roundsElapsedSinceStored();
     }
 
-    function roundStart() external view returns (uint256) {
+    function roundStart() public view returns (uint256) {
         return _roundStart + roundsElapsedSinceStored() * roundDuration;
     }
 
@@ -79,7 +82,13 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         return _roundStart + (1 + roundsElapsedSinceStored()) * roundDuration;
     }
 
-    function excessTicketsSold() external view returns (uint256) {}
+    function excessTicketsSold() public view returns (uint256) {
+        uint256 elapsed = roundsElapsedSinceStored();
+        if (elapsed == 0) return _excessTicketsSold;
+        uint256 gross = _excessTicketsSold + ticketsSold[_roundNumber];
+        uint256 consumed = elapsed * targetTicketsPerRound;
+        return gross > consumed ? gross - consumed : 0;
+    }
 
     function currentPrice() external view returns (uint256) {}
 
@@ -87,19 +96,79 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
 
     function distributeSaleProceeds() external {}
 
-    function setBeneficiary(address newBeneficiary) external onlyRole(BENEFICIARY_SETTER) lazyUpdateRoundState {}
+    function setBeneficiary(address newBeneficiary) external onlyRole(BENEFICIARY_SETTER) lazyUpdateRoundState {
+        require(newBeneficiary != address(0), "Zero beneficiary");
+        beneficiary = newBeneficiary;
+        emit BeneficiarySet(newBeneficiary);
+    }
 
-    function setRoundDuration(uint256 newDuration) external onlyRole(MARKET_PARAMS_SETTER) lazyUpdateRoundState {}
+    function setRoundDuration(uint256 newDuration) external onlyRole(MARKET_PARAMS_SETTER) lazyUpdateRoundState {
+        require(newDuration != 0, "Zero round duration");
+        nextRoundDuration = newDuration;
+        emit RoundDurationQueued(newDuration);
+    }
 
-    function setMaxTicketsPerRound(uint256 newMax) external onlyRole(MARKET_PARAMS_SETTER) lazyUpdateRoundState {}
+    function setMaxTicketsPerRound(uint256 newMax) external onlyRole(MARKET_PARAMS_SETTER) lazyUpdateRoundState {
+        require(newMax != 0, "Zero max tickets per round");
+        nextMaxTicketsPerRound = newMax;
+        emit MaxTicketsPerRoundQueued(newMax);
+    }
 
-    function setTargetTicketsPerRound(uint256 newTarget) external onlyRole(MARKET_PARAMS_SETTER) lazyUpdateRoundState {}
+    function setTargetTicketsPerRound(uint256 newTarget) external onlyRole(MARKET_PARAMS_SETTER) lazyUpdateRoundState {
+        require(newTarget != 0, "Zero target tickets per round");
+        nextTargetTicketsPerRound = newTarget;
+        emit TargetTicketsPerRoundQueued(newTarget);
+    }
 
     function setPricingParams(uint256 newMinimumPrice, uint256 newPriceUpdateFraction)
         external
         onlyRole(MARKET_PARAMS_SETTER)
         lazyUpdateRoundState
-    {}
+    {
+        require(newMinimumPrice != 0, "Zero minimum price");
+        require(newPriceUpdateFraction != 0, "Zero price update fraction");
+        nextMinimumPrice = newMinimumPrice;
+        nextPriceUpdateFraction = newPriceUpdateFraction;
+        emit PricingParamsQueued(newMinimumPrice, newPriceUpdateFraction);
+    }
+
+    function _lazyUpdateRoundState() internal {
+        if (roundsElapsedSinceStored() > 0) {
+            uint256 newRoundNumber = roundNumber();
+            uint256 newRoundStart = roundStart();
+            uint256 newExcessTicketsSold = excessTicketsSold();
+            _roundNumber = newRoundNumber;
+            _roundStart = newRoundStart;
+            _excessTicketsSold = newExcessTicketsSold;
+
+            _applyAdminUpdates();
+
+            emit RoundStateUpdated(newRoundNumber, newRoundStart, newExcessTicketsSold);
+        }
+    }
+
+    function _applyAdminUpdates() internal {
+        if (nextRoundDuration != 0) {
+            roundDuration = nextRoundDuration;
+            nextRoundDuration = 0;
+        }
+        if (nextTargetTicketsPerRound != 0) {
+            targetTicketsPerRound = nextTargetTicketsPerRound;
+            nextTargetTicketsPerRound = 0;
+        }
+        if (nextMaxTicketsPerRound != 0) {
+            maxTicketsPerRound = nextMaxTicketsPerRound;
+            nextMaxTicketsPerRound = 0;
+        }
+        if (nextMinimumPrice != 0) {
+            minimumPrice = nextMinimumPrice;
+            nextMinimumPrice = 0;
+        }
+        if (nextPriceUpdateFraction != 0) {
+            priceUpdateFraction = nextPriceUpdateFraction;
+            nextPriceUpdateFraction = 0;
+        }
+    }
 
     /// @notice Approximates `factor * e^(numerator / denominator)` via a Taylor series with
     ///         integer arithmetic.
