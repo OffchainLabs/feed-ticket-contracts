@@ -71,5 +71,22 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         lazyUpdateRoundState
     {}
 
-    function _fakeExponential(uint256 factor, uint256 numerator, uint256 denominator) internal pure returns (uint256) {}
+    /// @notice Approximates `factor * e^(numerator / denominator)` via a Taylor series with
+    ///         integer arithmetic.
+    /// @dev    Reference: EIP-4844 `fake_exponential` — https://eips.ethereum.org/EIPS/eip-4844
+    ///         Mirrors go-ethereum `fakeExponential`:
+    ///         https://github.com/ethereum/go-ethereum/blob/16a6531ac204c110ea4b51c7905b3f71595b8f0c/consensus/misc/eip4844/eip4844.go#L217
+    function _fakeExponential(uint256 factor, uint256 numerator, uint256 denominator) internal pure returns (uint256) {
+        uint256 i = 1;
+        uint256 output = 0;
+        uint256 accum = factor * denominator;
+        while (accum > 0) {
+            output += accum;
+            accum = accum * numerator;
+            accum = accum / denominator;
+            accum = accum / i;
+            i++;
+        }
+        return output / denominator;
+    }
 }
