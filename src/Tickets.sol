@@ -12,14 +12,14 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
 
     address public beneficiary;
     uint256 public roundDuration;
-    uint256 public nextRoundDuration;
     uint256 public targetTicketsPerRound;
-    uint256 public nextTargetTicketsPerRound;
     uint256 public maxTicketsPerRound;
-    uint256 public nextMaxTicketsPerRound;
     uint256 public minimumPrice;
-    uint256 public nextMinimumPrice;
     uint256 public priceUpdateFraction;
+    uint256 public nextRoundDuration;
+    uint256 public nextTargetTicketsPerRound;
+    uint256 public nextMaxTicketsPerRound;
+    uint256 public nextMinimumPrice;
     uint256 public nextPriceUpdateFraction;
     mapping(address => mapping(uint256 => bool)) public hasTicket;
     mapping(uint256 => uint256) public ticketsSold;
