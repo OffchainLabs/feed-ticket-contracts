@@ -15,7 +15,7 @@ There are fundamentally three pieces in the onchain system.
 
 The `TicketWindow` contract sells ticket tokens.
 
-The `Ticket` contract is an ERC-1155 representing the tickets themselves.
+`Tickets` is an ERC-1155 contract representing the tickets themselves.
 
 The `ApiKeyRegistry` contract maps ticket holder accounts to hashes of API keys.
 
@@ -51,7 +51,7 @@ In addition to the public state, the `TicketWindow` has the following view funct
     - `return _roundEnd + roundsMissed() * roundDuration`
 - `excessTicketsSold()` - the total "extra" number of tickets that have been sold as of the last round relative to the "targeted" number.
     - `if (_roundNumber == roundNumber()) return _excessTicketsSold;`
-    - `else return max(0, _excessTicketsSold + ticket.totalSupplyInRound(_roundNumber) - roundsMissed() * targetTicketsPerRound)`
+    - `else return max(0, _excessTicketsSold + tickets.totalSupply(_roundNumber) - roundsMissed() * targetTicketsPerRound)`
 - `currentPrice()` - the ticket price for the current round
     - see `fake_exponential` in https://eips.ethereum.org/EIPS/eip-4844
     - `return fake_exponential(minimumPrice, excessTicketsSold(), priceUpdateFraction)`
@@ -60,12 +60,15 @@ In addition to the public state, the `TicketWindow` has the following view funct
 `TicketWindow` has the following mutative functions:
 
 ```solidity
-function purchaseTicket(uint256 expectedRound) external payable {
-    _lazyUpdateRoundState();
-
+function purchaseTicket(uint256 expectedRound) external payable lazyUpdateRoundState {
     require(expectedRound == _roundNumber, "Round number mismatch");
     require(msg.value == currentPrice(), "Incorrect ticket price");
-    require(ticket.totalSupplyForRound(_roundNumber) < maxTicketsPerRound, "Max tickets sold for this round");
+    require(tickets.totalSupply(_roundNumber) < maxTicketsPerRound, "Max tickets sold for this round");
+
+    uint256 midTime = (roundStart + roundEnd) / 2;
+    if (block.timestamp < midTime) {
+        require(tickets.balanceOf(msg.sender, _roundNumber - 1) > 0, "Must have ticket from previous round to purchase in first half of round");
+    }
 
     ticket.mintForRound(msg.sender, _roundNumber);
     beneficiary.call{value: msg.value}("");
@@ -102,11 +105,15 @@ modifier lazyUpdateRoundState() {
 }
 ```
 
-## `Ticket`
+## `Tickets`
 
-Note that for simplicity, we could also track _non transferrable_ ticket ownership in the `TicketWindow` contract itself. If we decide to do that then we don't need a separate `Ticket` contract.
+The tickets are ERC-1155 tokens where the `id` is the round number, specifically we'll use the OZ "Supply" extension.
 
-We can also merge the `TicketWindow` and `Ticket` contracts so the sale contract is also the ERC-1155 contract. This would save a little bit of gas.
+https://github.com/OpenZeppelin/openzeppelin-contracts/blob/5fd1781b1454fd1ef8e722282f86f9293cacf256/contracts/token/ERC1155/extensions/ERC1155Supply.sol
+
+Note that for simplicity, we could also track _non transferrable_ ticket ownership in the `TicketWindow` contract itself. If we decide to do that then we don't need a separate `Tickets` contract.
+
+We can also merge the `TicketWindow` and `Tickets` contracts so the sale contract is also the ERC-1155 contract. This would save a little bit of gas.
 
 ## `ApiKeyRegistry`
 
