@@ -11,35 +11,35 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     bytes32 public constant MARKET_PARAMS_SETTER = keccak256("MARKET_PARAMS_SETTER");
 
     address public beneficiary;
-    /// @dev uint96 — fills the remaining 96 bits of beneficiary's slot to keep it isolated.
+    /// @dev uint96 - fills the remaining 96 bits of beneficiary's slot to keep it isolated.
     uint96 private __gap1;
 
     /// @inheritdoc ITickets
-    /// @dev uint32 seconds — up to ~136 years.
+    /// @dev uint32 seconds - up to ~136 years.
     uint32 public roundDuration;
 
     /// @inheritdoc ITickets
-    /// @dev uint16 — up to 65,535.
+    /// @dev uint16 - up to 65,535.
     uint16 public maxTicketsPerRound;
 
     /// @inheritdoc ITickets
-    /// @dev uint64 wei — up to ~18.4 ether.
+    /// @dev uint64 wei - up to ~18.4 ether.
     uint64 public minimumPrice;
 
     /// @inheritdoc ITickets
-    /// @dev uint24 — up to ~16.7M. Assuming target is 1 and max is 2^16-1, and we want a
+    /// @dev uint24 - up to ~16.7M. Assuming target is 1 and max is 2^16-1, and we want a
     ///      max change rate of 1% per round (lower change needs larger fraction), then
-    ///      1.01 = e^(A/B), A = 65534, solve for B → B = 6.58611×10^6, log2(B) = 23.
+    ///      1.01 = e^(A/B), A = 65534, solve for B -> B = 6.58611*10^6, log2(B) = 23.
     uint24 public priceUpdateFraction;
 
-    /// @dev uint32 — at 1-second rounds, supports up to ~136 years.
+    /// @dev uint32 - at 1-second rounds, supports up to ~136 years.
     uint32 internal _roundNumber;
 
-    /// @dev uint40 seconds — Unix timestamps to year ~36800 (well past the uint32 year-2106 limit).
+    /// @dev uint40 seconds - Unix timestamps to year ~36800 (well past the uint32 year-2106 limit).
     uint40 internal _roundStart;
 
-    /// @dev uint48 — fills the remaining 48 bits of the slot. Up to 2^16 excess/round
-    ///      (uint16 cap) × 2^32 rounds (uint32 _roundNumber) = 2^48 worst-case excess.
+    /// @dev uint48 - fills the remaining 48 bits of the slot. Up to 2^16 excess/round
+    ///      (uint16 cap) * 2^32 rounds (uint32 _roundNumber) = 2^48 worst-case excess.
     uint48 internal _excessTicketsSold;
 
     uint16 public targetTicketsPerRound;
@@ -225,7 +225,7 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
 
     /// @notice Approximates `factor * e^(numerator / denominator)` via a Taylor series with
     ///         integer arithmetic.
-    /// @dev    Reference: EIP-4844 `fake_exponential` — https://eips.ethereum.org/EIPS/eip-4844
+    /// @dev    Reference: EIP-4844 `fake_exponential` - https://eips.ethereum.org/EIPS/eip-4844
     ///         See also go-ethereum's reference implementation:
     ///         https://github.com/ethereum/go-ethereum/blob/16a6531ac204c110ea4b51c7905b3f71595b8f0c/consensus/misc/eip4844/eip4844.go#L217
     function _fakeExponential(uint256 factor, uint256 numerator, uint256 denominator) internal pure returns (uint256) {
