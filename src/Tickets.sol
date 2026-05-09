@@ -120,6 +120,7 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         priceUpdateFraction = _priceUpdateFraction;
 
         _roundStart = uint40(block.timestamp);
+        _currentPrice = minimumPrice;
     }
 
     function roundsElapsedSinceStored() public view returns (uint256) {
@@ -147,8 +148,6 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     }
 
     function currentPrice() public view returns (uint256) {
-        uint256 elapsed = roundsElapsedSinceStored();
-        if (elapsed == 0) return _currentPrice > 0 ? _currentPrice : minimumPrice;
         return _fakeExponential(
             minimumPrice,
             excessTicketsSold(),
@@ -158,7 +157,7 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
 
     function purchaseTicket(uint256 expectedRound) external payable lazyUpdateRoundState {
         require(expectedRound == _roundNumber, "Round number mismatch");
-        require(msg.value == currentPrice(), "Incorrect ticket price");
+        require(msg.value == _currentPrice, "Incorrect ticket price");
         require(ticketsSold[_roundNumber] < maxTicketsPerRound, "Max tickets sold for this round");
         require(!hasTicket[msg.sender][_roundNumber], "Cannot buy two tickets in one round");
 
@@ -223,13 +222,13 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
             uint32 newRoundNumber = uint32(roundNumber());
             uint40 newRoundStart = uint40(roundStart());
             uint48 newExcessTicketsSold = uint48(excessTicketsSold());
-            uint72 newCurrentPrice = uint72(currentPrice());
             _roundNumber = newRoundNumber;
             _roundStart = newRoundStart;
             _excessTicketsSold = newExcessTicketsSold;
-            _currentPrice = newCurrentPrice;
-
             _applyAdminUpdates();
+
+            _currentPrice = uint72(currentPrice());
+
 
             emit RoundStateUpdated(newRoundNumber, newRoundStart, newExcessTicketsSold);
         }

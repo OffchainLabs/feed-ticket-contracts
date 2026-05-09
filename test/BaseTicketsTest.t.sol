@@ -20,6 +20,10 @@ contract TicketsHarness is Tickets {
         return _excessTicketsSold;
     }
 
+    function exposed_storedCurrentPrice() external view returns (uint256) {
+        return _currentPrice;
+    }
+
     function exposed_setTicketsSold(uint256 round, uint256 amount) external {
         ticketsSold[round] = amount;
     }

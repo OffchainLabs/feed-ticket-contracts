@@ -20,4 +20,29 @@ contract TicketPricingTest is BaseTicketsTest {
             tickets.exposed_fakeExponential(MINIMUM_PRICE, excess, PRICE_UPDATE_FRACTION)
         );
     }
+
+    /// @dev `purchaseTicket` enforces `msg.value == _currentPrice`, while quoters read
+    ///      `currentPrice()`. After a lazy update they must agree, otherwise a buyer who
+    ///      quotes off the view and pays that amount will revert.
+    function test_currentPrice_equalsStoredAfterLazyUpdate() public {
+        tickets.exposed_setTicketsSold(0, 350);
+        vm.warp(DEPLOY_TIMESTAMP + ROUND_DURATION);
+        tickets.exposed_lazyUpdateRoundState();
+
+        assertEq(tickets.currentPrice(), tickets.exposed_storedCurrentPrice());
+    }
+
+    /// @dev Same invariant, but exercises the path where a queued pricing-param update
+    ///      gets applied during the lazy update. Catches the case where the cache is
+    ///      written before `_applyAdminUpdates`, leaving `_currentPrice` on old params
+    ///      while `currentPrice()` recomputes with new ones.
+    function test_currentPrice_equalsStoredAfterPricingParamUpdateApplies() public {
+        vm.prank(marketParamsSetter);
+        tickets.setPricingParams(2 ether, 100);
+
+        vm.warp(DEPLOY_TIMESTAMP + ROUND_DURATION);
+        tickets.exposed_lazyUpdateRoundState();
+
+        assertEq(tickets.currentPrice(), tickets.exposed_storedCurrentPrice());
+    }
 }
