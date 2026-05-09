@@ -17,11 +17,11 @@ contract TicketsE2ETest is Test {
     address marketParamsSetter = makeAddr("marketParamsSetter");
     address beneficiary = makeAddr("beneficiary");
 
-    uint256 constant ROUND_DURATION = 1 hours;
-    uint256 constant TARGET = 4;
-    uint256 constant MAX = 8;
-    uint256 constant MIN_PRICE = 1 ether;
-    uint256 constant FRACTION = 10;
+    uint32 constant ROUND_DURATION = 1 hours;
+    uint16 constant TARGET = 4;
+    uint16 constant MAX = 8;
+    uint64 constant MIN_PRICE = 1 ether;
+    uint24 constant FRACTION = 10;
     uint256 constant DEPLOY_TIMESTAMP = 1_700_000_000;
 
     address[10] buyers;

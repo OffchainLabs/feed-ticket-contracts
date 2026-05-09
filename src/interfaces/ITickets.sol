@@ -50,34 +50,34 @@ interface ITickets {
     function beneficiary() external view returns (address);
 
     /// @notice Duration of a round, in seconds.
-    function roundDuration() external view returns (uint256);
+    function roundDuration() external view returns (uint32);
 
     /// @notice Targeted number of tickets to sell per round. Drives the pricing function.
-    function targetTicketsPerRound() external view returns (uint256);
+    function targetTicketsPerRound() external view returns (uint16);
 
     /// @notice Hard cap on tickets sold per round.
-    function maxTicketsPerRound() external view returns (uint256);
+    function maxTicketsPerRound() external view returns (uint16);
 
     /// @notice Minimum ticket price. Floor of the pricing function.
-    function minimumPrice() external view returns (uint256);
+    function minimumPrice() external view returns (uint64);
 
     /// @notice Parameter controlling how quickly price moves per excess ticket sold.
-    function priceUpdateFraction() external view returns (uint256);
+    function priceUpdateFraction() external view returns (uint24);
 
     /// @notice Queued round duration. Takes effect next active round; zero if none queued.
-    function nextRoundDuration() external view returns (uint256);
+    function nextRoundDuration() external view returns (uint32);
 
     /// @notice Queued target tickets per round. Takes effect next active round; zero if none queued.
-    function nextTargetTicketsPerRound() external view returns (uint256);
+    function nextTargetTicketsPerRound() external view returns (uint16);
 
     /// @notice Queued max tickets per round. Takes effect next active round; zero if none queued.
-    function nextMaxTicketsPerRound() external view returns (uint256);
+    function nextMaxTicketsPerRound() external view returns (uint16);
 
     /// @notice Queued minimum price. Takes effect next active round; zero if none queued.
-    function nextMinimumPrice() external view returns (uint256);
+    function nextMinimumPrice() external view returns (uint64);
 
     /// @notice Queued price update fraction. Takes effect next active round; zero if none queued.
-    function nextPriceUpdateFraction() external view returns (uint256);
+    function nextPriceUpdateFraction() external view returns (uint24);
 
     /// @notice Whether `user` purchased a ticket in `round`.
     /// @param  user  The account to check.
@@ -121,19 +121,19 @@ interface ITickets {
 
     /// @notice Queue a new round duration. Takes effect next active round.
     /// @param  newDuration The new duration of each round. Must be non-zero.
-    function setRoundDuration(uint256 newDuration) external;
+    function setRoundDuration(uint32 newDuration) external;
 
     /// @notice Queue a new hard cap on tickets sold per round. Takes effect next active round.
     /// @param  newMax The new max tickets per round. Must be non-zero.
-    function setMaxTicketsPerRound(uint256 newMax) external;
+    function setMaxTicketsPerRound(uint16 newMax) external;
 
     /// @notice Queue a new target tickets per round. Takes effect next active round.
     /// @param  newTarget The new target tickets per round. Must be non-zero.
-    function setTargetTicketsPerRound(uint256 newTarget) external;
+    function setTargetTicketsPerRound(uint16 newTarget) external;
 
     /// @notice Queue new pricing parameters. Takes effect next active round.
     ///         May cause a discontinuous jump in the current price.
     /// @param  newMinimumPrice        The new minimum ticket price. Must be non-zero.
     /// @param  newPriceUpdateFraction The new price update fraction. Must be non-zero.
-    function setPricingParams(uint256 newMinimumPrice, uint256 newPriceUpdateFraction) external;
+    function setPricingParams(uint64 newMinimumPrice, uint24 newPriceUpdateFraction) external;
 }

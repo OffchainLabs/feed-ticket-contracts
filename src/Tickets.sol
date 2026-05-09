@@ -11,22 +11,32 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     bytes32 public constant MARKET_PARAMS_SETTER = keccak256("MARKET_PARAMS_SETTER");
 
     address public beneficiary;
-    uint256 public roundDuration;
-    uint256 public targetTicketsPerRound;
-    uint256 public maxTicketsPerRound;
-    uint256 public minimumPrice;
-    uint256 public priceUpdateFraction;
-    uint256 public nextRoundDuration;
-    uint256 public nextTargetTicketsPerRound;
-    uint256 public nextMaxTicketsPerRound;
-    uint256 public nextMinimumPrice;
-    uint256 public nextPriceUpdateFraction;
+    uint96 private __gap1; // puts beneficiary in its own slot
+
+    uint32 public roundDuration; // up to ~136 years
+    uint16 public maxTicketsPerRound; // up to 65,535
+    uint64 public minimumPrice; // up to 18.4 ether
+
+    // assuming target is 1 and max is 2^16-1, and we want a max change rate of 1% per round (lower change needs larger fraction)
+    // then 1.01 = e ^ (A/B), A = 65534, solve for B
+    // B = 6.58611×10^6
+    // log2(B) = 23
+    uint24 public priceUpdateFraction;
+
+    uint32 internal _roundNumber; // if each round is 1 second we get up to ~136 years
+    uint40 internal _roundStart; // up to year 2106
+    uint48 internal _excessTicketsSold; // we have 48 bits left. if we sell 2^16 above target for 2^32 rounds we get 2^48 excess
+
+    uint16 public targetTicketsPerRound;
+    uint32 public nextRoundDuration;
+    uint16 public nextTargetTicketsPerRound;
+    uint16 public nextMaxTicketsPerRound;
+    uint64 public nextMinimumPrice;
+    uint24 public nextPriceUpdateFraction;
+
     mapping(address => mapping(uint256 => bool)) public hasTicket;
     mapping(uint256 => uint256) public ticketsSold;
 
-    uint256 internal _roundNumber;
-    uint256 internal _roundStart;
-    uint256 internal _excessTicketsSold;
 
     constructor() {
         _disableInitializers();
@@ -44,11 +54,11 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         address beneficiarySetter,
         address marketParamsSetter,
         address _beneficiary,
-        uint256 _roundDuration,
-        uint256 _targetTicketsPerRound,
-        uint256 _maxTicketsPerRound,
-        uint256 _minimumPrice,
-        uint256 _priceUpdateFraction
+        uint32 _roundDuration,
+        uint16 _targetTicketsPerRound,
+        uint16 _maxTicketsPerRound,
+        uint64 _minimumPrice,
+        uint24 _priceUpdateFraction
     ) external initializer {
         __AccessControlEnumerable_init();
 
@@ -63,7 +73,7 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         minimumPrice = _minimumPrice;
         priceUpdateFraction = _priceUpdateFraction;
 
-        _roundStart = block.timestamp;
+        _roundStart = uint40(block.timestamp);
     }
 
     function roundsElapsedSinceStored() public view returns (uint256) {
@@ -130,25 +140,25 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         emit BeneficiarySet(newBeneficiary);
     }
 
-    function setRoundDuration(uint256 newDuration) external onlyRole(MARKET_PARAMS_SETTER) lazyUpdateRoundState {
+    function setRoundDuration(uint32 newDuration) external onlyRole(MARKET_PARAMS_SETTER) lazyUpdateRoundState {
         require(newDuration != 0, "Zero round duration");
         nextRoundDuration = newDuration;
         emit RoundDurationQueued(newDuration);
     }
 
-    function setMaxTicketsPerRound(uint256 newMax) external onlyRole(MARKET_PARAMS_SETTER) lazyUpdateRoundState {
+    function setMaxTicketsPerRound(uint16 newMax) external onlyRole(MARKET_PARAMS_SETTER) lazyUpdateRoundState {
         require(newMax != 0, "Zero max tickets per round");
         nextMaxTicketsPerRound = newMax;
         emit MaxTicketsPerRoundQueued(newMax);
     }
 
-    function setTargetTicketsPerRound(uint256 newTarget) external onlyRole(MARKET_PARAMS_SETTER) lazyUpdateRoundState {
+    function setTargetTicketsPerRound(uint16 newTarget) external onlyRole(MARKET_PARAMS_SETTER) lazyUpdateRoundState {
         require(newTarget != 0, "Zero target tickets per round");
         nextTargetTicketsPerRound = newTarget;
         emit TargetTicketsPerRoundQueued(newTarget);
     }
 
-    function setPricingParams(uint256 newMinimumPrice, uint256 newPriceUpdateFraction)
+    function setPricingParams(uint64 newMinimumPrice, uint24 newPriceUpdateFraction)
         external
         onlyRole(MARKET_PARAMS_SETTER)
         lazyUpdateRoundState
@@ -162,9 +172,9 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
 
     function _lazyUpdateRoundState() internal {
         if (roundsElapsedSinceStored() > 0) {
-            uint256 newRoundNumber = roundNumber();
-            uint256 newRoundStart = roundStart();
-            uint256 newExcessTicketsSold = excessTicketsSold();
+            uint32 newRoundNumber = uint32(roundNumber());
+            uint40 newRoundStart = uint40(roundStart());
+            uint48 newExcessTicketsSold = uint48(excessTicketsSold());
             _roundNumber = newRoundNumber;
             _roundStart = newRoundStart;
             _excessTicketsSold = newExcessTicketsSold;
