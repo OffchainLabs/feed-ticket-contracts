@@ -10,9 +10,14 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     bytes32 public constant BENEFICIARY_SETTER = keccak256("BENEFICIARY_SETTER");
     bytes32 public constant MARKET_PARAMS_SETTER = keccak256("MARKET_PARAMS_SETTER");
 
+    // ----- Begin Slot 0 ----- //
+
     address public beneficiary;
     /// @dev uint96 - fills the remaining 96 bits of beneficiary's slot to keep it isolated.
     uint96 private __gap1;
+
+    // ------ End Slot 0 ------ //
+    // ----- Begin Slot 1 ----- //
 
     /// @inheritdoc ITickets
     /// @dev uint32 seconds - up to ~136 years.
@@ -42,6 +47,9 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     ///      (uint16 cap) * 2^32 rounds (uint32 _roundNumber) = 2^48 worst-case excess.
     uint48 internal _excessTicketsSold;
 
+    // ------ End Slot 1 ------ //
+    // ----- Begin Slot 2 ----- //
+
     /// @inheritdoc ITickets
     /// @dev Type matches maxTicketsPerRound.
     uint16 public targetTicketsPerRound;
@@ -65,6 +73,8 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     /// @inheritdoc ITickets
     /// @dev Type matches priceUpdateFraction.
     uint24 public nextPriceUpdateFraction;
+
+    // ------ End Slot 2 ------ //
 
     mapping(address => mapping(uint256 => bool)) public hasTicket;
     mapping(uint256 => uint256) public ticketsSold;
