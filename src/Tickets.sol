@@ -31,21 +31,15 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     /// @dev uint64 wei - up to ~18.4 ether.
     uint64 public minimumPrice;
 
-    /// @inheritdoc ITickets
-    /// @dev uint24 - up to ~16.7M. Assuming target is 1 and max is 2^16-1, and we want a
-    ///      max change rate of 1% per round (lower change needs larger fraction), then
-    ///      1.01 = e^(A/B), A = 65534, solve for B -> B = 6.58611*10^6, log2(B) = 23.
-    uint24 public priceUpdateFraction;
+    /// @dev uint72 - up to ~4700 ether.
+    ///      Caching price is cheaper than recomputing via Taylor series on each purchase.
+    uint72 internal _currentPrice;
 
     /// @dev uint32 - at 1-second rounds, supports up to ~136 years.
     uint32 internal _roundNumber;
 
     /// @dev uint40 seconds - Unix timestamps to year ~36800 (well past the uint32 year-2106 limit).
     uint40 internal _roundStart;
-
-    /// @dev uint48 - fills the remaining 48 bits of the slot. Up to 2^16 excess/round
-    ///      (uint16 cap) * 2^32 rounds (uint32 _roundNumber) = 2^48 worst-case excess.
-    uint48 internal _excessTicketsSold;
 
     // ------ End Slot 1 ------ //
     // ----- Begin Slot 2 ----- //
@@ -73,6 +67,16 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     /// @inheritdoc ITickets
     /// @dev Type matches priceUpdateFraction.
     uint24 public nextPriceUpdateFraction;
+
+    /// @dev uint48 - Up to 2^16 excess/round (uint16 cap) * 2^32 rounds (uint32 _roundNumber) 
+    ///      = 2^48 worst-case excess.
+    uint48 internal _excessTicketsSold;
+
+    /// @inheritdoc ITickets
+    /// @dev uint24 - up to ~16.7M. Assuming target is 1 and max is 2^16-1, and we want a
+    ///      max change rate of 1% per round (lower change needs larger fraction), then
+    ///      1.01 = e^(A/B), A = 65534, solve for B -> B = 6.58611*10^6, log2(B) = 23.
+    uint24 public priceUpdateFraction;
 
     // ------ End Slot 2 ------ //
 
@@ -143,6 +147,8 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     }
 
     function currentPrice() public view returns (uint256) {
+        uint256 elapsed = roundsElapsedSinceStored();
+        if (elapsed == 0) return _currentPrice > 0 ? _currentPrice : minimumPrice;
         return _fakeExponential(
             minimumPrice,
             excessTicketsSold(),
@@ -217,9 +223,11 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
             uint32 newRoundNumber = uint32(roundNumber());
             uint40 newRoundStart = uint40(roundStart());
             uint48 newExcessTicketsSold = uint48(excessTicketsSold());
+            uint72 newCurrentPrice = uint72(currentPrice());
             _roundNumber = newRoundNumber;
             _roundStart = newRoundStart;
             _excessTicketsSold = newExcessTicketsSold;
+            _currentPrice = newCurrentPrice;
 
             _applyAdminUpdates();
 
