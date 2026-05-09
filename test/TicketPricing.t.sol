@@ -15,10 +15,7 @@ contract TicketPricingTest is BaseTicketsTest {
         vm.warp(DEPLOY_TIMESTAMP + 2 * ROUND_DURATION);
 
         uint256 excess = tickets.excessTicketsSold();
-        assertEq(
-            tickets.currentPrice(),
-            tickets.exposed_fakeExponential(MINIMUM_PRICE, excess, PRICE_UPDATE_FRACTION)
-        );
+        assertEq(tickets.currentPrice(), tickets.exposed_fakeExponential(MINIMUM_PRICE, excess, PRICE_UPDATE_FRACTION));
     }
 
     /// @dev `purchaseTicket` enforces `msg.value == _currentPrice`, while quoters read
