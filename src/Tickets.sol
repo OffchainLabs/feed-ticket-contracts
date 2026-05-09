@@ -66,8 +66,6 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     /// @dev Type matches priceUpdateFraction.
     uint24 public nextPriceUpdateFraction;
 
-    uint168 internal _currentPrice;
-
     mapping(address => mapping(uint256 => bool)) public hasTicket;
     mapping(uint256 => uint256) public ticketsSold;
 
