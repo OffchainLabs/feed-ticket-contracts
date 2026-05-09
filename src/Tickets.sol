@@ -68,7 +68,7 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     /// @dev Type matches priceUpdateFraction.
     uint24 public nextPriceUpdateFraction;
 
-    /// @dev uint48 - Up to 2^16 excess/round (uint16 cap) * 2^32 rounds (uint32 _roundNumber) 
+    /// @dev uint48 - Up to 2^16 excess/round (uint16 cap) * 2^32 rounds (uint32 _roundNumber)
     ///      = 2^48 worst-case excess.
     uint48 internal _excessTicketsSold;
 
@@ -82,7 +82,6 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
 
     mapping(address => mapping(uint256 => bool)) public hasTicket;
     mapping(uint256 => uint256) public ticketsSold;
-
 
     constructor() {
         _disableInitializers();
@@ -148,11 +147,7 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     }
 
     function currentPrice() public view returns (uint256) {
-        return _fakeExponential(
-            minimumPrice,
-            excessTicketsSold(),
-            priceUpdateFraction
-        );
+        return _fakeExponential(minimumPrice, excessTicketsSold(), priceUpdateFraction);
     }
 
     function purchaseTicket(uint256 expectedRound) external payable lazyUpdateRoundState {
@@ -228,7 +223,6 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
             _applyAdminUpdates();
 
             _currentPrice = uint72(currentPrice());
-
 
             emit RoundStateUpdated(newRoundNumber, newRoundStart, newExcessTicketsSold);
         }
