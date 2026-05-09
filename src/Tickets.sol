@@ -42,12 +42,31 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     ///      (uint16 cap) * 2^32 rounds (uint32 _roundNumber) = 2^48 worst-case excess.
     uint48 internal _excessTicketsSold;
 
+    /// @inheritdoc ITickets
+    /// @dev uint16 - up to 65,535.
     uint16 public targetTicketsPerRound;
+
+    /// @inheritdoc ITickets
+    /// @dev uint32 seconds - up to ~136 years.
     uint32 public nextRoundDuration;
+
+    /// @inheritdoc ITickets
+    /// @dev uint16 - up to 65,535.
     uint16 public nextTargetTicketsPerRound;
+
+    /// @inheritdoc ITickets
+    /// @dev uint16 - up to 65,535.
     uint16 public nextMaxTicketsPerRound;
+
+    /// @inheritdoc ITickets
+    /// @dev uint64 wei - up to ~18.4 ether.
     uint64 public nextMinimumPrice;
+
+    /// @inheritdoc ITickets
+    /// @dev uint24 - up to ~16.7M. See `priceUpdateFraction` for derivation.
     uint24 public nextPriceUpdateFraction;
+
+    uint168 internal _currentPrice;
 
     mapping(address => mapping(uint256 => bool)) public hasTicket;
     mapping(uint256 => uint256) public ticketsSold;
