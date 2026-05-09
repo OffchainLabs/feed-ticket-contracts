@@ -11,21 +11,36 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     bytes32 public constant MARKET_PARAMS_SETTER = keccak256("MARKET_PARAMS_SETTER");
 
     address public beneficiary;
-    uint96 private __gap1; // puts beneficiary in its own slot
+    /// @dev uint96 — fills the remaining 96 bits of beneficiary's slot to keep it isolated.
+    uint96 private __gap1;
 
-    uint32 public roundDuration; // up to ~136 years
-    uint16 public maxTicketsPerRound; // up to 65,535
-    uint64 public minimumPrice; // up to 18.4 ether
+    /// @inheritdoc ITickets
+    /// @dev uint32 seconds — up to ~136 years.
+    uint32 public roundDuration;
 
-    // assuming target is 1 and max is 2^16-1, and we want a max change rate of 1% per round (lower change needs larger fraction)
-    // then 1.01 = e ^ (A/B), A = 65534, solve for B
-    // B = 6.58611×10^6
-    // log2(B) = 23
+    /// @inheritdoc ITickets
+    /// @dev uint16 — up to 65,535.
+    uint16 public maxTicketsPerRound;
+
+    /// @inheritdoc ITickets
+    /// @dev uint64 wei — up to ~18.4 ether.
+    uint64 public minimumPrice;
+
+    /// @inheritdoc ITickets
+    /// @dev uint24 — up to ~16.7M. Assuming target is 1 and max is 2^16-1, and we want a
+    ///      max change rate of 1% per round (lower change needs larger fraction), then
+    ///      1.01 = e^(A/B), A = 65534, solve for B → B = 6.58611×10^6, log2(B) = 23.
     uint24 public priceUpdateFraction;
 
-    uint32 internal _roundNumber; // if each round is 1 second we get up to ~136 years
-    uint40 internal _roundStart; // up to year 2106
-    uint48 internal _excessTicketsSold; // we have 48 bits left. if we sell 2^16 above target for 2^32 rounds we get 2^48 excess
+    /// @dev uint32 — at 1-second rounds, supports up to ~136 years.
+    uint32 internal _roundNumber;
+
+    /// @dev uint40 seconds — Unix timestamps to year ~36800 (well past the uint32 year-2106 limit).
+    uint40 internal _roundStart;
+
+    /// @dev uint48 — fills the remaining 48 bits of the slot. Up to 2^16 excess/round
+    ///      (uint16 cap) × 2^32 rounds (uint32 _roundNumber) = 2^48 worst-case excess.
+    uint48 internal _excessTicketsSold;
 
     uint16 public targetTicketsPerRound;
     uint32 public nextRoundDuration;
