@@ -133,8 +133,10 @@ contract TicketsPurchaseTest is BaseTicketsTest {
         vm.prank(buyer);
         vm.cool(address(tickets));
         vm.cool(address(impl));
+        vm.record();
         tickets.purchaseTicket{value: price}(2);
         vm.snapshotGasLastCall("first-purchase");
+        _logAccesses("first-purchase");
 
         assertEq(tickets.exposed_storedRoundNumber(), 2);
         assertEq(tickets.exposed_storedRoundStart(), DEPLOY_TIMESTAMP + 2 * ROUND_DURATION);
@@ -156,11 +158,26 @@ contract TicketsPurchaseTest is BaseTicketsTest {
         vm.prank(otherBuyer);
         vm.cool(address(tickets));
         vm.cool(address(impl));
+        vm.record();
         tickets.purchaseTicket{value: price}(2);
         vm.snapshotGasLastCall("second-purchase");
+        _logAccesses("second-purchase");
 
         assertTrue(tickets.hasTicket(buyer, 2));
         assertTrue(tickets.hasTicket(otherBuyer, 2));
         assertEq(tickets.ticketsSold(2), 2);
+    }
+
+    function _logAccesses(string memory label) internal {
+        (bytes32[] memory reads, bytes32[] memory writes) = vm.accesses(address(tickets));
+        uint256[] memory readSlots;
+        uint256[] memory writeSlots;
+        assembly {
+            readSlots := reads
+            writeSlots := writes
+        }
+        vm.serializeUint(label, "reads", readSlots);
+        string memory json = vm.serializeUint(label, "writes", writeSlots);
+        vm.writeJson(json, string.concat("snapshots/TicketsPurchaseTest.accesses.", label, ".json"));
     }
 }
