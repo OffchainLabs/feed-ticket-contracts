@@ -43,27 +43,27 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     uint48 internal _excessTicketsSold;
 
     /// @inheritdoc ITickets
-    /// @dev uint16 - up to 65,535.
+    /// @dev Type matches maxTicketsPerRound.
     uint16 public targetTicketsPerRound;
 
     /// @inheritdoc ITickets
-    /// @dev uint32 seconds - up to ~136 years.
+    /// @dev Type matches roundDuration.
     uint32 public nextRoundDuration;
 
     /// @inheritdoc ITickets
-    /// @dev uint16 - up to 65,535.
+    /// @dev Type matches targetTicketsPerRound.
     uint16 public nextTargetTicketsPerRound;
 
     /// @inheritdoc ITickets
-    /// @dev uint16 - up to 65,535.
+    /// @dev Type matches maxTicketsPerRound.
     uint16 public nextMaxTicketsPerRound;
 
     /// @inheritdoc ITickets
-    /// @dev uint64 wei - up to ~18.4 ether.
+    /// @dev Type matches minimumPrice.
     uint64 public nextMinimumPrice;
 
     /// @inheritdoc ITickets
-    /// @dev uint24 - up to ~16.7M. See `priceUpdateFraction` for derivation.
+    /// @dev Type matches priceUpdateFraction.
     uint24 public nextPriceUpdateFraction;
 
     uint168 internal _currentPrice;
