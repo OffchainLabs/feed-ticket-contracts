@@ -257,3 +257,7 @@ We should consider putting the admin behind a timelock to boost confidence in th
 ## First round start in the future
 
 Currently, the first round starts immediately when the tickets contract is deployed. We may want to be able to specify a future time
+
+## ERC-20 as Currency
+
+Currently we use ETH, we might want to use ERC-20.
