@@ -258,6 +258,6 @@ We should consider putting the admin behind a timelock to boost confidence in th
 
 Currently, the first round starts immediately when the tickets contract is deployed. We may want to be able to specify a future time
 
-## Packing State
+## ERC-20 as Currency
 
-We can pack state into smaller types to save on gas.
+Currently we use ETH, we might want to use ERC-20.
