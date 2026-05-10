@@ -42,4 +42,17 @@ contract TicketPricingTest is BaseTicketsTest {
 
         assertEq(tickets.currentPrice(), tickets.exposed_storedCurrentPrice());
     }
+
+    /// @dev `currentPrice` returns uint72, while `_fakeExponential` produces a uint256
+    ///      that can far exceed uint72.max. The view must saturate instead of reverting
+    ///      on the narrowing cast.
+    function test_currentPrice_saturatesAtUint72Max() public {
+        // E/F = 1000/50 = 20 -> e^20 ~= 4.85e8 -> raw ~= 4.85e26 wei, well past uint72.max (~4.72e21).
+        tickets.exposed_setTicketsSold(0, 1200);
+        vm.warp(DEPLOY_TIMESTAMP + 2 * ROUND_DURATION);
+
+        uint256 raw = tickets.exposed_fakeExponential(MINIMUM_PRICE, tickets.excessTicketsSold(), PRICE_UPDATE_FRACTION);
+        assertGt(raw, uint256(type(uint72).max));
+        assertEq(tickets.currentPrice(), type(uint72).max);
+    }
 }

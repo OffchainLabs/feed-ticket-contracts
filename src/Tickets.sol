@@ -12,13 +12,6 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
 
     // ----- Begin Slot 0 ----- //
 
-    address public beneficiary;
-    /// @dev uint96 - fills the remaining 96 bits of beneficiary's slot to keep it isolated.
-    uint96 private __gap1;
-
-    // ------ End Slot 0 ------ //
-    // ----- Begin Slot 1 ----- //
-
     /// @inheritdoc ITickets
     /// @dev uint32 seconds - up to ~136 years.
     uint32 public roundDuration;
@@ -41,8 +34,8 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     /// @dev uint40 seconds - Unix timestamps to year ~36800 (well past the uint32 year-2106 limit).
     uint40 internal _roundStart;
 
-    // ------ End Slot 1 ------ //
-    // ----- Begin Slot 2 ----- //
+    // ------ End Slot 0 ------ //
+    // ----- Begin Slot 1 ----- //
 
     /// @inheritdoc ITickets
     /// @dev Type matches maxTicketsPerRound.
@@ -78,7 +71,9 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     ///      = 2^48 worst-case excess.
     uint48 internal _excessTicketsSold;
 
-    // ------ End Slot 2 ------ //
+    // ------ End Slot 1 ------ //
+
+    address public beneficiary;
 
     mapping(address => mapping(uint256 => bool)) public hasTicket;
     mapping(uint256 => uint256) public ticketsSold;
@@ -146,8 +141,9 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         return gross > consumed ? gross - consumed : 0;
     }
 
-    function currentPrice() public view returns (uint256) {
-        return _fakeExponential(minimumPrice, excessTicketsSold(), priceUpdateFraction);
+    function currentPrice() public view returns (uint72) {
+        uint256 result = _fakeExponential(minimumPrice, excessTicketsSold(), priceUpdateFraction);
+        return result > type(uint72).max ? type(uint72).max : uint72(result);
     }
 
     function purchaseTicket(uint256 expectedRound) external payable lazyUpdateRoundState {
@@ -222,7 +218,7 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
             _excessTicketsSold = newExcessTicketsSold;
             _applyAdminUpdates();
 
-            _currentPrice = uint72(currentPrice());
+            _currentPrice = currentPrice();
 
             emit RoundStateUpdated(newRoundNumber, newRoundStart, newExcessTicketsSold);
         }

@@ -105,7 +105,7 @@ interface ITickets {
     function excessTicketsSold() external view returns (uint256);
 
     /// @notice Ticket price for the current round.
-    function currentPrice() external view returns (uint256);
+    function currentPrice() external view returns (uint72);
 
     /// @notice Purchase one ticket for the current round. Caller must send exactly `currentPrice()` value.
     ///         In the first half of a round, only holders of a ticket from the previous round may purchase.
