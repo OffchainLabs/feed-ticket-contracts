@@ -104,7 +104,11 @@ interface ITickets {
     /// @notice Total tickets sold in excess of the cumulative target as of the end of last round.
     function excessTicketsSold() external view returns (uint256);
 
-    /// @notice Ticket price for the current round.
+    /// @notice Ticket price for the current round, in wei.
+    /// @dev    The price is `fake_exponential(minimumPrice, excessTicketsSold(), priceUpdateFraction)`
+    ///         (EIP-4844 style), clamped at `type(uint72).max` (~4722 ether). If the formula would
+    ///         exceed that cap, this returns `type(uint72).max` and tickets are sold at the cap
+    ///         rather than at the higher formula price.
     function currentPrice() external view returns (uint72);
 
     /// @notice Purchase one ticket for the current round. Caller must send exactly `currentPrice()` value.

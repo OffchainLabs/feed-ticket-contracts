@@ -73,9 +73,10 @@ In addition to the public state, `Tickets` has the following view functions:
     - `if (_roundNumber == roundNumber()) return _excessTicketsSold;`
     - `else return max(0, _excessTicketsSold + ticketsSold[_roundNumber] - roundsElapsedSinceStored() * targetTicketsPerRound)`
     - max(0, ...) underflows in solidity. code's for illustration
-- `currentPrice()` - the ticket price for the current round
+- `currentPrice()` - the ticket price (in wei) for the current round
     - see `fake_exponential` in https://eips.ethereum.org/EIPS/eip-4844
-    - `return fake_exponential(minimumPrice, excessTicketsSold(), priceUpdateFraction)`
+    - `return min(fake_exponential(minimumPrice, excessTicketsSold(), priceUpdateFraction), type(uint72).max)`
+        - the price is stored as `uint72` and clamped at `type(uint72).max` (~4722 ether). If the formula would exceed that cap, tickets are sold at the cap rather than at the higher formula price.
         - to get an idea of how to set `priceUpdateFraction`, see the "Base fee per blob gas update rule" in EIP-4844
 
 `Tickets` has the following mutative functions:
