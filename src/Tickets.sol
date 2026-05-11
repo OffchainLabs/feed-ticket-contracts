@@ -143,6 +143,7 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
 
     function currentPrice() public view returns (uint72) {
         uint256 result = _fakeExponential(minimumPrice, excessTicketsSold(), priceUpdateFraction);
+        // forge-lint: disable-next-line(unsafe-typecast)
         return result > type(uint72).max ? type(uint72).max : uint72(result);
     }
 
