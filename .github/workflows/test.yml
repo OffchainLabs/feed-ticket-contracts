@@ -35,3 +35,6 @@ jobs:
 
       - name: Run Forge tests
         run: forge test -vvv
+
+      - name: Check snapshots are up to date
+        run: git diff --exit-code -- snapshots/
