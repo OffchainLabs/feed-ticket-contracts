@@ -28,7 +28,9 @@ contract TicketsHarness is Tickets {
         ticketsSold[round] = amount;
     }
 
-    function exposed_lazyUpdateRoundState() external lazyUpdateRoundState {}
+    function exposed_lazyUpdateRoundState() external {
+        _lazyUpdateRoundState();
+    }
 
     function exposed_fakeExponential(uint256 factor, uint256 numerator, uint256 denominator)
         external
