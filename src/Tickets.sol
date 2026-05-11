@@ -34,6 +34,11 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     /// @dev uint40 seconds - Unix timestamps to year ~36800 (well past the uint32 year-2106 limit).
     uint40 internal _roundStart;
 
+    /// @inheritdoc ITickets
+    /// @dev uint8 - length of the grandfather phase as a fraction of 256 of the round.
+    ///      e.g. 128 = first half of the round.
+    uint8 public grandfatherPeriodFraction;
+
     // ------ End Slot 0 ------ //
     // ----- Begin Slot 1 ----- //
 
@@ -70,6 +75,10 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     /// @dev uint48 - Up to 2^16 excess/round (uint16 cap) * 2^32 rounds (uint32 _roundNumber)
     ///      = 2^48 worst-case excess.
     uint48 internal _excessTicketsSold;
+
+    /// @inheritdoc ITickets
+    /// @dev Type matches grandfatherPeriodFraction.
+    uint8 public nextGrandfatherPeriodFraction;
 
     // ------ End Slot 1 ------ //
 
@@ -216,6 +225,16 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         emit PricingParamsQueued(newMinimumPrice, newPriceUpdateFraction);
     }
 
+    function setGrandfatherPeriodFraction(uint8 newFraction)
+        external
+        onlyRole(MARKET_PARAMS_SETTER)
+        lazyUpdateRoundState
+    {
+        require(newFraction != 0, "Zero grandfather period fraction");
+        nextGrandfatherPeriodFraction = newFraction;
+        emit GrandfatherPeriodFractionQueued(newFraction);
+    }
+
     function _lazyUpdateRoundState() internal {
         if (roundsElapsedSinceStored() > 0) {
             uint32 newRoundNumber = uint32(roundNumber());
@@ -252,6 +271,10 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         if (nextPriceUpdateFraction != 0) {
             priceUpdateFraction = nextPriceUpdateFraction;
             nextPriceUpdateFraction = 0;
+        }
+        if (nextGrandfatherPeriodFraction != 0) {
+            grandfatherPeriodFraction = nextGrandfatherPeriodFraction;
+            nextGrandfatherPeriodFraction = 0;
         }
     }
 

@@ -40,6 +40,10 @@ interface ITickets {
     /// @param  newPriceUpdateFraction The price update fraction.
     event PricingParamsQueued(uint256 newMinimumPrice, uint256 newPriceUpdateFraction);
 
+    /// @notice Emitted when a new grandfather period fraction is queued. Takes effect next active round.
+    /// @param  newFraction The new grandfather phase length as a fraction of 256 of the round.
+    event GrandfatherPeriodFractionQueued(uint256 newFraction);
+
     /// @notice Emitted when stored round state is rolled forward by the lazy update modifier.
     /// @param  roundNumber The newly stored current round number.
     /// @param  roundStart The start timestamp of the newly stored current round (inclusive).
@@ -64,6 +68,11 @@ interface ITickets {
     /// @notice Parameter controlling how quickly price moves per excess ticket sold.
     function priceUpdateFraction() external view returns (uint24);
 
+    /// @notice Length of the grandfather phase at the start of each round, as a fraction of 256
+    ///         of the round duration. During the grandfather phase only holders of a ticket from
+    ///         the previous round may purchase. e.g. 128 = first half of the round.
+    function grandfatherPeriodFraction() external view returns (uint8);
+
     /// @notice Queued round duration. Takes effect next active round; zero if none queued.
     function nextRoundDuration() external view returns (uint24);
 
@@ -78,6 +87,9 @@ interface ITickets {
 
     /// @notice Queued price update fraction. Takes effect next active round; zero if none queued.
     function nextPriceUpdateFraction() external view returns (uint24);
+
+    /// @notice Queued grandfather period fraction. Takes effect next active round; zero if none queued.
+    function nextGrandfatherPeriodFraction() external view returns (uint8);
 
     /// @notice Whether `user` purchased a ticket in `round`.
     /// @param  user  The account to check.
@@ -140,4 +152,9 @@ interface ITickets {
     /// @param  newMinimumPrice        The new minimum ticket price. Must be non-zero.
     /// @param  newPriceUpdateFraction The new price update fraction. Must be non-zero.
     function setPricingParams(uint64 newMinimumPrice, uint24 newPriceUpdateFraction) external;
+
+    /// @notice Queue a new grandfather period fraction. Takes effect next active round.
+    /// @param  newFraction The new grandfather phase length as a fraction of 256 of the round.
+    ///                     Must be non-zero.
+    function setGrandfatherPeriodFraction(uint8 newFraction) external;
 }

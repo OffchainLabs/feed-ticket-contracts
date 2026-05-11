@@ -85,12 +85,14 @@ contract TicketsLazyUpdateTest is BaseTicketsTest {
         uint16 newMax = 300;
         uint64 newMinPrice = 2 ether;
         uint24 newFraction = 75;
+        uint8 newGrandfatherFraction = 200;
 
         vm.startPrank(marketParamsSetter);
         tickets.setRoundDuration(newDuration);
         tickets.setTargetTicketsPerRound(newTarget);
         tickets.setMaxTicketsPerRound(newMax);
         tickets.setPricingParams(newMinPrice, newFraction);
+        tickets.setGrandfatherPeriodFraction(newGrandfatherFraction);
         vm.stopPrank();
 
         vm.warp(FIRST_ROUND_START + ROUND_DURATION);
@@ -101,11 +103,13 @@ contract TicketsLazyUpdateTest is BaseTicketsTest {
         assertEq(tickets.maxTicketsPerRound(), newMax);
         assertEq(tickets.minimumPrice(), newMinPrice);
         assertEq(tickets.priceUpdateFraction(), newFraction);
+        assertEq(tickets.grandfatherPeriodFraction(), newGrandfatherFraction);
 
         assertEq(tickets.nextRoundDuration(), 0);
         assertEq(tickets.nextTargetTicketsPerRound(), 0);
         assertEq(tickets.nextMaxTicketsPerRound(), 0);
         assertEq(tickets.nextMinimumPrice(), 0);
         assertEq(tickets.nextPriceUpdateFraction(), 0);
+        assertEq(tickets.nextGrandfatherPeriodFraction(), 0);
     }
 }
