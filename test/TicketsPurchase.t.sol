@@ -100,7 +100,7 @@ contract TicketsPurchaseTest is BaseTicketsTest {
         vm.prank(buyer);
         tickets.purchaseTicket{value: MINIMUM_PRICE}(0);
 
-        assertTrue(tickets.hasTicket(buyer, 0));
+        assertEq(tickets.grandfatheredIntoRound(buyer), 1);
         assertEq(tickets.ticketsSold(0), 1);
         assertEq(address(tickets).balance, MINIMUM_PRICE);
     }
@@ -117,7 +117,7 @@ contract TicketsPurchaseTest is BaseTicketsTest {
         vm.prank(buyer);
         tickets.purchaseTicket{value: price}(1);
 
-        assertTrue(tickets.hasTicket(buyer, 1));
+        assertEq(tickets.grandfatheredIntoRound(buyer), 2);
         assertEq(tickets.ticketsSold(1), 1);
     }
 
@@ -143,7 +143,7 @@ contract TicketsPurchaseTest is BaseTicketsTest {
         vm.prank(buyer);
         tickets.purchaseTicket{value: price}(1);
 
-        assertTrue(tickets.hasTicket(buyer, 1));
+        assertEq(tickets.grandfatheredIntoRound(buyer), 2);
     }
 
     function test_purchaseTicket_grandfatherProductAboveUint24Boundary() public {
@@ -164,7 +164,7 @@ contract TicketsPurchaseTest is BaseTicketsTest {
         vm.prank(buyer);
         tickets.purchaseTicket{value: price}(1);
 
-        assertTrue(tickets.hasTicket(buyer, 1));
+        assertEq(tickets.grandfatheredIntoRound(buyer), 2);
     }
 
     function test_purchaseTicket_firstPurchaseInRealisticRound() public {
@@ -187,7 +187,7 @@ contract TicketsPurchaseTest is BaseTicketsTest {
         assertEq(tickets.exposed_storedRoundNumber(), 2);
         assertEq(tickets.exposed_storedRoundStart(), FIRST_ROUND_START + 2 * ROUND_DURATION);
         assertEq(tickets.exposed_storedExcessTicketsSold(), 200);
-        assertTrue(tickets.hasTicket(buyer, 2));
+        assertEq(tickets.grandfatheredIntoRound(buyer), 3);
         assertEq(tickets.ticketsSold(2), 1);
     }
 
@@ -209,8 +209,8 @@ contract TicketsPurchaseTest is BaseTicketsTest {
         vm.snapshotGasLastCall("second-purchase");
         _logAccesses("second-purchase");
 
-        assertTrue(tickets.hasTicket(buyer, 2));
-        assertTrue(tickets.hasTicket(otherBuyer, 2));
+        assertEq(tickets.grandfatheredIntoRound(buyer), 3);
+        assertEq(tickets.grandfatheredIntoRound(otherBuyer), 3);
         assertEq(tickets.ticketsSold(2), 2);
     }
 

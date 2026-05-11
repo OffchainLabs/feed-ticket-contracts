@@ -71,7 +71,7 @@ contract TicketsE2ETest is Test {
         // double-buy / wrong-price / wrong-round checks aren't shadowed by the cap check.
         for (uint256 i = 0; i < MAX - 1; i++) {
             totalSpent += _buy(buyers[i], 0);
-            assertTrue(tickets.hasTicket(buyers[i], 0));
+            assertEq(tickets.grandfatheredIntoRound(buyers[i]), 1);
             assertEq(tickets.ticketsSold(0), i + 1);
             assertEq(tickets.currentPrice(), MIN_PRICE);
         }
@@ -126,10 +126,10 @@ contract TicketsE2ETest is Test {
         totalSpent += _buy(buyers[9], 1);
 
         assertEq(tickets.ticketsSold(1), 4);
-        assertTrue(tickets.hasTicket(buyers[0], 1));
-        assertTrue(tickets.hasTicket(buyers[1], 1));
-        assertTrue(tickets.hasTicket(buyers[8], 1));
-        assertTrue(tickets.hasTicket(buyers[9], 1));
+        assertEq(tickets.grandfatheredIntoRound(buyers[0]), 2);
+        assertEq(tickets.grandfatheredIntoRound(buyers[1]), 2);
+        assertEq(tickets.grandfatheredIntoRound(buyers[8]), 2);
+        assertEq(tickets.grandfatheredIntoRound(buyers[9]), 2);
 
         // ===== Round 2 — round-1 holders are the new grandfathered set =====
         vm.warp(FIRST_ROUND_START + 2 * ROUND_DURATION);

@@ -110,6 +110,6 @@ contract TicketsFirstRoundStartTest is BaseTicketsTest {
         vm.deal(buyer, MINIMUM_PRICE);
         vm.prank(buyer);
         tickets.purchaseTicket{value: MINIMUM_PRICE}(0);
-        assertTrue(tickets.hasTicket(buyer, 0));
+        assertEq(tickets.grandfatheredIntoRound(buyer), 1);
     }
 }

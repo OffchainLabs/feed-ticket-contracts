@@ -106,10 +106,13 @@ interface ITickets {
     /// @notice Queued grandfather period fraction. Takes effect next active round; zero if none queued.
     function nextGrandfatherPeriodFraction() external view returns (uint8);
 
-    /// @notice Whether `user` purchased a ticket in `round`.
-    /// @param  user  The account to check.
-    /// @param  round The round to check.
-    function hasTicket(address user, uint256 round) external view returns (bool);
+    /// @notice The round into which `user` is grandfathered based on their most recent ticket
+    ///         purchase. Concretely, if the user's latest purchase was in round `R`, this returns
+    ///         `R + 1` (the round in which they may purchase during the grandfather phase).
+    ///         Returns 0 if the user has never purchased a ticket; the +1 encoding lets us
+    ///         distinguish "never bought" from "bought in round 0".
+    /// @param  user The account to check.
+    function grandfatheredIntoRound(address user) external view returns (uint256);
 
     /// @notice Number of tickets sold in `round`.
     /// @param  round The round to query.

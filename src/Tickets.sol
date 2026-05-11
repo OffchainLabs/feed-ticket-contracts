@@ -56,7 +56,7 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     /// @dev Type matches maxTicketsPerRound.
     uint16 internal _targetTicketsPerRound;
 
-    /// @dev uint24 - up to ~16.7M. Assuming target is 1 and max is 2^16-1, and we want a
+    /// @dev uint24 - Assuming target is 1 and max is 2^16-1, and we want a
     ///      max change rate of 1% per round (lower change needs larger fraction), then
     ///      1.01 = e^(A/B), A = 65534, solve for B -> B = 6.58611*10^6, log2(B) = 23.
     uint24 internal _priceUpdateFraction;
@@ -93,7 +93,8 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
 
     address public beneficiary;
 
-    mapping(address => mapping(uint256 => bool)) public hasTicket;
+    /// @inheritdoc ITickets
+    mapping(address => uint256) public grandfatheredIntoRound;
     mapping(uint256 => uint256) public ticketsSold;
 
     constructor() {
@@ -127,7 +128,7 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         require(expectedRound == _roundNumber, "Round number mismatch");
         require(msg.value == _currentPrice, "Incorrect ticket price");
         require(ticketsSold[_roundNumber] < _maxTicketsPerRound, "Max tickets sold for this round");
-        require(!hasTicket[msg.sender][_roundNumber], "Cannot buy two tickets in one round");
+        require(grandfatheredIntoRound[msg.sender] != _roundNumber + 1, "Cannot buy two tickets in one round");
 
         // forge-lint: disable-start(block-timestamp)
         if (
@@ -136,14 +137,14 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
                     < uint256(_roundStart) + (uint256(_roundDuration) * uint256(_grandfatherPeriodFraction)) / 256
         ) {
             require(
-                hasTicket[msg.sender][_roundNumber - 1],
+                grandfatheredIntoRound[msg.sender] == _roundNumber,
                 "Must have ticket from previous round to purchase during grandfather phase"
             );
         }
         // forge-lint: disable-end(block-timestamp)
 
         ticketsSold[_roundNumber]++;
-        hasTicket[msg.sender][_roundNumber] = true;
+        grandfatheredIntoRound[msg.sender] = _roundNumber + 1;
 
         emit TicketPurchased(msg.sender, _roundNumber, msg.value);
     }
