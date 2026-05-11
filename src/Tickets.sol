@@ -195,26 +195,22 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         return result > type(uint72).max ? type(uint72).max : uint72(result);
     }
 
-    function setBeneficiary(address newBeneficiary) external onlyRole(BENEFICIARY_SETTER) lazyUpdateRoundState {
-        require(newBeneficiary != address(0), "Zero beneficiary");
+    function setBeneficiary(address newBeneficiary) external onlyRole(BENEFICIARY_SETTER) {
         beneficiary = newBeneficiary;
         emit BeneficiarySet(newBeneficiary);
     }
 
-    function setRoundDuration(uint32 newDuration) external onlyRole(MARKET_PARAMS_SETTER) lazyUpdateRoundState {
-        require(newDuration != 0, "Zero round duration");
+    function setRoundDuration(uint32 newDuration) external onlyRole(MARKET_PARAMS_SETTER) {
         nextRoundDuration = newDuration;
         emit RoundDurationQueued(newDuration);
     }
 
-    function setMaxTicketsPerRound(uint16 newMax) external onlyRole(MARKET_PARAMS_SETTER) lazyUpdateRoundState {
-        require(newMax != 0, "Zero max tickets per round");
+    function setMaxTicketsPerRound(uint16 newMax) external onlyRole(MARKET_PARAMS_SETTER) {
         nextMaxTicketsPerRound = newMax;
         emit MaxTicketsPerRoundQueued(newMax);
     }
 
-    function setTargetTicketsPerRound(uint16 newTarget) external onlyRole(MARKET_PARAMS_SETTER) lazyUpdateRoundState {
-        require(newTarget != 0, "Zero target tickets per round");
+    function setTargetTicketsPerRound(uint16 newTarget) external onlyRole(MARKET_PARAMS_SETTER) {
         nextTargetTicketsPerRound = newTarget;
         emit TargetTicketsPerRoundQueued(newTarget);
     }
@@ -222,10 +218,7 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     function setPricingParams(uint64 newMinimumPrice, uint24 newPriceUpdateFraction)
         external
         onlyRole(MARKET_PARAMS_SETTER)
-        lazyUpdateRoundState
     {
-        require(newMinimumPrice != 0, "Zero minimum price");
-        require(newPriceUpdateFraction != 0, "Zero price update fraction");
         nextMinimumPrice = newMinimumPrice;
         nextPriceUpdateFraction = newPriceUpdateFraction;
         emit PricingParamsQueued(newMinimumPrice, newPriceUpdateFraction);
