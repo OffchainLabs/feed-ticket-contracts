@@ -180,10 +180,10 @@ The hot state variables are packed into two 256-bit slots to minimize SLOADs per
 Slot 0 (256 bits used):
 - `_roundDuration` (uint24 seconds): up to ~194 days per round
 - `_maxTicketsPerRound` (uint16): up to 65,535 tickets per round
-- `_minimumPrice` (uint64 wei): up to ~18.4 ether
-- `_currentPrice` (uint72 wei): cached so we don't recompute the Taylor series on each purchase; capped at ~4722 ether
+- `_minimumPrice` (uint64): up to ~18.4 ether
+- `_currentPrice` (uint72): cached so we don't recompute the Taylor series on each purchase; capped at ~4722 ether
 - `_roundNumber` (uint32): at 1-second rounds, ~136 years before overflow
-- `_roundStart` (uint40 seconds): Unix timestamps past year 36800 (well beyond uint32's 2106 limit)
+- `_roundStart` (uint40 seconds): Unix timestamps past year 36800
 - `_grandfatherPeriodFraction` (uint8): numerator over 256 of the round duration
 
 Slot 1 (240 bits used):
