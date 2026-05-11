@@ -41,28 +41,35 @@ interface ITickets {
     event PricingParamsQueued(uint256 newMinimumPrice, uint256 newPriceUpdateFraction);
 
     /// @notice Emitted when stored round state is rolled forward by the lazy update modifier.
-    /// @param  roundNumber The newly stored current round number.
-    /// @param  roundStart The start timestamp of the newly stored current round (inclusive).
-    /// @param  excessTicketsSold The total tickets sold in excess of the target as of the new round.
-    event RoundStateUpdated(uint256 indexed roundNumber, uint256 roundStart, uint256 excessTicketsSold);
+    event RoundStateUpdated();
 
     /// @notice Account that receives ticket sale proceeds.
     function beneficiary() external view returns (address);
 
     /// @notice Duration of a round, in seconds.
-    function roundDuration() external view returns (uint32);
+    /// @dev    Assumes at least one ticket will be sold in the current round to apply any queued update.
+    ///         If not, the actual value in effect this round remains the previous setting.
+    function roundDuration() external view returns (uint256);
 
     /// @notice Targeted number of tickets to sell per round. Drives the pricing function.
-    function targetTicketsPerRound() external view returns (uint16);
+    /// @dev    Assumes at least one ticket will be sold in the current round to apply any queued update.
+    ///         If not, the actual value in effect this round remains the previous setting.
+    function targetTicketsPerRound() external view returns (uint256);
 
     /// @notice Hard cap on tickets sold per round.
-    function maxTicketsPerRound() external view returns (uint16);
+    /// @dev    Assumes at least one ticket will be sold in the current round to apply any queued update.
+    ///         If not, the actual value in effect this round remains the previous setting.
+    function maxTicketsPerRound() external view returns (uint256);
 
     /// @notice Minimum ticket price. Floor of the pricing function.
-    function minimumPrice() external view returns (uint64);
+    /// @dev    Assumes at least one ticket will be sold in the current round to apply any queued update.
+    ///         If not, the actual value in effect this round remains the previous setting.
+    function minimumPrice() external view returns (uint256);
 
     /// @notice Parameter controlling how quickly price moves per excess ticket sold.
-    function priceUpdateFraction() external view returns (uint24);
+    /// @dev    Assumes at least one ticket will be sold in the current round to apply any queued update.
+    ///         If not, the actual value in effect this round remains the previous setting.
+    function priceUpdateFraction() external view returns (uint256);
 
     /// @notice Queued round duration. Takes effect next active round; zero if none queued.
     function nextRoundDuration() external view returns (uint32);
@@ -99,6 +106,8 @@ interface ITickets {
     function roundStart() external view returns (uint256);
 
     /// @notice End timestamp of the current round (exclusive).
+    /// @dev    Assumes at least one ticket will be sold in the current round to apply any queued update.
+    ///         If not, the actual value in effect this round remains based on previous settings.
     function roundEnd() external view returns (uint256);
 
     /// @notice Total tickets sold in excess of the cumulative target as of the end of last round.
@@ -109,7 +118,10 @@ interface ITickets {
     ///         (EIP-4844 style), clamped at `type(uint72).max` (~4722 ether). If the formula would
     ///         exceed that cap, this returns `type(uint72).max` and tickets are sold at the cap
     ///         rather than at the higher formula price.
-    function currentPrice() external view returns (uint72);
+    ///
+    ///         Assumes at least one ticket will be sold in the current round to apply any queued update.
+    ///         If not, the actual value in effect this round remains based on previous settings.
+    function currentPrice() external view returns (uint256);
 
     /// @notice Purchase one ticket for the current round. Caller must send exactly `currentPrice()` value.
     ///         In the first half of a round, only holders of a ticket from the previous round may purchase.
