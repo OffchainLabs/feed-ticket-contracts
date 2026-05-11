@@ -121,6 +121,33 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         _grantRole(MARKET_PARAMS_SETTER, marketParamsSetter);
     }
 
+    function purchaseTicket(uint256 expectedRound) external payable lazyUpdateRoundState {
+        require(expectedRound == _roundNumber, "Round number mismatch");
+        require(msg.value == _currentPrice, "Incorrect ticket price");
+        require(ticketsSold[_roundNumber] < maxTicketsPerRound, "Max tickets sold for this round");
+        require(!hasTicket[msg.sender][_roundNumber], "Cannot buy two tickets in one round");
+
+        // forge-lint: disable-next-line(block-timestamp)
+        if (_roundNumber > 0 && block.timestamp < _roundStart + roundDuration / 2) {
+            require(
+                hasTicket[msg.sender][_roundNumber - 1],
+                "Must have ticket from previous round to purchase in first half of round"
+            );
+        }
+
+        ticketsSold[_roundNumber]++;
+        hasTicket[msg.sender][_roundNumber] = true;
+
+        emit TicketPurchased(msg.sender, _roundNumber, msg.value);
+    }
+
+    function distributeSaleProceeds() external {
+        uint256 amount = address(this).balance;
+        (bool success,) = beneficiary.call{value: amount}("");
+        require(success, "Payment failed");
+        emit ProceedsDistributed(beneficiary, amount);
+    }
+
     function roundsElapsedSinceStored() public view returns (uint256) {
         // forge-lint: disable-next-line(block-timestamp)
         require(block.timestamp >= _roundStart, "Current time is before first round start");
@@ -151,33 +178,6 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         uint256 result = _fakeExponential(minimumPrice, excessTicketsSold(), priceUpdateFraction);
         // forge-lint: disable-next-line(unsafe-typecast)
         return result > type(uint72).max ? type(uint72).max : uint72(result);
-    }
-
-    function purchaseTicket(uint256 expectedRound) external payable lazyUpdateRoundState {
-        require(expectedRound == _roundNumber, "Round number mismatch");
-        require(msg.value == _currentPrice, "Incorrect ticket price");
-        require(ticketsSold[_roundNumber] < maxTicketsPerRound, "Max tickets sold for this round");
-        require(!hasTicket[msg.sender][_roundNumber], "Cannot buy two tickets in one round");
-
-        // forge-lint: disable-next-line(block-timestamp)
-        if (_roundNumber > 0 && block.timestamp < _roundStart + roundDuration / 2) {
-            require(
-                hasTicket[msg.sender][_roundNumber - 1],
-                "Must have ticket from previous round to purchase in first half of round"
-            );
-        }
-
-        ticketsSold[_roundNumber]++;
-        hasTicket[msg.sender][_roundNumber] = true;
-
-        emit TicketPurchased(msg.sender, _roundNumber, msg.value);
-    }
-
-    function distributeSaleProceeds() external {
-        uint256 amount = address(this).balance;
-        (bool success,) = beneficiary.call{value: amount}("");
-        require(success, "Payment failed");
-        emit ProceedsDistributed(beneficiary, amount);
     }
 
     function setBeneficiary(address newBeneficiary) external onlyRole(BENEFICIARY_SETTER) lazyUpdateRoundState {
