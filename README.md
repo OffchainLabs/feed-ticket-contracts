@@ -4,8 +4,8 @@ These contracts sell "feed tickets." Feed tickets grant holders access to a prem
 
 The basic mechanism is as follows:
 - Each round, up to some number of tickets are sold all with an equal price. Each round is an hour/day/week/etc.
-- In the first half of the round, only those who bought tickets in the _previous_ round can purchase tickets.
-- In the second half of the round, _anyone_ can purchase a ticket.
+- The start of each round is a "grandfather phase" of admin-configured length, during which only those who bought tickets in the _previous_ round can purchase tickets.
+- After the grandfather phase, _anyone_ can purchase a ticket for the rest of the round.
 - Once the round ends the newly purchased tickets become "active", while tickets from prior rounds become "inactive" (i.e. the sequencer no longer respects the old tickets and starts respecting the new ones)
 - Once the round ends, the next one begins immediately with a new price which is set by an EIP-4844 like mechanism. 
 
@@ -49,6 +49,7 @@ The only mutative calls that _do not_ trigger lazy update are setting the benefi
 - `nextMaxTicketsPerRound` - if set, upcoming rounds will use it
 - `nextMinimumPrice` - if set, upcoming rounds will use it
 - `nextPriceUpdateFraction` - if set, upcoming rounds will use it
+- `nextGrandfatherPeriodFraction` - if set, upcoming rounds will use it
 - `hasTicket` - maps user => roundnum => bool
 - `ticketsSold` - maps roundnum => numtickets
 
@@ -62,6 +63,7 @@ Private state (committed lazily on the first mutative call in a new round):
 - `_maxTicketsPerRound` - the stored cap; replaced by `nextMaxTicketsPerRound` when committed
 - `_minimumPrice` - the stored minimum price; replaced by `nextMinimumPrice` when committed
 - `_priceUpdateFraction` - the stored pricing fraction; replaced by `nextPriceUpdateFraction` when committed
+- `_grandfatherPeriodFraction` - the stored grandfather phase length, as a numerator over 256 of the round duration (e.g. `128` = half-round). Replaced by `nextGrandfatherPeriodFraction` when committed
 
 In addition to the public state, `Tickets` has the following view functions:
 - `roundDuration()` - the duration of a round
@@ -74,6 +76,8 @@ In addition to the public state, `Tickets` has the following view functions:
     - same queued-update shape as `roundDuration()`
 - `priceUpdateFraction()` - a parameter of the pricing function
     - same queued-update shape as `roundDuration()`
+- `grandfatherPeriodFraction()` - length of the grandfather phase as a numerator over 256 of the round
+    - same queued-update shape as `roundDuration()`
 - `roundsElapsedSinceStored()`
     - reverts if `block.timestamp < _roundStart` (i.e. the first round has not yet started)
     - `return (block.timestamp - _roundStart) / _roundDuration`
@@ -85,6 +89,8 @@ In addition to the public state, `Tickets` has the following view functions:
     - `return _roundStart + roundsElapsedSinceStored() * _roundDuration`
 - `roundEnd()` - end timestamp of the current round (exclusive)
     - `return roundStart() + roundDuration()`
+- `grandfatherPeriodEnd()` - end timestamp of the current round's grandfather phase (exclusive). Before this time, only previous-round ticket holders may purchase.
+    - `return roundStart() + (roundDuration() * grandfatherPeriodFraction()) / 256`
 - `excessTicketsSold()` - the total "extra" number of tickets that have been sold as of the last round relative to the "targeted" number.
     - `if (_roundNumber == roundNumber()) return _excessTicketsSold;`
     - `else return max(0, _excessTicketsSold + ticketsSold[_roundNumber] - roundsElapsedSinceStored() * _targetTicketsPerRound)`
@@ -105,8 +111,8 @@ function purchaseTicket(uint256 expectedRound) external payable {
     require(ticketsSold[_roundNumber] < _maxTicketsPerRound, "Max tickets sold for this round");
     require(!hasTicket[msg.sender][_roundNumber], "Cannot buy two tickets in one round");
 
-    if (_roundNumber > 0 && block.timestamp < _roundStart + _roundDuration / 2) {
-        require(hasTicket[msg.sender][_roundNumber - 1], "Must have ticket from previous round to purchase in first half of round");
+    if (_roundNumber > 0 && block.timestamp < _roundStart + (_roundDuration * _grandfatherPeriodFraction) / 256) {
+        require(hasTicket[msg.sender][_roundNumber - 1], "Must have ticket from previous round to purchase during grandfather phase");
     }
 
     ticketsSold[_roundNumber]++;
@@ -132,7 +138,7 @@ setBeneficiary(address newBeneficiary) external onlyRole(BENEFICIARY_SETTER) {
 }
 
 // Queued; committed by the first mutative call in a later round
-setRoundDuration(uint32 newDuration) external onlyRole(MARKET_PARAMS_SETTER) {
+setRoundDuration(uint24 newDuration) external onlyRole(MARKET_PARAMS_SETTER) {
     _lazyUpdateRoundState();
     nextRoundDuration = newDuration;
     emit RoundDurationQueued(...);
@@ -150,6 +156,13 @@ setPricingParams(
     uint64 newMinimumPrice,
     uint24 newPriceUpdateFraction
 ) external onlyRole(MARKET_PARAMS_SETTER) {...}
+
+// Queued; committed by the first mutative call in a later round
+// `newFraction` is a numerator over 256 of the round duration. Note that 0 is treated
+// as "no update queued" by the lazy-update machinery, so once the grandfather phase
+// is set to a nonzero value it cannot be returned to zero via the setter; use a small
+// nonzero value (e.g. 1) to make the phase effectively negligible.
+setGrandfatherPeriodFraction(uint8 newFraction) external onlyRole(MARKET_PARAMS_SETTER) {...}
 ```
 
 ### Admin Roles
@@ -224,12 +237,6 @@ E' = F' · ln(M/M') + E · F'/F
 ```
 
 At the moment, we've deemed discontinuous jumps acceptable.
-
-## Configurable Grandfather Phase
-
-The mechanism assumes that in the first half of the round, only previous round ticket holders can purchase new tickets. We may want to make this configurable instead of fixed at half.
-
-TODO: implement
 
 ## ERC-20 as Currency
 

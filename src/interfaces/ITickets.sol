@@ -40,6 +40,10 @@ interface ITickets {
     /// @param  newPriceUpdateFraction The price update fraction.
     event PricingParamsQueued(uint256 newMinimumPrice, uint256 newPriceUpdateFraction);
 
+    /// @notice Emitted when a new grandfather period fraction is queued. Takes effect next active round.
+    /// @param  newFraction The new grandfather phase length as a fraction of 256 of the round.
+    event GrandfatherPeriodFractionQueued(uint256 newFraction);
+
     /// @notice Emitted when stored round state is rolled forward by the lazy update modifier.
     event RoundStateUpdated();
 
@@ -71,8 +75,15 @@ interface ITickets {
     ///         If not, the actual value in effect this round remains the previous setting.
     function priceUpdateFraction() external view returns (uint256);
 
+    /// @notice Length of the grandfather phase at the start of each round, as a fraction of 256
+    ///         of the round duration. During the grandfather phase only holders of a ticket from
+    ///         the previous round may purchase. e.g. 128 = first half of the round.
+    /// @dev    Assumes at least one ticket will be sold in the current round to apply any queued update.
+    ///         If not, the actual value in effect this round remains the previous setting.
+    function grandfatherPeriodFraction() external view returns (uint256);
+
     /// @notice Queued round duration. Takes effect next active round; zero if none queued.
-    function nextRoundDuration() external view returns (uint32);
+    function nextRoundDuration() external view returns (uint24);
 
     /// @notice Queued target tickets per round. Takes effect next active round; zero if none queued.
     function nextTargetTicketsPerRound() external view returns (uint16);
@@ -85,6 +96,9 @@ interface ITickets {
 
     /// @notice Queued price update fraction. Takes effect next active round; zero if none queued.
     function nextPriceUpdateFraction() external view returns (uint24);
+
+    /// @notice Queued grandfather period fraction. Takes effect next active round; zero if none queued.
+    function nextGrandfatherPeriodFraction() external view returns (uint8);
 
     /// @notice Whether `user` purchased a ticket in `round`.
     /// @param  user  The account to check.
@@ -109,6 +123,12 @@ interface ITickets {
     /// @dev    Assumes at least one ticket will be sold in the current round to apply any queued update.
     ///         If not, the actual value in effect this round remains based on previous settings.
     function roundEnd() external view returns (uint256);
+
+    /// @notice End timestamp of the grandfather phase of the current round (exclusive). Before this
+    ///         time only holders of a ticket from the previous round may purchase.
+    /// @dev    Assumes at least one ticket will be sold in the current round to apply any queued update.
+    ///         If not, the actual value in effect this round remains based on previous settings.
+    function grandfatherPeriodEnd() external view returns (uint256);
 
     /// @notice Total tickets sold in excess of the cumulative target as of the end of last round.
     function excessTicketsSold() external view returns (uint256);
@@ -137,7 +157,7 @@ interface ITickets {
 
     /// @notice Queue a new round duration. Takes effect next active round.
     /// @param  newDuration The new duration of each round.
-    function setRoundDuration(uint32 newDuration) external;
+    function setRoundDuration(uint24 newDuration) external;
 
     /// @notice Queue a new hard cap on tickets sold per round. Takes effect next active round.
     /// @param  newMax The new max tickets per round.
@@ -152,4 +172,8 @@ interface ITickets {
     /// @param  newMinimumPrice        The new minimum ticket price.
     /// @param  newPriceUpdateFraction The new price update fraction.
     function setPricingParams(uint64 newMinimumPrice, uint24 newPriceUpdateFraction) external;
+
+    /// @notice Queue a new grandfather period fraction. Takes effect next active round.
+    /// @param  newFraction The new grandfather phase length as a fraction of 256 of the round.
+    function setGrandfatherPeriodFraction(uint8 newFraction) external;
 }

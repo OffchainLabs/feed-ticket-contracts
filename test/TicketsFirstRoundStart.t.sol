@@ -63,6 +63,18 @@ contract TicketsFirstRoundStartTest is BaseTicketsTest {
         assertEq(tickets.roundEnd(), uint256(FIRST_ROUND_START) + ROUND_DURATION);
     }
 
+    function test_grandfatherPeriodEnd_revertsJustBeforeStart() public {
+        vm.warp(FIRST_ROUND_START - 1);
+        vm.expectRevert(bytes(PRE_START_REVERT));
+        tickets.grandfatherPeriodEnd();
+    }
+
+    function test_grandfatherPeriodEnd_succeedsAtStart() public {
+        vm.warp(FIRST_ROUND_START);
+        uint256 phase = (uint256(ROUND_DURATION) * GRANDFATHER_PERIOD_FRACTION) / 256;
+        assertEq(tickets.grandfatherPeriodEnd(), uint256(FIRST_ROUND_START) + phase);
+    }
+
     function test_excessTicketsSold_revertsJustBeforeStart() public {
         vm.warp(FIRST_ROUND_START - 1);
         vm.expectRevert(bytes(PRE_START_REVERT));

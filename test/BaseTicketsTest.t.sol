@@ -51,11 +51,12 @@ abstract contract BaseTicketsTest is Test {
     address marketParamsSetter = makeAddr("marketParamsSetter");
     address beneficiary = makeAddr("beneficiary");
 
-    uint32 constant ROUND_DURATION = 1 hours;
+    uint24 constant ROUND_DURATION = 1 hours;
     uint16 constant TARGET_TICKETS = 100;
     uint16 constant MAX_TICKETS = 200;
     uint64 constant MINIMUM_PRICE = 1 ether;
     uint24 constant PRICE_UPDATE_FRACTION = 50;
+    uint8 constant GRANDFATHER_PERIOD_FRACTION = 100;
 
     uint40 constant FIRST_ROUND_START = 1_700_000_000;
 
@@ -68,18 +69,19 @@ abstract contract BaseTicketsTest is Test {
     function _initData() internal view returns (bytes memory) {
         return abi.encodeCall(
             Tickets.initialize,
-            (
-                defaultAdmin,
-                beneficiarySetter,
-                marketParamsSetter,
-                beneficiary,
-                ROUND_DURATION,
-                TARGET_TICKETS,
-                MAX_TICKETS,
-                MINIMUM_PRICE,
-                PRICE_UPDATE_FRACTION,
-                FIRST_ROUND_START
-            )
+            (Tickets.InitParams({
+                    defaultAdmin: defaultAdmin,
+                    beneficiarySetter: beneficiarySetter,
+                    marketParamsSetter: marketParamsSetter,
+                    beneficiary: beneficiary,
+                    roundDuration: ROUND_DURATION,
+                    targetTicketsPerRound: TARGET_TICKETS,
+                    maxTicketsPerRound: MAX_TICKETS,
+                    minimumPrice: MINIMUM_PRICE,
+                    priceUpdateFraction: PRICE_UPDATE_FRACTION,
+                    grandfatherPeriodFraction: GRANDFATHER_PERIOD_FRACTION,
+                    firstRoundStart: FIRST_ROUND_START
+                }))
         );
     }
 }

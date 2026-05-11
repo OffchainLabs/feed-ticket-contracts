@@ -51,6 +51,19 @@ contract TicketsLazyUpdateTest is BaseTicketsTest {
         assertEq(tickets.roundEnd(), FIRST_ROUND_START + 3 * ROUND_DURATION);
     }
 
+    function test_grandfatherPeriodEnd_atFirstRound() public view {
+        uint256 phase = (uint256(ROUND_DURATION) * GRANDFATHER_PERIOD_FRACTION) / 256;
+        assertEq(tickets.grandfatherPeriodEnd(), FIRST_ROUND_START + phase);
+    }
+
+    function test_grandfatherPeriodEnd_advancesByRoundDuration() public {
+        uint256 phase = (uint256(ROUND_DURATION) * GRANDFATHER_PERIOD_FRACTION) / 256;
+        vm.warp(FIRST_ROUND_START + 3 * ROUND_DURATION);
+        assertEq(tickets.grandfatherPeriodEnd(), FIRST_ROUND_START + 3 * ROUND_DURATION + phase);
+        vm.warp(FIRST_ROUND_START + 3 * ROUND_DURATION - 1);
+        assertEq(tickets.grandfatherPeriodEnd(), FIRST_ROUND_START + 2 * ROUND_DURATION + phase);
+    }
+
     function test_excessTicketsSold_returnsStoredWhenNoRoundsElapsed() public {
         tickets.exposed_setTicketsSold(0, 350);
         assertEq(tickets.excessTicketsSold(), 0);
@@ -80,17 +93,19 @@ contract TicketsLazyUpdateTest is BaseTicketsTest {
     }
 
     function test_lazyUpdateRoundState_appliesQueuedAdminConfig() public {
-        uint32 newDuration = 2 hours;
+        uint24 newDuration = 2 hours;
         uint16 newTarget = 150;
         uint16 newMax = 300;
         uint64 newMinPrice = 2 ether;
         uint24 newFraction = 75;
+        uint8 newGrandfatherFraction = 200;
 
         vm.startPrank(marketParamsSetter);
         tickets.setRoundDuration(newDuration);
         tickets.setTargetTicketsPerRound(newTarget);
         tickets.setMaxTicketsPerRound(newMax);
         tickets.setPricingParams(newMinPrice, newFraction);
+        tickets.setGrandfatherPeriodFraction(newGrandfatherFraction);
         vm.stopPrank();
 
         vm.warp(FIRST_ROUND_START + ROUND_DURATION);
@@ -101,12 +116,14 @@ contract TicketsLazyUpdateTest is BaseTicketsTest {
         assertEq(tickets.maxTicketsPerRound(), newMax);
         assertEq(tickets.minimumPrice(), newMinPrice);
         assertEq(tickets.priceUpdateFraction(), newFraction);
+        assertEq(tickets.grandfatherPeriodFraction(), newGrandfatherFraction);
 
         assertEq(tickets.nextRoundDuration(), 0);
         assertEq(tickets.nextTargetTicketsPerRound(), 0);
         assertEq(tickets.nextMaxTicketsPerRound(), 0);
         assertEq(tickets.nextMinimumPrice(), 0);
         assertEq(tickets.nextPriceUpdateFraction(), 0);
+        assertEq(tickets.nextGrandfatherPeriodFraction(), 0);
     }
 
     function test_views_unchangedByFirstPurchaseWithQueuedAdminSettings() public {
@@ -175,7 +192,7 @@ contract TicketsLazyUpdateTest is BaseTicketsTest {
     }
 
     function test_queuedDurationTakesEffectAtLeastOneRoundAfterQueuing() public {
-        uint32 newDuration = ROUND_DURATION + 1;
+        uint24 newDuration = ROUND_DURATION + 1;
 
         vm.warp(FIRST_ROUND_START + ROUND_DURATION);
         assertEq(tickets.roundNumber(), 1);
@@ -251,5 +268,23 @@ contract TicketsLazyUpdateTest is BaseTicketsTest {
 
         assertEq(tickets.minimumPrice(), newMinPrice);
         assertEq(tickets.priceUpdateFraction(), newFraction);
+    }
+
+    function test_queuedGrandfatherFractionTakesEffectAtLeastOneRoundAfterQueuing() public {
+        uint8 newFraction = GRANDFATHER_PERIOD_FRACTION + 1;
+
+        vm.warp(FIRST_ROUND_START + ROUND_DURATION);
+        assertEq(tickets.roundNumber(), 1);
+
+        vm.prank(marketParamsSetter);
+        tickets.setGrandfatherPeriodFraction(newFraction);
+
+        assertEq(tickets.nextGrandfatherPeriodFraction(), newFraction);
+        assertEq(tickets.grandfatherPeriodFraction(), GRANDFATHER_PERIOD_FRACTION);
+
+        vm.warp(FIRST_ROUND_START + 2 * ROUND_DURATION);
+        assertEq(tickets.roundNumber(), 2);
+
+        assertEq(tickets.grandfatherPeriodFraction(), newFraction);
     }
 }

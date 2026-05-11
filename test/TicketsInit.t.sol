@@ -5,6 +5,7 @@ pragma solidity ^0.8.20;
 
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {BaseTicketsTest} from "./BaseTicketsTest.t.sol";
+import {Tickets} from "../src/Tickets.sol";
 
 contract TicketsInitTest is BaseTicketsTest {
     function test_initialize_setsState() public view {
@@ -14,6 +15,7 @@ contract TicketsInitTest is BaseTicketsTest {
         assertEq(tickets.maxTicketsPerRound(), MAX_TICKETS);
         assertEq(tickets.minimumPrice(), MINIMUM_PRICE);
         assertEq(tickets.priceUpdateFraction(), PRICE_UPDATE_FRACTION);
+        assertEq(tickets.grandfatherPeriodFraction(), GRANDFATHER_PERIOD_FRACTION);
     }
 
     function test_initialize_setsRoundStart() public view {
@@ -26,35 +28,29 @@ contract TicketsInitTest is BaseTicketsTest {
         assertTrue(tickets.hasRole(tickets.MARKET_PARAMS_SETTER(), marketParamsSetter));
     }
 
+    function _params() internal view returns (Tickets.InitParams memory) {
+        return Tickets.InitParams({
+            defaultAdmin: defaultAdmin,
+            beneficiarySetter: beneficiarySetter,
+            marketParamsSetter: marketParamsSetter,
+            beneficiary: beneficiary,
+            roundDuration: ROUND_DURATION,
+            targetTicketsPerRound: TARGET_TICKETS,
+            maxTicketsPerRound: MAX_TICKETS,
+            minimumPrice: MINIMUM_PRICE,
+            priceUpdateFraction: PRICE_UPDATE_FRACTION,
+            grandfatherPeriodFraction: GRANDFATHER_PERIOD_FRACTION,
+            firstRoundStart: FIRST_ROUND_START
+        });
+    }
+
     function test_initialize_cannotBeCalledTwice() public {
         vm.expectRevert(Initializable.InvalidInitialization.selector);
-        tickets.initialize(
-            defaultAdmin,
-            beneficiarySetter,
-            marketParamsSetter,
-            beneficiary,
-            ROUND_DURATION,
-            TARGET_TICKETS,
-            MAX_TICKETS,
-            MINIMUM_PRICE,
-            PRICE_UPDATE_FRACTION,
-            FIRST_ROUND_START
-        );
+        tickets.initialize(_params());
     }
 
     function test_initialize_disabledOnImplementation() public {
         vm.expectRevert(Initializable.InvalidInitialization.selector);
-        impl.initialize(
-            defaultAdmin,
-            beneficiarySetter,
-            marketParamsSetter,
-            beneficiary,
-            ROUND_DURATION,
-            TARGET_TICKETS,
-            MAX_TICKETS,
-            MINIMUM_PRICE,
-            PRICE_UPDATE_FRACTION,
-            FIRST_ROUND_START
-        );
+        impl.initialize(_params());
     }
 }

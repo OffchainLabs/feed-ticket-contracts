@@ -7,13 +7,28 @@ import {
 import {ITickets} from "./interfaces/ITickets.sol";
 
 contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
+    /// @notice Parameters passed to `initialize`. Bundled to avoid stack-too-deep at the call site.
+    struct InitParams {
+        address defaultAdmin;
+        address beneficiarySetter;
+        address marketParamsSetter;
+        address beneficiary;
+        uint24 roundDuration;
+        uint16 targetTicketsPerRound;
+        uint16 maxTicketsPerRound;
+        uint64 minimumPrice;
+        uint24 priceUpdateFraction;
+        uint8 grandfatherPeriodFraction;
+        uint40 firstRoundStart;
+    }
+
     bytes32 public constant BENEFICIARY_SETTER = keccak256("BENEFICIARY_SETTER");
     bytes32 public constant MARKET_PARAMS_SETTER = keccak256("MARKET_PARAMS_SETTER");
 
     // ----- Begin Slot 0 ----- //
 
-    /// @dev uint32 seconds - up to ~136 years.
-    uint32 internal _roundDuration;
+    /// @dev uint24 seconds - up to ~194 days.
+    uint24 internal _roundDuration;
 
     /// @dev uint16 - up to 65,535.
     uint16 internal _maxTicketsPerRound;
@@ -30,6 +45,10 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
 
     /// @dev uint40 seconds - Unix timestamps to year ~36800 (well past the uint32 year-2106 limit).
     uint40 internal _roundStart;
+
+    /// @dev uint8 - length of the grandfather phase as a fraction of 256 of the round.
+    ///      e.g. 128 = first half of the round.
+    uint8 internal _grandfatherPeriodFraction;
 
     // ------ End Slot 0 ------ //
     // ----- Begin Slot 1 ----- //
@@ -48,7 +67,7 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
 
     /// @inheritdoc ITickets
     /// @dev Type matches roundDuration.
-    uint32 public nextRoundDuration;
+    uint24 public nextRoundDuration;
 
     /// @inheritdoc ITickets
     /// @dev Type matches targetTicketsPerRound.
@@ -66,6 +85,10 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     /// @dev Type matches priceUpdateFraction.
     uint24 public nextPriceUpdateFraction;
 
+    /// @inheritdoc ITickets
+    /// @dev Type matches grandfatherPeriodFraction.
+    uint8 public nextGrandfatherPeriodFraction;
+
     // ------ End Slot 1 ------ //
 
     address public beneficiary;
@@ -77,30 +100,20 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         _disableInitializers();
     }
 
-    function initialize(
-        address defaultAdmin,
-        address beneficiarySetter,
-        address marketParamsSetter,
-        address _beneficiary,
-        uint32 __roundDuration,
-        uint16 __targetTicketsPerRound,
-        uint16 __maxTicketsPerRound,
-        uint64 __minimumPrice,
-        uint24 __priceUpdateFraction,
-        uint40 firstRoundStart
-    ) external initializer {
+    function initialize(InitParams calldata p) external initializer {
         __AccessControlEnumerable_init();
-        _initRoles(defaultAdmin, beneficiarySetter, marketParamsSetter);
+        _initRoles(p.defaultAdmin, p.beneficiarySetter, p.marketParamsSetter);
 
-        beneficiary = _beneficiary;
-        _roundDuration = __roundDuration;
-        _targetTicketsPerRound = __targetTicketsPerRound;
-        _maxTicketsPerRound = __maxTicketsPerRound;
-        _minimumPrice = __minimumPrice;
-        _priceUpdateFraction = __priceUpdateFraction;
+        beneficiary = p.beneficiary;
+        _roundDuration = p.roundDuration;
+        _targetTicketsPerRound = p.targetTicketsPerRound;
+        _maxTicketsPerRound = p.maxTicketsPerRound;
+        _minimumPrice = p.minimumPrice;
+        _priceUpdateFraction = p.priceUpdateFraction;
+        _grandfatherPeriodFraction = p.grandfatherPeriodFraction;
 
-        _roundStart = firstRoundStart;
-        _currentPrice = __minimumPrice;
+        _roundStart = p.firstRoundStart;
+        _currentPrice = p.minimumPrice;
     }
 
     function _initRoles(address defaultAdmin, address beneficiarySetter, address marketParamsSetter) internal {
@@ -116,13 +129,18 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         require(ticketsSold[_roundNumber] < _maxTicketsPerRound, "Max tickets sold for this round");
         require(!hasTicket[msg.sender][_roundNumber], "Cannot buy two tickets in one round");
 
-        // forge-lint: disable-next-line(block-timestamp)
-        if (_roundNumber > 0 && block.timestamp < _roundStart + _roundDuration / 2) {
+        // forge-lint: disable-start(block-timestamp)
+        if (
+            _roundNumber > 0
+                && block.timestamp
+                    < uint256(_roundStart) + (uint256(_roundDuration) * uint256(_grandfatherPeriodFraction)) / 256
+        ) {
             require(
                 hasTicket[msg.sender][_roundNumber - 1],
-                "Must have ticket from previous round to purchase in first half of round"
+                "Must have ticket from previous round to purchase during grandfather phase"
             );
         }
+        // forge-lint: disable-end(block-timestamp)
 
         ticketsSold[_roundNumber]++;
         hasTicket[msg.sender][_roundNumber] = true;
@@ -155,6 +173,10 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         return roundStart() + roundDuration();
     }
 
+    function grandfatherPeriodEnd() external view returns (uint256) {
+        return roundStart() + (roundDuration() * grandfatherPeriodFraction()) / 256;
+    }
+
     function roundDuration() public view returns (uint256) {
         return _applyAdminUpdate(_roundDuration, nextRoundDuration);
     }
@@ -173,6 +195,10 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
 
     function priceUpdateFraction() public view returns (uint256) {
         return _applyAdminUpdate(_priceUpdateFraction, nextPriceUpdateFraction);
+    }
+
+    function grandfatherPeriodFraction() public view returns (uint256) {
+        return _applyAdminUpdate(_grandfatherPeriodFraction, nextGrandfatherPeriodFraction);
     }
 
     function excessTicketsSold() public view returns (uint256) {
@@ -194,7 +220,7 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         emit BeneficiarySet(newBeneficiary);
     }
 
-    function setRoundDuration(uint32 newDuration) external onlyRole(MARKET_PARAMS_SETTER) {
+    function setRoundDuration(uint24 newDuration) external onlyRole(MARKET_PARAMS_SETTER) {
         _lazyUpdateRoundState();
         nextRoundDuration = newDuration;
         emit RoundDurationQueued(newDuration);
@@ -220,6 +246,12 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         nextMinimumPrice = newMinimumPrice;
         nextPriceUpdateFraction = newPriceUpdateFraction;
         emit PricingParamsQueued(newMinimumPrice, newPriceUpdateFraction);
+    }
+
+    function setGrandfatherPeriodFraction(uint8 newFraction) external onlyRole(MARKET_PARAMS_SETTER) {
+        _lazyUpdateRoundState();
+        nextGrandfatherPeriodFraction = newFraction;
+        emit GrandfatherPeriodFractionQueued(newFraction);
     }
 
     function _lazyUpdateRoundState() internal {
@@ -260,6 +292,10 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         if (nextPriceUpdateFraction != 0) {
             _priceUpdateFraction = nextPriceUpdateFraction;
             nextPriceUpdateFraction = 0;
+        }
+        if (nextGrandfatherPeriodFraction != 0) {
+            _grandfatherPeriodFraction = nextGrandfatherPeriodFraction;
+            nextGrandfatherPeriodFraction = 0;
         }
     }
 
