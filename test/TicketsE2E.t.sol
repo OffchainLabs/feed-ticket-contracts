@@ -32,8 +32,7 @@ contract TicketsE2ETest is Test {
         impl = new Tickets();
         bytes memory initData = abi.encodeCall(
             Tickets.initialize,
-            (
-                Tickets.InitParams({
+            (Tickets.InitParams({
                     defaultAdmin: defaultAdmin,
                     beneficiarySetter: beneficiarySetter,
                     marketParamsSetter: marketParamsSetter,
@@ -45,8 +44,7 @@ contract TicketsE2ETest is Test {
                     priceUpdateFraction: FRACTION,
                     grandfatherPeriodFraction: GRANDFATHER_PERIOD_FRACTION,
                     firstRoundStart: FIRST_ROUND_START
-                })
-            )
+                }))
         );
         tickets = Tickets(address(new TransparentUpgradeableProxy(address(impl), proxyAdmin, initData)));
         for (uint256 i = 0; i < buyers.length; i++) {

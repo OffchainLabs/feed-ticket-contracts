@@ -27,17 +27,14 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
 
     // ----- Begin Slot 0 ----- //
 
-    /// @inheritdoc ITickets
     /// @dev uint24 seconds - up to ~194 days.
-    uint24 public roundDuration;
+    uint24 internal _roundDuration;
 
-    /// @inheritdoc ITickets
     /// @dev uint16 - up to 65,535.
-    uint16 public maxTicketsPerRound;
+    uint16 internal _maxTicketsPerRound;
 
-    /// @inheritdoc ITickets
     /// @dev uint64 wei - up to ~18.4 ether.
-    uint64 public minimumPrice;
+    uint64 internal _minimumPrice;
 
     /// @dev uint72 - up to ~4700 ether.
     ///      Caching price is cheaper than recomputing via Taylor series on each purchase.
@@ -49,17 +46,24 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     /// @dev uint40 seconds - Unix timestamps to year ~36800 (well past the uint32 year-2106 limit).
     uint40 internal _roundStart;
 
-    /// @inheritdoc ITickets
     /// @dev uint8 - length of the grandfather phase as a fraction of 256 of the round.
     ///      e.g. 128 = first half of the round.
-    uint8 public grandfatherPeriodFraction;
+    uint8 internal _grandfatherPeriodFraction;
 
     // ------ End Slot 0 ------ //
     // ----- Begin Slot 1 ----- //
 
-    /// @inheritdoc ITickets
     /// @dev Type matches maxTicketsPerRound.
-    uint16 public targetTicketsPerRound;
+    uint16 internal _targetTicketsPerRound;
+
+    /// @dev uint24 - up to ~16.7M. Assuming target is 1 and max is 2^16-1, and we want a
+    ///      max change rate of 1% per round (lower change needs larger fraction), then
+    ///      1.01 = e^(A/B), A = 65534, solve for B -> B = 6.58611*10^6, log2(B) = 23.
+    uint24 internal _priceUpdateFraction;
+
+    /// @dev uint48 - Up to 2^16 excess/round (uint16 cap) * 2^32 rounds (uint32 _roundNumber)
+    ///      = 2^48 worst-case excess.
+    uint48 internal _excessTicketsSold;
 
     /// @inheritdoc ITickets
     /// @dev Type matches roundDuration.
@@ -82,16 +86,6 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     uint24 public nextPriceUpdateFraction;
 
     /// @inheritdoc ITickets
-    /// @dev uint24 - up to ~16.7M. Assuming target is 1 and max is 2^16-1, and we want a
-    ///      max change rate of 1% per round (lower change needs larger fraction), then
-    ///      1.01 = e^(A/B), A = 65534, solve for B -> B = 6.58611*10^6, log2(B) = 23.
-    uint24 public priceUpdateFraction;
-
-    /// @dev uint48 - Up to 2^16 excess/round (uint16 cap) * 2^32 rounds (uint32 _roundNumber)
-    ///      = 2^48 worst-case excess.
-    uint48 internal _excessTicketsSold;
-
-    /// @inheritdoc ITickets
     /// @dev Type matches grandfatherPeriodFraction.
     uint8 public nextGrandfatherPeriodFraction;
 
@@ -106,71 +100,37 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         _disableInitializers();
     }
 
-    /// @dev Foundry linter suggests moving the logic into an internal function to save code size.
-    ///      https://www.getfoundry.sh/forge/linting/unwrapped-modifier-logic#unwrapped-modifier-logic
-    modifier lazyUpdateRoundState() {
-        _lazyUpdateRoundState();
-        _;
-    }
-
     function initialize(InitParams calldata p) external initializer {
         __AccessControlEnumerable_init();
-        _grantRole(DEFAULT_ADMIN_ROLE, p.defaultAdmin);
-        _grantRole(BENEFICIARY_SETTER, p.beneficiarySetter);
-        _grantRole(MARKET_PARAMS_SETTER, p.marketParamsSetter);
+        _initRoles(p.defaultAdmin, p.beneficiarySetter, p.marketParamsSetter);
 
         beneficiary = p.beneficiary;
-        roundDuration = p.roundDuration;
-        targetTicketsPerRound = p.targetTicketsPerRound;
-        maxTicketsPerRound = p.maxTicketsPerRound;
-        minimumPrice = p.minimumPrice;
-        priceUpdateFraction = p.priceUpdateFraction;
-        grandfatherPeriodFraction = p.grandfatherPeriodFraction;
+        _roundDuration = p.roundDuration;
+        _targetTicketsPerRound = p.targetTicketsPerRound;
+        _maxTicketsPerRound = p.maxTicketsPerRound;
+        _minimumPrice = p.minimumPrice;
+        _priceUpdateFraction = p.priceUpdateFraction;
+        _grandfatherPeriodFraction = p.grandfatherPeriodFraction;
 
         _roundStart = p.firstRoundStart;
         _currentPrice = p.minimumPrice;
     }
 
-    function roundsElapsedSinceStored() public view returns (uint256) {
-        // forge-lint: disable-next-line(block-timestamp)
-        require(block.timestamp >= _roundStart, "Current time is before first round start");
-        return (block.timestamp - _roundStart) / roundDuration;
+    function _initRoles(address defaultAdmin, address beneficiarySetter, address marketParamsSetter) internal {
+        _grantRole(DEFAULT_ADMIN_ROLE, defaultAdmin);
+        _grantRole(BENEFICIARY_SETTER, beneficiarySetter);
+        _grantRole(MARKET_PARAMS_SETTER, marketParamsSetter);
     }
 
-    function roundNumber() public view returns (uint256) {
-        return _roundNumber + roundsElapsedSinceStored();
-    }
-
-    function roundStart() public view returns (uint256) {
-        return _roundStart + roundsElapsedSinceStored() * roundDuration;
-    }
-
-    function roundEnd() external view returns (uint256) {
-        return _roundStart + (1 + roundsElapsedSinceStored()) * roundDuration;
-    }
-
-    function excessTicketsSold() public view returns (uint256) {
-        uint256 elapsed = roundsElapsedSinceStored();
-        if (elapsed == 0) return _excessTicketsSold;
-        uint256 gross = _excessTicketsSold + ticketsSold[_roundNumber];
-        uint256 consumed = elapsed * targetTicketsPerRound;
-        return gross > consumed ? gross - consumed : 0;
-    }
-
-    function currentPrice() public view returns (uint72) {
-        uint256 result = _fakeExponential(minimumPrice, excessTicketsSold(), priceUpdateFraction);
-        // forge-lint: disable-next-line(unsafe-typecast)
-        return result > type(uint72).max ? type(uint72).max : uint72(result);
-    }
-
-    function purchaseTicket(uint256 expectedRound) external payable lazyUpdateRoundState {
+    function purchaseTicket(uint256 expectedRound) external payable {
+        _lazyUpdateRoundState();
         require(expectedRound == _roundNumber, "Round number mismatch");
         require(msg.value == _currentPrice, "Incorrect ticket price");
-        require(ticketsSold[_roundNumber] < maxTicketsPerRound, "Max tickets sold for this round");
+        require(ticketsSold[_roundNumber] < _maxTicketsPerRound, "Max tickets sold for this round");
         require(!hasTicket[msg.sender][_roundNumber], "Cannot buy two tickets in one round");
 
         // forge-lint: disable-next-line(block-timestamp)
-        if (_roundNumber > 0 && block.timestamp < _roundStart + roundDuration / 2) {
+        if (_roundNumber > 0 && block.timestamp < _roundStart + _roundDuration / 2) {
             require(
                 hasTicket[msg.sender][_roundNumber - 1],
                 "Must have ticket from previous round to purchase in first half of round"
@@ -190,26 +150,81 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         emit ProceedsDistributed(beneficiary, amount);
     }
 
-    function setBeneficiary(address newBeneficiary) external onlyRole(BENEFICIARY_SETTER) lazyUpdateRoundState {
-        require(newBeneficiary != address(0), "Zero beneficiary");
+    function roundsElapsedSinceStored() public view returns (uint256) {
+        // forge-lint: disable-next-line(block-timestamp)
+        require(block.timestamp >= _roundStart, "Current time is before first round start");
+        return (block.timestamp - _roundStart) / _roundDuration;
+    }
+
+    function roundNumber() public view returns (uint256) {
+        return _roundNumber + roundsElapsedSinceStored();
+    }
+
+    function roundStart() public view returns (uint256) {
+        return _roundStart + roundsElapsedSinceStored() * _roundDuration;
+    }
+
+    function roundEnd() external view returns (uint256) {
+        return roundStart() + roundDuration();
+    }
+
+    function roundDuration() public view returns (uint256) {
+        return _applyAdminUpdate(_roundDuration, nextRoundDuration);
+    }
+
+    function maxTicketsPerRound() external view returns (uint256) {
+        return _applyAdminUpdate(_maxTicketsPerRound, nextMaxTicketsPerRound);
+    }
+
+    function minimumPrice() public view returns (uint256) {
+        return _applyAdminUpdate(_minimumPrice, nextMinimumPrice);
+    }
+
+    function targetTicketsPerRound() external view returns (uint256) {
+        return _applyAdminUpdate(_targetTicketsPerRound, nextTargetTicketsPerRound);
+    }
+
+    function priceUpdateFraction() public view returns (uint256) {
+        return _applyAdminUpdate(_priceUpdateFraction, nextPriceUpdateFraction);
+    }
+
+    function grandfatherPeriodFraction() external view returns (uint256) {
+        return _applyAdminUpdate(_grandfatherPeriodFraction, nextGrandfatherPeriodFraction);
+    }
+
+    function excessTicketsSold() public view returns (uint256) {
+        uint256 elapsed = roundsElapsedSinceStored();
+        if (elapsed == 0) return _excessTicketsSold;
+        uint256 gross = _excessTicketsSold + ticketsSold[_roundNumber];
+        uint256 consumed = elapsed * _targetTicketsPerRound;
+        return gross > consumed ? gross - consumed : 0;
+    }
+
+    function currentPrice() public view returns (uint256) {
+        uint256 result = _fakeExponential(minimumPrice(), excessTicketsSold(), priceUpdateFraction());
+        // forge-lint: disable-next-line(unsafe-typecast)
+        return result > type(uint72).max ? type(uint72).max : uint72(result);
+    }
+
+    function setBeneficiary(address newBeneficiary) external onlyRole(BENEFICIARY_SETTER) {
         beneficiary = newBeneficiary;
         emit BeneficiarySet(newBeneficiary);
     }
 
-    function setRoundDuration(uint24 newDuration) external onlyRole(MARKET_PARAMS_SETTER) lazyUpdateRoundState {
-        require(newDuration != 0, "Zero round duration");
+    function setRoundDuration(uint24 newDuration) external onlyRole(MARKET_PARAMS_SETTER) {
+        _lazyUpdateRoundState();
         nextRoundDuration = newDuration;
         emit RoundDurationQueued(newDuration);
     }
 
-    function setMaxTicketsPerRound(uint16 newMax) external onlyRole(MARKET_PARAMS_SETTER) lazyUpdateRoundState {
-        require(newMax != 0, "Zero max tickets per round");
+    function setMaxTicketsPerRound(uint16 newMax) external onlyRole(MARKET_PARAMS_SETTER) {
+        _lazyUpdateRoundState();
         nextMaxTicketsPerRound = newMax;
         emit MaxTicketsPerRoundQueued(newMax);
     }
 
-    function setTargetTicketsPerRound(uint16 newTarget) external onlyRole(MARKET_PARAMS_SETTER) lazyUpdateRoundState {
-        require(newTarget != 0, "Zero target tickets per round");
+    function setTargetTicketsPerRound(uint16 newTarget) external onlyRole(MARKET_PARAMS_SETTER) {
+        _lazyUpdateRoundState();
         nextTargetTicketsPerRound = newTarget;
         emit TargetTicketsPerRoundQueued(newTarget);
     }
@@ -217,21 +232,15 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     function setPricingParams(uint64 newMinimumPrice, uint24 newPriceUpdateFraction)
         external
         onlyRole(MARKET_PARAMS_SETTER)
-        lazyUpdateRoundState
     {
-        require(newMinimumPrice != 0, "Zero minimum price");
-        require(newPriceUpdateFraction != 0, "Zero price update fraction");
+        _lazyUpdateRoundState();
         nextMinimumPrice = newMinimumPrice;
         nextPriceUpdateFraction = newPriceUpdateFraction;
         emit PricingParamsQueued(newMinimumPrice, newPriceUpdateFraction);
     }
 
-    function setGrandfatherPeriodFraction(uint8 newFraction)
-        external
-        onlyRole(MARKET_PARAMS_SETTER)
-        lazyUpdateRoundState
-    {
-        require(newFraction != 0, "Zero grandfather period fraction");
+    function setGrandfatherPeriodFraction(uint8 newFraction) external onlyRole(MARKET_PARAMS_SETTER) {
+        _lazyUpdateRoundState();
         nextGrandfatherPeriodFraction = newFraction;
         emit GrandfatherPeriodFractionQueued(newFraction);
     }
@@ -241,42 +250,48 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
             uint32 newRoundNumber = uint32(roundNumber());
             uint40 newRoundStart = uint40(roundStart());
             uint48 newExcessTicketsSold = uint48(excessTicketsSold());
+            uint72 newCurrentPrice = uint72(currentPrice());
+
             _roundNumber = newRoundNumber;
             _roundStart = newRoundStart;
             _excessTicketsSold = newExcessTicketsSold;
-            _applyAdminUpdates();
+            _currentPrice = newCurrentPrice;
 
-            _currentPrice = currentPrice();
+            _storeAdminUpdates();
 
-            emit RoundStateUpdated(newRoundNumber, newRoundStart, newExcessTicketsSold);
+            emit RoundStateUpdated();
         }
     }
 
-    function _applyAdminUpdates() internal {
+    function _storeAdminUpdates() internal {
         if (nextRoundDuration != 0) {
-            roundDuration = nextRoundDuration;
+            _roundDuration = nextRoundDuration;
             nextRoundDuration = 0;
         }
         if (nextTargetTicketsPerRound != 0) {
-            targetTicketsPerRound = nextTargetTicketsPerRound;
+            _targetTicketsPerRound = nextTargetTicketsPerRound;
             nextTargetTicketsPerRound = 0;
         }
         if (nextMaxTicketsPerRound != 0) {
-            maxTicketsPerRound = nextMaxTicketsPerRound;
+            _maxTicketsPerRound = nextMaxTicketsPerRound;
             nextMaxTicketsPerRound = 0;
         }
         if (nextMinimumPrice != 0) {
-            minimumPrice = nextMinimumPrice;
+            _minimumPrice = nextMinimumPrice;
             nextMinimumPrice = 0;
         }
         if (nextPriceUpdateFraction != 0) {
-            priceUpdateFraction = nextPriceUpdateFraction;
+            _priceUpdateFraction = nextPriceUpdateFraction;
             nextPriceUpdateFraction = 0;
         }
         if (nextGrandfatherPeriodFraction != 0) {
-            grandfatherPeriodFraction = nextGrandfatherPeriodFraction;
+            _grandfatherPeriodFraction = nextGrandfatherPeriodFraction;
             nextGrandfatherPeriodFraction = 0;
         }
+    }
+
+    function _applyAdminUpdate(uint256 currValue, uint256 nextValue) internal view returns (uint256) {
+        return roundsElapsedSinceStored() > 0 && nextValue != 0 ? nextValue : currValue;
     }
 
     /// @notice Approximates `factor * e^(numerator / denominator)` via a Taylor series with

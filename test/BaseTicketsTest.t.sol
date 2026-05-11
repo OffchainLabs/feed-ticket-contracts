@@ -28,7 +28,9 @@ contract TicketsHarness is Tickets {
         ticketsSold[round] = amount;
     }
 
-    function exposed_lazyUpdateRoundState() external lazyUpdateRoundState {}
+    function exposed_lazyUpdateRoundState() external {
+        _lazyUpdateRoundState();
+    }
 
     function exposed_fakeExponential(uint256 factor, uint256 numerator, uint256 denominator)
         external
@@ -67,8 +69,7 @@ abstract contract BaseTicketsTest is Test {
     function _initData() internal view returns (bytes memory) {
         return abi.encodeCall(
             Tickets.initialize,
-            (
-                Tickets.InitParams({
+            (Tickets.InitParams({
                     defaultAdmin: defaultAdmin,
                     beneficiarySetter: beneficiarySetter,
                     marketParamsSetter: marketParamsSetter,
@@ -80,8 +81,7 @@ abstract contract BaseTicketsTest is Test {
                     priceUpdateFraction: PRICE_UPDATE_FRACTION,
                     grandfatherPeriodFraction: GRANDFATHER_PERIOD_FRACTION,
                     firstRoundStart: FIRST_ROUND_START
-                })
-            )
+                }))
         );
     }
 }
