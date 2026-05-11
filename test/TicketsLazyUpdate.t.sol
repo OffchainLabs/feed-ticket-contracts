@@ -129,7 +129,7 @@ contract TicketsLazyUpdateTest is BaseTicketsTest {
     function test_views_unchangedByFirstPurchaseWithQueuedAdminSettings() public {
         address buyer = makeAddr("buyer");
 
-        // Buyer needs a round 0 ticket to be grandfathered for round 1's first half.
+        // Buyer needs a round 0 ticket to be grandfathered for round 1's grandfather phase.
         vm.deal(buyer, MINIMUM_PRICE);
         vm.prank(buyer);
         tickets.purchaseTicket{value: MINIMUM_PRICE}(0);

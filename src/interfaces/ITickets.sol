@@ -4,9 +4,9 @@ pragma solidity ^0.8.0;
 /// @title  Tickets
 /// @notice Sells and tracks feed tickets that grant holders access to a premium sequencer feed.
 ///         Up to a configurable cap of tickets are sold each round at a single price set by an
-///         EIP-4844 style update rule. In the first half of a round only previous round ticket
-///         holders may purchase; in the second half anyone may purchase. Tickets become active
-///         once the round in which they were purchased ends.
+///         EIP-4844 style update rule. During a configurable grandfather phase at the start of
+///         each round only previous-round ticket holders may purchase; afterwards anyone may
+///         purchase. Tickets become active once the round in which they were purchased ends.
 interface ITickets {
     /// @notice Emitted when a ticket is purchased.
     /// @param  buyer The account that purchased the ticket.
@@ -51,35 +51,41 @@ interface ITickets {
     function beneficiary() external view returns (address);
 
     /// @notice Duration of a round, in seconds.
-    /// @dev    Assumes at least one ticket will be sold in the current round to apply any queued update.
-    ///         If not, the actual value in effect this round remains the previous setting.
+    /// @dev    Surfaces the queued value as soon as a round has elapsed. The contract's arithmetic
+    ///         only switches to it once a mutative call commits it to storage; until then the
+    ///         previous setting remains in effect.
     function roundDuration() external view returns (uint256);
 
     /// @notice Targeted number of tickets to sell per round. Drives the pricing function.
-    /// @dev    Assumes at least one ticket will be sold in the current round to apply any queued update.
-    ///         If not, the actual value in effect this round remains the previous setting.
+    /// @dev    Surfaces the queued value as soon as a round has elapsed. The contract's arithmetic
+    ///         only switches to it once a mutative call commits it to storage; until then the
+    ///         previous setting remains in effect.
     function targetTicketsPerRound() external view returns (uint256);
 
     /// @notice Hard cap on tickets sold per round.
-    /// @dev    Assumes at least one ticket will be sold in the current round to apply any queued update.
-    ///         If not, the actual value in effect this round remains the previous setting.
+    /// @dev    Surfaces the queued value as soon as a round has elapsed. The contract's arithmetic
+    ///         only switches to it once a mutative call commits it to storage; until then the
+    ///         previous setting remains in effect.
     function maxTicketsPerRound() external view returns (uint256);
 
     /// @notice Minimum ticket price. Floor of the pricing function.
-    /// @dev    Assumes at least one ticket will be sold in the current round to apply any queued update.
-    ///         If not, the actual value in effect this round remains the previous setting.
+    /// @dev    Surfaces the queued value as soon as a round has elapsed. The contract's arithmetic
+    ///         only switches to it once a mutative call commits it to storage; until then the
+    ///         previous setting remains in effect.
     function minimumPrice() external view returns (uint256);
 
     /// @notice Parameter controlling how quickly price moves per excess ticket sold.
-    /// @dev    Assumes at least one ticket will be sold in the current round to apply any queued update.
-    ///         If not, the actual value in effect this round remains the previous setting.
+    /// @dev    Surfaces the queued value as soon as a round has elapsed. The contract's arithmetic
+    ///         only switches to it once a mutative call commits it to storage; until then the
+    ///         previous setting remains in effect.
     function priceUpdateFraction() external view returns (uint256);
 
     /// @notice Length of the grandfather phase at the start of each round, as a fraction of 256
     ///         of the round duration. During the grandfather phase only holders of a ticket from
     ///         the previous round may purchase. e.g. 128 = first half of the round.
-    /// @dev    Assumes at least one ticket will be sold in the current round to apply any queued update.
-    ///         If not, the actual value in effect this round remains the previous setting.
+    /// @dev    Surfaces the queued value as soon as a round has elapsed. The contract's arithmetic
+    ///         only switches to it once a mutative call commits it to storage; until then the
+    ///         previous setting remains in effect.
     function grandfatherPeriodFraction() external view returns (uint256);
 
     /// @notice Queued round duration. Takes effect next active round; zero if none queued.
@@ -120,14 +126,16 @@ interface ITickets {
     function roundStart() external view returns (uint256);
 
     /// @notice End timestamp of the current round (exclusive).
-    /// @dev    Assumes at least one ticket will be sold in the current round to apply any queued update.
-    ///         If not, the actual value in effect this round remains based on previous settings.
+    /// @dev    Surfaces the queued value as soon as a round has elapsed. The contract's arithmetic
+    ///         only switches to it once a mutative call commits it to storage; until then the
+    ///         previous setting remains in effect.
     function roundEnd() external view returns (uint256);
 
     /// @notice End timestamp of the grandfather phase of the current round (exclusive). Before this
     ///         time only holders of a ticket from the previous round may purchase.
-    /// @dev    Assumes at least one ticket will be sold in the current round to apply any queued update.
-    ///         If not, the actual value in effect this round remains based on previous settings.
+    /// @dev    Surfaces the queued value as soon as a round has elapsed. The contract's arithmetic
+    ///         only switches to it once a mutative call commits it to storage; until then the
+    ///         previous setting remains in effect.
     function grandfatherPeriodEnd() external view returns (uint256);
 
     /// @notice Total tickets sold in excess of the cumulative target as of the end of last round.
@@ -139,12 +147,14 @@ interface ITickets {
     ///         exceed that cap, this returns `type(uint72).max` and tickets are sold at the cap
     ///         rather than at the higher formula price.
     ///
-    ///         Assumes at least one ticket will be sold in the current round to apply any queued update.
-    ///         If not, the actual value in effect this round remains based on previous settings.
+    ///         Surfaces the queued value as soon as a round has elapsed. The contract's arithmetic
+    ///         only switches to it once a mutative call commits it to storage; until then the
+    ///         previous setting remains in effect.
     function currentPrice() external view returns (uint256);
 
     /// @notice Purchase one ticket for the current round. Caller must send exactly `currentPrice()` value.
-    ///         In the first half of a round, only holders of a ticket from the previous round may purchase.
+    ///         During the grandfather phase at the start of a round, only holders of a ticket from the
+    ///         previous round may purchase.
     /// @param  expectedRound Round the caller expects to be current. Reverts if it does not match.
     function purchaseTicket(uint256 expectedRound) external payable;
 

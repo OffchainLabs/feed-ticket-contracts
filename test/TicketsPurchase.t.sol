@@ -31,7 +31,7 @@ contract TicketsPurchaseTest is BaseTicketsTest {
         tickets.exposed_lazyUpdateRoundState();
         // _roundNumber=1, _roundStart=DEPLOY+RD, _excess=250
 
-        // Round 1 first half: both buyers (grandfathered via round 0 tickets) purchase to
+        // Round 1 grandfather phase: both buyers (grandfathered via round 0 tickets) purchase to
         // register grandfathering for round 2.
         uint256 price1 = tickets.currentPrice();
         vm.deal(buyer, price1);
@@ -82,7 +82,7 @@ contract TicketsPurchaseTest is BaseTicketsTest {
         vm.stopPrank();
     }
 
-    function test_purchaseTicket_revertsForNonGrandfatheredInRoundOneFirstHalf() public {
+    function test_purchaseTicket_revertsForNonGrandfatheredInRoundOneGrandfatherPhase() public {
         vm.warp(FIRST_ROUND_START + ROUND_DURATION);
 
         vm.deal(buyer, MINIMUM_PRICE);

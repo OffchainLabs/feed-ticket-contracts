@@ -100,7 +100,7 @@ contract TicketsE2ETest is Test {
         vm.prank(buyers[8]);
         tickets.purchaseTicket{value: MIN_PRICE}(0);
 
-        // ===== Round 1 — first half restricts to round-0 holders =====
+        // ===== Round 1 — grandfather phase restricts to round-0 holders =====
         vm.warp(FIRST_ROUND_START + ROUND_DURATION);
         assertEq(tickets.roundNumber(), 1);
         // gross = 0 + 8 = 8, consumed = 1*4 = 4 → excess = 4.
@@ -111,7 +111,7 @@ contract TicketsE2ETest is Test {
         // Boundary: just before grandfatherPeriodEnd the rule applies; at the boundary it does not.
         uint256 r1GrandfatherEnd = tickets.grandfatherPeriodEnd();
         vm.warp(r1GrandfatherEnd - 1);
-        // buyers[8] never bought in round 0 → reverts in first half.
+        // buyers[8] never bought in round 0 → reverts during grandfather phase.
         vm.expectRevert("Must have ticket from previous round to purchase during grandfather phase");
         vm.prank(buyers[8]);
         tickets.purchaseTicket{value: r1Price}(1);
@@ -121,7 +121,7 @@ contract TicketsE2ETest is Test {
         vm.warp(r1GrandfatherEnd);
         // Same non-grandfathered buyer now succeeds at the boundary.
         totalSpent += _buy(buyers[8], 1);
-        // Two more second-half buys, mixing grandfathered and not.
+        // Two more post-grandfather buys, mixing grandfathered and not.
         totalSpent += _buy(buyers[1], 1);
         totalSpent += _buy(buyers[9], 1);
 
@@ -139,7 +139,7 @@ contract TicketsE2ETest is Test {
         // No change in excess → price unchanged from round 1.
         assertEq(tickets.currentPrice(), r1Price);
 
-        // First half: round-1 holders may buy.
+        // Grandfather phase: round-1 holders may buy.
         totalSpent += _buy(buyers[0], 2);
         totalSpent += _buy(buyers[8], 2);
 
@@ -148,7 +148,7 @@ contract TicketsE2ETest is Test {
         vm.prank(buyers[2]);
         tickets.purchaseTicket{value: r1Price}(2);
 
-        // Second half: anyone may buy.
+        // After grandfather phase: anyone may buy.
         vm.warp(tickets.grandfatherPeriodEnd());
         totalSpent += _buy(buyers[2], 2);
         totalSpent += _buy(buyers[3], 2);
