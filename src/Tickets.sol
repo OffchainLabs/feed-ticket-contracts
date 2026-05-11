@@ -130,10 +130,10 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         require(!hasTicket[msg.sender][_roundNumber], "Cannot buy two tickets in one round");
 
         // forge-lint: disable-next-line(block-timestamp)
-        if (_roundNumber > 0 && block.timestamp < _roundStart + (_roundDuration * _grandfatherPeriodFraction) / 256) {
+        if (_roundNumber > 0 && block.timestamp < uint256(_roundStart) + (uint256(_roundDuration) * uint256(_grandfatherPeriodFraction)) / 256) {
             require(
                 hasTicket[msg.sender][_roundNumber - 1],
-                "Must have ticket from previous round to purchase in first half of round"
+                "Must have ticket from previous round to purchase during grandfather phase"
             );
         }
 

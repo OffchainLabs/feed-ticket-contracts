@@ -112,7 +112,7 @@ contract TicketsE2ETest is Test {
         uint256 r1GrandfatherEnd = tickets.grandfatherPeriodEnd();
         vm.warp(r1GrandfatherEnd - 1);
         // buyers[8] never bought in round 0 → reverts in first half.
-        vm.expectRevert("Must have ticket from previous round to purchase in first half of round");
+        vm.expectRevert("Must have ticket from previous round to purchase during grandfather phase");
         vm.prank(buyers[8]);
         tickets.purchaseTicket{value: r1Price}(1);
         // A grandfathered buyer succeeds at the same instant.
@@ -144,7 +144,7 @@ contract TicketsE2ETest is Test {
         totalSpent += _buy(buyers[8], 2);
 
         // buyers[2] only ever bought in round 0 → not grandfathered for round 2 → reverts.
-        vm.expectRevert("Must have ticket from previous round to purchase in first half of round");
+        vm.expectRevert("Must have ticket from previous round to purchase during grandfather phase");
         vm.prank(buyers[2]);
         tickets.purchaseTicket{value: r1Price}(2);
 
