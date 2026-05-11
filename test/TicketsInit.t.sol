@@ -17,7 +17,7 @@ contract TicketsInitTest is BaseTicketsTest {
     }
 
     function test_initialize_setsRoundStart() public view {
-        assertEq(tickets.exposed_storedRoundStart(), DEPLOY_TIMESTAMP);
+        assertEq(tickets.exposed_storedRoundStart(), FIRST_ROUND_START);
     }
 
     function test_initialize_grantsRoles() public view {
@@ -37,7 +37,8 @@ contract TicketsInitTest is BaseTicketsTest {
             TARGET_TICKETS,
             MAX_TICKETS,
             MINIMUM_PRICE,
-            PRICE_UPDATE_FRACTION
+            PRICE_UPDATE_FRACTION,
+            FIRST_ROUND_START
         );
     }
 
@@ -52,7 +53,8 @@ contract TicketsInitTest is BaseTicketsTest {
             TARGET_TICKETS,
             MAX_TICKETS,
             MINIMUM_PRICE,
-            PRICE_UPDATE_FRACTION
+            PRICE_UPDATE_FRACTION,
+            FIRST_ROUND_START
         );
     }
 }

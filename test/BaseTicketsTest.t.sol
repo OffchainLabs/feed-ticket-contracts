@@ -55,10 +55,10 @@ abstract contract BaseTicketsTest is Test {
     uint64 constant MINIMUM_PRICE = 1 ether;
     uint24 constant PRICE_UPDATE_FRACTION = 50;
 
-    uint256 constant DEPLOY_TIMESTAMP = 1_700_000_000;
+    uint40 constant FIRST_ROUND_START = 1_700_000_000;
 
     function setUp() public virtual {
-        vm.warp(DEPLOY_TIMESTAMP);
+        vm.warp(FIRST_ROUND_START);
         impl = new TicketsHarness();
         tickets = TicketsHarness(address(new TransparentUpgradeableProxy(address(impl), proxyAdmin, _initData())));
     }
@@ -75,7 +75,8 @@ abstract contract BaseTicketsTest is Test {
                 TARGET_TICKETS,
                 MAX_TICKETS,
                 MINIMUM_PRICE,
-                PRICE_UPDATE_FRACTION
+                PRICE_UPDATE_FRACTION,
+                FIRST_ROUND_START
             )
         );
     }

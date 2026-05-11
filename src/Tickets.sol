@@ -98,13 +98,11 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         uint16 _targetTicketsPerRound,
         uint16 _maxTicketsPerRound,
         uint64 _minimumPrice,
-        uint24 _priceUpdateFraction
+        uint24 _priceUpdateFraction,
+        uint40 firstRoundStart
     ) external initializer {
         __AccessControlEnumerable_init();
-
-        _grantRole(DEFAULT_ADMIN_ROLE, defaultAdmin);
-        _grantRole(BENEFICIARY_SETTER, beneficiarySetter);
-        _grantRole(MARKET_PARAMS_SETTER, marketParamsSetter);
+        _initRoles(defaultAdmin, beneficiarySetter, marketParamsSetter);
 
         beneficiary = _beneficiary;
         roundDuration = _roundDuration;
@@ -113,11 +111,19 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         minimumPrice = _minimumPrice;
         priceUpdateFraction = _priceUpdateFraction;
 
-        _roundStart = uint40(block.timestamp);
-        _currentPrice = minimumPrice;
+        _roundStart = firstRoundStart;
+        _currentPrice = _minimumPrice;
+    }
+
+    function _initRoles(address defaultAdmin, address beneficiarySetter, address marketParamsSetter) internal {
+        _grantRole(DEFAULT_ADMIN_ROLE, defaultAdmin);
+        _grantRole(BENEFICIARY_SETTER, beneficiarySetter);
+        _grantRole(MARKET_PARAMS_SETTER, marketParamsSetter);
     }
 
     function roundsElapsedSinceStored() public view returns (uint256) {
+        // forge-lint: disable-next-line(block-timestamp)
+        require(block.timestamp >= _roundStart, "Current time is before first round start");
         return (block.timestamp - _roundStart) / roundDuration;
     }
 
