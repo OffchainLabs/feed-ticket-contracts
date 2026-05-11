@@ -1,4 +1,4 @@
-name: CI
+name: Signatures and Storage
 
 permissions: {}
 
@@ -11,7 +11,7 @@ env:
 
 jobs:
   check:
-    name: Foundry project
+    name: Check signatures and storage
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -24,17 +24,8 @@ jobs:
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
 
-      - name: Show Forge version
-        run: forge --version
+      - name: Check signatures
+        run: make test-signatures
 
-      - name: Run Forge fmt
-        run: forge fmt --check
-
-      - name: Run Forge build
-        run: forge build --sizes
-
-      - name: Run Forge tests
-        run: forge test -vvv
-
-      - name: Check snapshots are up to date
-        run: git diff --exit-code -- snapshots/
+      - name: Check storage
+        run: make test-storage
