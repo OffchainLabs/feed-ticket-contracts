@@ -12,7 +12,7 @@ contract TicketPricingTest is BaseTicketsTest {
 
     function test_currentPrice_matchesFakeExponentialOfPricingState() public {
         tickets.exposed_setTicketsSold(0, 350);
-        vm.warp(DEPLOY_TIMESTAMP + 2 * ROUND_DURATION);
+        vm.warp(FIRST_ROUND_START + 2 * ROUND_DURATION);
 
         uint256 excess = tickets.excessTicketsSold();
         assertEq(tickets.currentPrice(), tickets.exposed_fakeExponential(MINIMUM_PRICE, excess, PRICE_UPDATE_FRACTION));
@@ -23,7 +23,7 @@ contract TicketPricingTest is BaseTicketsTest {
     ///      quotes off the view and pays that amount will revert.
     function test_currentPrice_equalsStoredAfterLazyUpdate() public {
         tickets.exposed_setTicketsSold(0, 350);
-        vm.warp(DEPLOY_TIMESTAMP + ROUND_DURATION);
+        vm.warp(FIRST_ROUND_START + ROUND_DURATION);
         tickets.exposed_lazyUpdateRoundState();
 
         assertEq(tickets.currentPrice(), tickets.exposed_storedCurrentPrice());
@@ -37,7 +37,7 @@ contract TicketPricingTest is BaseTicketsTest {
         vm.prank(marketParamsSetter);
         tickets.setPricingParams(2 ether, 100);
 
-        vm.warp(DEPLOY_TIMESTAMP + ROUND_DURATION);
+        vm.warp(FIRST_ROUND_START + ROUND_DURATION);
         tickets.exposed_lazyUpdateRoundState();
 
         assertEq(tickets.currentPrice(), tickets.exposed_storedCurrentPrice());
@@ -49,7 +49,7 @@ contract TicketPricingTest is BaseTicketsTest {
     function test_currentPrice_saturatesAtUint72Max() public {
         // E/F = 1000/50 = 20 -> e^20 ~= 4.85e8 -> raw ~= 4.85e26 wei, well past uint72.max (~4.72e21).
         tickets.exposed_setTicketsSold(0, 1200);
-        vm.warp(DEPLOY_TIMESTAMP + 2 * ROUND_DURATION);
+        vm.warp(FIRST_ROUND_START + 2 * ROUND_DURATION);
 
         uint256 raw = tickets.exposed_fakeExponential(MINIMUM_PRICE, tickets.excessTicketsSold(), PRICE_UPDATE_FRACTION);
         assertGt(raw, uint256(type(uint72).max));

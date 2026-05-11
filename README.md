@@ -56,11 +56,11 @@ We update round information lazily on the first state mutating call during the r
 Private state (updated lazily per round):
 - `_roundNumber` - the recorded current round number
 - `_roundStart` - start timestamp of the recorded current round (inclusive)
-    - initialized to `block.timestamp`
 - `_excessTicketsSold` - the total "extra" number of tickets that have been sold as of the last stored round relative to the "targeted" number.
 
 In addition to the public state, `Tickets` has the following view functions:
 - `roundsElapsedSinceStored()`
+    - reverts if `block.timestamp < _roundStart` (i.e. the first round has not yet started)
     - `return (block.timestamp - _roundStart) / roundDuration`
 - `roundNumber()`
     - `return _roundNumber + roundsElapsedSinceStored()`
@@ -265,12 +265,6 @@ At the moment, we've deemed discontinuous jumps acceptable.
 ## Configurable Grandfather Phase
 
 The mechanism assumes that in the first half of the round, only previous round ticket holders can purchase new tickets. We may want to make this configurable instead of fixed at half.
-
-TODO: implement
-
-## First round start in the future
-
-Currently, the first round starts immediately when the tickets contract is deployed. We may want to be able to specify a future time
 
 TODO: implement
 

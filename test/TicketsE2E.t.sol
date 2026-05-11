@@ -22,12 +22,12 @@ contract TicketsE2ETest is Test {
     uint16 constant MAX = 8;
     uint64 constant MIN_PRICE = 1 ether;
     uint24 constant FRACTION = 10;
-    uint256 constant DEPLOY_TIMESTAMP = 1_700_000_000;
+    uint40 constant FIRST_ROUND_START = 1_700_000_000;
 
     address[10] buyers;
 
     function setUp() public {
-        vm.warp(DEPLOY_TIMESTAMP);
+        vm.warp(FIRST_ROUND_START);
         impl = new Tickets();
         bytes memory initData = abi.encodeCall(
             Tickets.initialize,
@@ -40,7 +40,8 @@ contract TicketsE2ETest is Test {
                 TARGET,
                 MAX,
                 MIN_PRICE,
-                FRACTION
+                FRACTION,
+                FIRST_ROUND_START
             )
         );
         tickets = Tickets(address(new TransparentUpgradeableProxy(address(impl), proxyAdmin, initData)));
@@ -98,7 +99,7 @@ contract TicketsE2ETest is Test {
         tickets.purchaseTicket{value: MIN_PRICE}(0);
 
         // ===== Round 1 — first half restricts to round-0 holders =====
-        vm.warp(DEPLOY_TIMESTAMP + ROUND_DURATION);
+        vm.warp(FIRST_ROUND_START + ROUND_DURATION);
         assertEq(tickets.roundNumber(), 1);
         // gross = 0 + 8 = 8, consumed = 1*4 = 4 → excess = 4.
         assertEq(tickets.excessTicketsSold(), 4);
@@ -106,7 +107,7 @@ contract TicketsE2ETest is Test {
         assertGt(r1Price, MIN_PRICE);
 
         // Boundary: at midTime - 1 the grandfather rule applies; at midTime it does not.
-        uint256 r1Mid = DEPLOY_TIMESTAMP + ROUND_DURATION + ROUND_DURATION / 2;
+        uint256 r1Mid = FIRST_ROUND_START + ROUND_DURATION + ROUND_DURATION / 2;
         vm.warp(r1Mid - 1);
         // buyers[8] never bought in round 0 → reverts in first half.
         vm.expectRevert("Must have ticket from previous round to purchase in first half of round");
@@ -129,7 +130,7 @@ contract TicketsE2ETest is Test {
         assertTrue(tickets.hasTicket(buyers[9], 1));
 
         // ===== Round 2 — round-1 holders are the new grandfathered set =====
-        vm.warp(DEPLOY_TIMESTAMP + 2 * ROUND_DURATION);
+        vm.warp(FIRST_ROUND_START + 2 * ROUND_DURATION);
         assertEq(tickets.roundNumber(), 2);
         // gross = 4 + 4 = 8, consumed = 1*4 = 4 → excess = 4 (round 1 sold exactly the target).
         assertEq(tickets.excessTicketsSold(), 4);
@@ -146,7 +147,7 @@ contract TicketsE2ETest is Test {
         tickets.purchaseTicket{value: r1Price}(2);
 
         // Second half: anyone may buy.
-        vm.warp(DEPLOY_TIMESTAMP + 2 * ROUND_DURATION + ROUND_DURATION / 2);
+        vm.warp(FIRST_ROUND_START + 2 * ROUND_DURATION + ROUND_DURATION / 2);
         totalSpent += _buy(buyers[2], 2);
         totalSpent += _buy(buyers[3], 2);
         totalSpent += _buy(buyers[4], 2);
@@ -154,7 +155,7 @@ contract TicketsE2ETest is Test {
         assertEq(tickets.ticketsSold(2), 5);
 
         // ===== Round 3 — excess and therefore price grow =====
-        vm.warp(DEPLOY_TIMESTAMP + 3 * ROUND_DURATION);
+        vm.warp(FIRST_ROUND_START + 3 * ROUND_DURATION);
         assertEq(tickets.roundNumber(), 3);
         // gross = 4 + 5 = 9, consumed = 1*4 = 4 → excess = 5.
         assertEq(tickets.excessTicketsSold(), 5);
@@ -162,7 +163,7 @@ contract TicketsE2ETest is Test {
         assertGt(r3Price, r1Price);
 
         // Skip to the second half so we can fill the cap from any buyer.
-        vm.warp(DEPLOY_TIMESTAMP + 3 * ROUND_DURATION + ROUND_DURATION / 2);
+        vm.warp(FIRST_ROUND_START + 3 * ROUND_DURATION + ROUND_DURATION / 2);
         for (uint256 i = 0; i < MAX; i++) {
             totalSpent += _buy(buyers[i], 3);
         }

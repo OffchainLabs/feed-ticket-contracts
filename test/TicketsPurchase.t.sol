@@ -27,7 +27,7 @@ contract TicketsPurchaseTest is BaseTicketsTest {
         // Inflate ticketsSold[0] so excess after round 0 is nonzero.
         tickets.exposed_setTicketsSold(0, 350);
 
-        vm.warp(DEPLOY_TIMESTAMP + ROUND_DURATION);
+        vm.warp(FIRST_ROUND_START + ROUND_DURATION);
         tickets.exposed_lazyUpdateRoundState();
         // _roundNumber=1, _roundStart=DEPLOY+RD, _excess=250
 
@@ -45,7 +45,7 @@ contract TicketsPurchaseTest is BaseTicketsTest {
         // Inflate ticketsSold[1] so excess stays nonzero after the next lazy update.
         tickets.exposed_setTicketsSold(1, 50);
 
-        vm.warp(DEPLOY_TIMESTAMP + 2 * ROUND_DURATION);
+        vm.warp(FIRST_ROUND_START + 2 * ROUND_DURATION);
     }
 
     function test_purchaseTicket_revertsOnExpectedRoundMismatch() public {
@@ -83,7 +83,7 @@ contract TicketsPurchaseTest is BaseTicketsTest {
     }
 
     function test_purchaseTicket_revertsForNonGrandfatheredInRoundOneFirstHalf() public {
-        vm.warp(DEPLOY_TIMESTAMP + ROUND_DURATION);
+        vm.warp(FIRST_ROUND_START + ROUND_DURATION);
 
         vm.deal(buyer, MINIMUM_PRICE);
         vm.prank(buyer);
@@ -110,7 +110,7 @@ contract TicketsPurchaseTest is BaseTicketsTest {
         vm.prank(buyer);
         tickets.purchaseTicket{value: MINIMUM_PRICE}(0);
 
-        vm.warp(DEPLOY_TIMESTAMP + ROUND_DURATION);
+        vm.warp(FIRST_ROUND_START + ROUND_DURATION);
 
         uint256 price = tickets.currentPrice();
         vm.deal(buyer, price);
@@ -125,7 +125,7 @@ contract TicketsPurchaseTest is BaseTicketsTest {
         _setupRealisticRound();
 
         assertEq(tickets.exposed_storedRoundNumber(), 1);
-        assertEq(tickets.exposed_storedRoundStart(), DEPLOY_TIMESTAMP + ROUND_DURATION);
+        assertEq(tickets.exposed_storedRoundStart(), FIRST_ROUND_START + ROUND_DURATION);
         assertEq(tickets.exposed_storedExcessTicketsSold(), 250);
 
         uint256 price = tickets.currentPrice();
@@ -139,7 +139,7 @@ contract TicketsPurchaseTest is BaseTicketsTest {
         _logAccesses("first-purchase");
 
         assertEq(tickets.exposed_storedRoundNumber(), 2);
-        assertEq(tickets.exposed_storedRoundStart(), DEPLOY_TIMESTAMP + 2 * ROUND_DURATION);
+        assertEq(tickets.exposed_storedRoundStart(), FIRST_ROUND_START + 2 * ROUND_DURATION);
         assertEq(tickets.exposed_storedExcessTicketsSold(), 200);
         assertTrue(tickets.hasTicket(buyer, 2));
         assertEq(tickets.ticketsSold(2), 1);

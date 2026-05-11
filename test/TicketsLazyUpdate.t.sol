@@ -12,43 +12,43 @@ contract TicketsLazyUpdateTest is BaseTicketsTest {
     }
 
     function test_roundsElapsedSinceStored_countsElapsedRounds() public {
-        vm.warp(DEPLOY_TIMESTAMP + 5 * ROUND_DURATION);
+        vm.warp(FIRST_ROUND_START + 5 * ROUND_DURATION);
         assertEq(tickets.roundsElapsedSinceStored(), 5);
-        vm.warp(DEPLOY_TIMESTAMP + 5 * ROUND_DURATION - 1);
+        vm.warp(FIRST_ROUND_START + 5 * ROUND_DURATION - 1);
         assertEq(tickets.roundsElapsedSinceStored(), 4);
     }
 
-    function test_roundNumber_zeroAtDeploy() public view {
+    function test_roundNumber_zeroAtFirstRoundStart() public view {
         assertEq(tickets.roundNumber(), 0);
     }
 
     function test_roundNumber_addsElapsedRoundsToStored() public {
-        vm.warp(DEPLOY_TIMESTAMP + 3 * ROUND_DURATION);
+        vm.warp(FIRST_ROUND_START + 3 * ROUND_DURATION);
         assertEq(tickets.roundNumber(), 3);
-        vm.warp(DEPLOY_TIMESTAMP + 3 * ROUND_DURATION - 1);
+        vm.warp(FIRST_ROUND_START + 3 * ROUND_DURATION - 1);
         assertEq(tickets.roundNumber(), 2);
     }
 
-    function test_roundStart_isDeployTimestampAtDeploy() public view {
-        assertEq(tickets.roundStart(), DEPLOY_TIMESTAMP);
+    function test_roundStart_isFirstRoundStartAtFirstRound() public view {
+        assertEq(tickets.roundStart(), FIRST_ROUND_START);
     }
 
     function test_roundStart_advancesByRoundDuration() public {
-        vm.warp(DEPLOY_TIMESTAMP + 3 * ROUND_DURATION);
-        assertEq(tickets.roundStart(), DEPLOY_TIMESTAMP + 3 * ROUND_DURATION);
-        vm.warp(DEPLOY_TIMESTAMP + 3 * ROUND_DURATION - 1);
-        assertEq(tickets.roundStart(), DEPLOY_TIMESTAMP + 2 * ROUND_DURATION);
+        vm.warp(FIRST_ROUND_START + 3 * ROUND_DURATION);
+        assertEq(tickets.roundStart(), FIRST_ROUND_START + 3 * ROUND_DURATION);
+        vm.warp(FIRST_ROUND_START + 3 * ROUND_DURATION - 1);
+        assertEq(tickets.roundStart(), FIRST_ROUND_START + 2 * ROUND_DURATION);
     }
 
-    function test_roundEnd_oneRoundAfterStartAtDeploy() public view {
-        assertEq(tickets.roundEnd(), DEPLOY_TIMESTAMP + ROUND_DURATION);
+    function test_roundEnd_oneRoundAfterStartAtFirstRound() public view {
+        assertEq(tickets.roundEnd(), FIRST_ROUND_START + ROUND_DURATION);
     }
 
     function test_roundEnd_advancesByRoundDuration() public {
-        vm.warp(DEPLOY_TIMESTAMP + 3 * ROUND_DURATION);
-        assertEq(tickets.roundEnd(), DEPLOY_TIMESTAMP + 4 * ROUND_DURATION);
-        vm.warp(DEPLOY_TIMESTAMP + 3 * ROUND_DURATION - 1);
-        assertEq(tickets.roundEnd(), DEPLOY_TIMESTAMP + 3 * ROUND_DURATION);
+        vm.warp(FIRST_ROUND_START + 3 * ROUND_DURATION);
+        assertEq(tickets.roundEnd(), FIRST_ROUND_START + 4 * ROUND_DURATION);
+        vm.warp(FIRST_ROUND_START + 3 * ROUND_DURATION - 1);
+        assertEq(tickets.roundEnd(), FIRST_ROUND_START + 3 * ROUND_DURATION);
     }
 
     function test_excessTicketsSold_returnsStoredWhenNoRoundsElapsed() public {
@@ -58,15 +58,15 @@ contract TicketsLazyUpdateTest is BaseTicketsTest {
 
     function test_excessTicketsSold_appliesFormulaAfterAdvance() public {
         tickets.exposed_setTicketsSold(0, 350);
-        vm.warp(DEPLOY_TIMESTAMP + 1 * ROUND_DURATION);
+        vm.warp(FIRST_ROUND_START + 1 * ROUND_DURATION);
         assertEq(tickets.excessTicketsSold(), 350 - TARGET_TICKETS);
-        vm.warp(DEPLOY_TIMESTAMP + 3 * ROUND_DURATION - 1);
+        vm.warp(FIRST_ROUND_START + 3 * ROUND_DURATION - 1);
         assertEq(tickets.excessTicketsSold(), 350 - 2 * TARGET_TICKETS);
     }
 
     function test_lazyUpdateRoundState_writesViewValuesToPrivateState() public {
         tickets.exposed_setTicketsSold(0, 350);
-        vm.warp(DEPLOY_TIMESTAMP + 3 * ROUND_DURATION + 17);
+        vm.warp(FIRST_ROUND_START + 3 * ROUND_DURATION + 17);
 
         uint256 expectedRound = tickets.roundNumber();
         uint256 expectedStart = tickets.roundStart();
@@ -93,7 +93,7 @@ contract TicketsLazyUpdateTest is BaseTicketsTest {
         tickets.setPricingParams(newMinPrice, newFraction);
         vm.stopPrank();
 
-        vm.warp(DEPLOY_TIMESTAMP + ROUND_DURATION);
+        vm.warp(FIRST_ROUND_START + ROUND_DURATION);
         tickets.exposed_lazyUpdateRoundState();
 
         assertEq(tickets.roundDuration(), newDuration);
