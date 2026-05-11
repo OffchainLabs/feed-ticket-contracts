@@ -173,6 +173,30 @@ setGrandfatherPeriodFraction(uint8 newFraction) external onlyRole(MARKET_PARAMS_
 - `BENEFICIARY_SETTER`: Can set the beneficiary account
 - `MARKET_PARAMS_SETTER`: Can set parameters of the market (eg minimum price, target ticket count, etc)
 
+### Optimized Data Sizes
+
+The hot state variables are packed into two 256-bit slots to minimize SLOADs per purchase.
+
+Slot 0 (256 bits used):
+- `_roundDuration` (uint24 seconds): up to ~194 days per round
+- `_maxTicketsPerRound` (uint16): up to 65,535 tickets per round
+- `_minimumPrice` (uint64 wei): up to ~18.4 ether
+- `_currentPrice` (uint72 wei): cached so we don't recompute the Taylor series on each purchase; capped at ~4722 ether
+- `_roundNumber` (uint32): at 1-second rounds, ~136 years before overflow
+- `_roundStart` (uint40 seconds): Unix timestamps past year 36800 (well beyond uint32's 2106 limit)
+- `_grandfatherPeriodFraction` (uint8): numerator over 256 of the round duration
+
+Slot 1 (240 bits used):
+- `_targetTicketsPerRound` (uint16): matches `_maxTicketsPerRound`'s range
+- `_priceUpdateFraction` (uint24): with target=1 and max=65535, a 1% max change per round requires denominator ~6.6M (~23 bits)
+- `_excessTicketsSold` (uint48): worst case is uint16 cap per round * uint32 rounds = 2^48
+- `nextRoundDuration` (uint24): matches `_roundDuration`
+- `nextTargetTicketsPerRound` (uint16): matches `_targetTicketsPerRound`
+- `nextMaxTicketsPerRound` (uint16): matches `_maxTicketsPerRound`
+- `nextMinimumPrice` (uint64): matches `_minimumPrice`
+- `nextPriceUpdateFraction` (uint24): matches `_priceUpdateFraction`
+- `nextGrandfatherPeriodFraction` (uint8): matches `_grandfatherPeriodFraction`
+
 ## `ApiKeyRegistry`
 
 The `ApiKeyRegistry` simply maps user accounts to hashes of user generated API keys that will be used to authenticate with the sequencer.
