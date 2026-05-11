@@ -153,6 +153,7 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         require(ticketsSold[_roundNumber] < maxTicketsPerRound, "Max tickets sold for this round");
         require(!hasTicket[msg.sender][_roundNumber], "Cannot buy two tickets in one round");
 
+        // forge-lint: disable-next-line(block-timestamp)
         if (_roundNumber > 0 && block.timestamp < _roundStart + roundDuration / 2) {
             require(
                 hasTicket[msg.sender][_roundNumber - 1],
