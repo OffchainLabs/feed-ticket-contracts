@@ -56,7 +56,7 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     /// @dev Type matches maxTicketsPerRound.
     uint16 internal _targetTicketsPerRound;
 
-    /// @dev uint24 - up to ~16.7M. Assuming target is 1 and max is 2^16-1, and we want a
+    /// @dev uint24 - Assuming target is 1 and max is 2^16-1, and we want a
     ///      max change rate of 1% per round (lower change needs larger fraction), then
     ///      1.01 = e^(A/B), A = 65534, solve for B -> B = 6.58611*10^6, log2(B) = 23.
     uint24 internal _priceUpdateFraction;
