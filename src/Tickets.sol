@@ -195,16 +195,19 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     }
 
     function setRoundDuration(uint32 newDuration) external onlyRole(MARKET_PARAMS_SETTER) {
+        _lazyUpdateRoundState();
         nextRoundDuration = newDuration;
         emit RoundDurationQueued(newDuration);
     }
 
     function setMaxTicketsPerRound(uint16 newMax) external onlyRole(MARKET_PARAMS_SETTER) {
+        _lazyUpdateRoundState();
         nextMaxTicketsPerRound = newMax;
         emit MaxTicketsPerRoundQueued(newMax);
     }
 
     function setTargetTicketsPerRound(uint16 newTarget) external onlyRole(MARKET_PARAMS_SETTER) {
+        _lazyUpdateRoundState();
         nextTargetTicketsPerRound = newTarget;
         emit TargetTicketsPerRoundQueued(newTarget);
     }
@@ -213,6 +216,7 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         external
         onlyRole(MARKET_PARAMS_SETTER)
     {
+        _lazyUpdateRoundState();
         nextMinimumPrice = newMinimumPrice;
         nextPriceUpdateFraction = newPriceUpdateFraction;
         emit PricingParamsQueued(newMinimumPrice, newPriceUpdateFraction);
