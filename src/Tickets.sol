@@ -77,13 +77,6 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         _disableInitializers();
     }
 
-    /// @dev Foundry linter suggests moving the logic into an internal function to save code size.
-    ///      https://www.getfoundry.sh/forge/linting/unwrapped-modifier-logic#unwrapped-modifier-logic
-    modifier lazyUpdateRoundState() {
-        _lazyUpdateRoundState();
-        _;
-    }
-
     function initialize(
         address defaultAdmin,
         address beneficiarySetter,
@@ -116,7 +109,8 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         _grantRole(MARKET_PARAMS_SETTER, marketParamsSetter);
     }
 
-    function purchaseTicket(uint256 expectedRound) external payable lazyUpdateRoundState {
+    function purchaseTicket(uint256 expectedRound) external payable {
+        _lazyUpdateRoundState();
         require(expectedRound == _roundNumber, "Round number mismatch");
         require(msg.value == _currentPrice, "Incorrect ticket price");
         require(ticketsSold[_roundNumber] < _maxTicketsPerRound, "Max tickets sold for this round");
