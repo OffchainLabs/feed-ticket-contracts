@@ -2,33 +2,33 @@
 ╭---------------------------+----------------------------------------------+------+--------+-------+-------------------------╮
 | Name                      | Type                                         | Slot | Offset | Bytes | Contract                |
 +============================================================================================================================+
-| roundDuration             | uint32                                       | 0    | 0      | 4     | src/Tickets.sol:Tickets |
+| roundDuration             | uint24                                       | 0    | 0      | 3     | src/Tickets.sol:Tickets |
 |---------------------------+----------------------------------------------+------+--------+-------+-------------------------|
-| maxTicketsPerRound        | uint16                                       | 0    | 4      | 2     | src/Tickets.sol:Tickets |
+| maxTicketsPerRound        | uint16                                       | 0    | 3      | 2     | src/Tickets.sol:Tickets |
 |---------------------------+----------------------------------------------+------+--------+-------+-------------------------|
-| minimumPrice              | uint64                                       | 0    | 6      | 8     | src/Tickets.sol:Tickets |
+| minimumPrice              | uint64                                       | 0    | 5      | 8     | src/Tickets.sol:Tickets |
 |---------------------------+----------------------------------------------+------+--------+-------+-------------------------|
-| _currentPrice             | uint72                                       | 0    | 14     | 9     | src/Tickets.sol:Tickets |
+| _currentPrice             | uint72                                       | 0    | 13     | 9     | src/Tickets.sol:Tickets |
 |---------------------------+----------------------------------------------+------+--------+-------+-------------------------|
-| _roundNumber              | uint32                                       | 0    | 23     | 4     | src/Tickets.sol:Tickets |
+| _roundNumber              | uint32                                       | 0    | 22     | 4     | src/Tickets.sol:Tickets |
 |---------------------------+----------------------------------------------+------+--------+-------+-------------------------|
-| _roundStart               | uint40                                       | 0    | 27     | 5     | src/Tickets.sol:Tickets |
+| _roundStart               | uint40                                       | 0    | 26     | 5     | src/Tickets.sol:Tickets |
 |---------------------------+----------------------------------------------+------+--------+-------+-------------------------|
 | targetTicketsPerRound     | uint16                                       | 1    | 0      | 2     | src/Tickets.sol:Tickets |
 |---------------------------+----------------------------------------------+------+--------+-------+-------------------------|
-| nextRoundDuration         | uint32                                       | 1    | 2      | 4     | src/Tickets.sol:Tickets |
+| nextRoundDuration         | uint24                                       | 1    | 2      | 3     | src/Tickets.sol:Tickets |
 |---------------------------+----------------------------------------------+------+--------+-------+-------------------------|
-| nextTargetTicketsPerRound | uint16                                       | 1    | 6      | 2     | src/Tickets.sol:Tickets |
+| nextTargetTicketsPerRound | uint16                                       | 1    | 5      | 2     | src/Tickets.sol:Tickets |
 |---------------------------+----------------------------------------------+------+--------+-------+-------------------------|
-| nextMaxTicketsPerRound    | uint16                                       | 1    | 8      | 2     | src/Tickets.sol:Tickets |
+| nextMaxTicketsPerRound    | uint16                                       | 1    | 7      | 2     | src/Tickets.sol:Tickets |
 |---------------------------+----------------------------------------------+------+--------+-------+-------------------------|
-| nextMinimumPrice          | uint64                                       | 1    | 10     | 8     | src/Tickets.sol:Tickets |
+| nextMinimumPrice          | uint64                                       | 1    | 9      | 8     | src/Tickets.sol:Tickets |
 |---------------------------+----------------------------------------------+------+--------+-------+-------------------------|
-| nextPriceUpdateFraction   | uint24                                       | 1    | 18     | 3     | src/Tickets.sol:Tickets |
+| nextPriceUpdateFraction   | uint24                                       | 1    | 17     | 3     | src/Tickets.sol:Tickets |
 |---------------------------+----------------------------------------------+------+--------+-------+-------------------------|
-| priceUpdateFraction       | uint24                                       | 1    | 21     | 3     | src/Tickets.sol:Tickets |
+| priceUpdateFraction       | uint24                                       | 1    | 20     | 3     | src/Tickets.sol:Tickets |
 |---------------------------+----------------------------------------------+------+--------+-------+-------------------------|
-| _excessTicketsSold        | uint48                                       | 1    | 24     | 6     | src/Tickets.sol:Tickets |
+| _excessTicketsSold        | uint48                                       | 1    | 23     | 6     | src/Tickets.sol:Tickets |
 |---------------------------+----------------------------------------------+------+--------+-------+-------------------------|
 | beneficiary               | address                                      | 2    | 0      | 20    | src/Tickets.sol:Tickets |
 |---------------------------+----------------------------------------------+------+--------+-------+-------------------------|

@@ -49,7 +49,7 @@ abstract contract BaseTicketsTest is Test {
     address marketParamsSetter = makeAddr("marketParamsSetter");
     address beneficiary = makeAddr("beneficiary");
 
-    uint32 constant ROUND_DURATION = 1 hours;
+    uint24 constant ROUND_DURATION = 1 hours;
     uint16 constant TARGET_TICKETS = 100;
     uint16 constant MAX_TICKETS = 200;
     uint64 constant MINIMUM_PRICE = 1 ether;

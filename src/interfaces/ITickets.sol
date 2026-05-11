@@ -50,7 +50,7 @@ interface ITickets {
     function beneficiary() external view returns (address);
 
     /// @notice Duration of a round, in seconds.
-    function roundDuration() external view returns (uint32);
+    function roundDuration() external view returns (uint24);
 
     /// @notice Targeted number of tickets to sell per round. Drives the pricing function.
     function targetTicketsPerRound() external view returns (uint16);
@@ -65,7 +65,7 @@ interface ITickets {
     function priceUpdateFraction() external view returns (uint24);
 
     /// @notice Queued round duration. Takes effect next active round; zero if none queued.
-    function nextRoundDuration() external view returns (uint32);
+    function nextRoundDuration() external view returns (uint24);
 
     /// @notice Queued target tickets per round. Takes effect next active round; zero if none queued.
     function nextTargetTicketsPerRound() external view returns (uint16);
@@ -125,7 +125,7 @@ interface ITickets {
 
     /// @notice Queue a new round duration. Takes effect next active round.
     /// @param  newDuration The new duration of each round. Must be non-zero.
-    function setRoundDuration(uint32 newDuration) external;
+    function setRoundDuration(uint24 newDuration) external;
 
     /// @notice Queue a new hard cap on tickets sold per round. Takes effect next active round.
     /// @param  newMax The new max tickets per round. Must be non-zero.

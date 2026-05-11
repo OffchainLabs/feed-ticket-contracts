@@ -80,7 +80,7 @@ contract TicketsLazyUpdateTest is BaseTicketsTest {
     }
 
     function test_lazyUpdateRoundState_appliesQueuedAdminConfig() public {
-        uint32 newDuration = 2 hours;
+        uint24 newDuration = 2 hours;
         uint16 newTarget = 150;
         uint16 newMax = 300;
         uint64 newMinPrice = 2 ether;

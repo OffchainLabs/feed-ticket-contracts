@@ -13,8 +13,8 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     // ----- Begin Slot 0 ----- //
 
     /// @inheritdoc ITickets
-    /// @dev uint32 seconds - up to ~136 years.
-    uint32 public roundDuration;
+    /// @dev uint24 seconds - up to ~194 days.
+    uint24 public roundDuration;
 
     /// @inheritdoc ITickets
     /// @dev uint16 - up to 65,535.
@@ -43,7 +43,7 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
 
     /// @inheritdoc ITickets
     /// @dev Type matches roundDuration.
-    uint32 public nextRoundDuration;
+    uint24 public nextRoundDuration;
 
     /// @inheritdoc ITickets
     /// @dev Type matches targetTicketsPerRound.
@@ -94,7 +94,7 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         address beneficiarySetter,
         address marketParamsSetter,
         address _beneficiary,
-        uint32 _roundDuration,
+        uint24 _roundDuration,
         uint16 _targetTicketsPerRound,
         uint16 _maxTicketsPerRound,
         uint64 _minimumPrice,
@@ -186,7 +186,7 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         emit BeneficiarySet(newBeneficiary);
     }
 
-    function setRoundDuration(uint32 newDuration) external onlyRole(MARKET_PARAMS_SETTER) lazyUpdateRoundState {
+    function setRoundDuration(uint24 newDuration) external onlyRole(MARKET_PARAMS_SETTER) lazyUpdateRoundState {
         require(newDuration != 0, "Zero round duration");
         nextRoundDuration = newDuration;
         emit RoundDurationQueued(newDuration);
