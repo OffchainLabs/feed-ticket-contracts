@@ -22,7 +22,7 @@ contract TicketsE2ETest is Test {
     uint16 constant MAX = 8;
     uint64 constant MIN_PRICE = 1 ether;
     uint24 constant FRACTION = 10;
-    uint8 constant GRANDFATHER_PERIOD_FRACTION = 128;
+    uint8 constant GRANDFATHER_PERIOD_FRACTION = 100;
     uint40 constant FIRST_ROUND_START = 1_700_000_000;
 
     address[10] buyers;
@@ -108,9 +108,9 @@ contract TicketsE2ETest is Test {
         uint256 r1Price = tickets.currentPrice();
         assertGt(r1Price, MIN_PRICE);
 
-        // Boundary: at midTime - 1 the grandfather rule applies; at midTime it does not.
-        uint256 r1Mid = FIRST_ROUND_START + ROUND_DURATION + ROUND_DURATION / 2;
-        vm.warp(r1Mid - 1);
+        // Boundary: just before grandfatherPeriodEnd the rule applies; at the boundary it does not.
+        uint256 r1GrandfatherEnd = tickets.grandfatherPeriodEnd();
+        vm.warp(r1GrandfatherEnd - 1);
         // buyers[8] never bought in round 0 → reverts in first half.
         vm.expectRevert("Must have ticket from previous round to purchase in first half of round");
         vm.prank(buyers[8]);
@@ -118,7 +118,7 @@ contract TicketsE2ETest is Test {
         // A grandfathered buyer succeeds at the same instant.
         totalSpent += _buy(buyers[0], 1);
 
-        vm.warp(r1Mid);
+        vm.warp(r1GrandfatherEnd);
         // Same non-grandfathered buyer now succeeds at the boundary.
         totalSpent += _buy(buyers[8], 1);
         // Two more second-half buys, mixing grandfathered and not.
@@ -149,7 +149,7 @@ contract TicketsE2ETest is Test {
         tickets.purchaseTicket{value: r1Price}(2);
 
         // Second half: anyone may buy.
-        vm.warp(FIRST_ROUND_START + 2 * ROUND_DURATION + ROUND_DURATION / 2);
+        vm.warp(tickets.grandfatherPeriodEnd());
         totalSpent += _buy(buyers[2], 2);
         totalSpent += _buy(buyers[3], 2);
         totalSpent += _buy(buyers[4], 2);
@@ -164,8 +164,8 @@ contract TicketsE2ETest is Test {
         uint256 r3Price = tickets.currentPrice();
         assertGt(r3Price, r1Price);
 
-        // Skip to the second half so we can fill the cap from any buyer.
-        vm.warp(FIRST_ROUND_START + 3 * ROUND_DURATION + ROUND_DURATION / 2);
+        // Skip past the grandfather phase so we can fill the cap from any buyer.
+        vm.warp(tickets.grandfatherPeriodEnd());
         for (uint256 i = 0; i < MAX; i++) {
             totalSpent += _buy(buyers[i], 3);
         }

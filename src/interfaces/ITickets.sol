@@ -124,6 +124,12 @@ interface ITickets {
     ///         If not, the actual value in effect this round remains based on previous settings.
     function roundEnd() external view returns (uint256);
 
+    /// @notice End timestamp of the grandfather phase of the current round (exclusive). Before this
+    ///         time only holders of a ticket from the previous round may purchase.
+    /// @dev    Assumes at least one ticket will be sold in the current round to apply any queued update.
+    ///         If not, the actual value in effect this round remains based on previous settings.
+    function grandfatherPeriodEnd() external view returns (uint256);
+
     /// @notice Total tickets sold in excess of the cumulative target as of the end of last round.
     function excessTicketsSold() external view returns (uint256);
 

@@ -130,7 +130,7 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         require(!hasTicket[msg.sender][_roundNumber], "Cannot buy two tickets in one round");
 
         // forge-lint: disable-next-line(block-timestamp)
-        if (_roundNumber > 0 && block.timestamp < _roundStart + _roundDuration / 2) {
+        if (_roundNumber > 0 && block.timestamp < _roundStart + (_roundDuration * _grandfatherPeriodFraction) / 256) {
             require(
                 hasTicket[msg.sender][_roundNumber - 1],
                 "Must have ticket from previous round to purchase in first half of round"
@@ -168,6 +168,10 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         return roundStart() + roundDuration();
     }
 
+    function grandfatherPeriodEnd() external view returns (uint256) {
+        return roundStart() + (roundDuration() * grandfatherPeriodFraction()) / 256;
+    }
+
     function roundDuration() public view returns (uint256) {
         return _applyAdminUpdate(_roundDuration, nextRoundDuration);
     }
@@ -188,7 +192,7 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         return _applyAdminUpdate(_priceUpdateFraction, nextPriceUpdateFraction);
     }
 
-    function grandfatherPeriodFraction() external view returns (uint256) {
+    function grandfatherPeriodFraction() public view returns (uint256) {
         return _applyAdminUpdate(_grandfatherPeriodFraction, nextGrandfatherPeriodFraction);
     }
 

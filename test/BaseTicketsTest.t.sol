@@ -56,7 +56,7 @@ abstract contract BaseTicketsTest is Test {
     uint16 constant MAX_TICKETS = 200;
     uint64 constant MINIMUM_PRICE = 1 ether;
     uint24 constant PRICE_UPDATE_FRACTION = 50;
-    uint8 constant GRANDFATHER_PERIOD_FRACTION = 128;
+    uint8 constant GRANDFATHER_PERIOD_FRACTION = 100;
 
     uint40 constant FIRST_ROUND_START = 1_700_000_000;
 

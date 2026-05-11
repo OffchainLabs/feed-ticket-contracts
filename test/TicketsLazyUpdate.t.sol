@@ -51,6 +51,19 @@ contract TicketsLazyUpdateTest is BaseTicketsTest {
         assertEq(tickets.roundEnd(), FIRST_ROUND_START + 3 * ROUND_DURATION);
     }
 
+    function test_grandfatherPeriodEnd_atFirstRound() public view {
+        uint256 phase = (uint256(ROUND_DURATION) * GRANDFATHER_PERIOD_FRACTION) / 256;
+        assertEq(tickets.grandfatherPeriodEnd(), FIRST_ROUND_START + phase);
+    }
+
+    function test_grandfatherPeriodEnd_advancesByRoundDuration() public {
+        uint256 phase = (uint256(ROUND_DURATION) * GRANDFATHER_PERIOD_FRACTION) / 256;
+        vm.warp(FIRST_ROUND_START + 3 * ROUND_DURATION);
+        assertEq(tickets.grandfatherPeriodEnd(), FIRST_ROUND_START + 3 * ROUND_DURATION + phase);
+        vm.warp(FIRST_ROUND_START + 3 * ROUND_DURATION - 1);
+        assertEq(tickets.grandfatherPeriodEnd(), FIRST_ROUND_START + 2 * ROUND_DURATION + phase);
+    }
+
     function test_excessTicketsSold_returnsStoredWhenNoRoundsElapsed() public {
         tickets.exposed_setTicketsSold(0, 350);
         assertEq(tickets.excessTicketsSold(), 0);
