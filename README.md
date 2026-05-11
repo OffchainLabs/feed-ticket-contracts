@@ -50,7 +50,7 @@ The only mutative calls that _do not_ trigger lazy update are setting the benefi
 - `nextMinimumPrice` - if set, upcoming rounds will use it
 - `nextPriceUpdateFraction` - if set, upcoming rounds will use it
 - `nextGrandfatherPeriodFraction` - if set, upcoming rounds will use it
-- `hasTicket` - maps user => roundnum => bool
+- `grandfatheredIntoRound` - maps user => the round into which they are grandfathered (i.e. the round in which they may purchase during the grandfather phase). Concretely, after a user purchases a ticket in round `R`, this is set to `R + 1`. Returns 0 if the user has never purchased; the +1 encoding lets us distinguish "never bought" from "bought in round 0".
 - `ticketsSold` - maps roundnum => numtickets
 
 Private state (committed lazily on the first mutative call in a new round):
@@ -109,14 +109,14 @@ function purchaseTicket(uint256 expectedRound) external payable {
     require(expectedRound == _roundNumber, "Round number mismatch");
     require(msg.value == _currentPrice, "Incorrect ticket price");
     require(ticketsSold[_roundNumber] < _maxTicketsPerRound, "Max tickets sold for this round");
-    require(!hasTicket[msg.sender][_roundNumber], "Cannot buy two tickets in one round");
+    require(grandfatheredIntoRound[msg.sender] != _roundNumber + 1, "Cannot buy two tickets in one round");
 
     if (_roundNumber > 0 && block.timestamp < _roundStart + (_roundDuration * _grandfatherPeriodFraction) / 256) {
-        require(hasTicket[msg.sender][_roundNumber - 1], "Must have ticket from previous round to purchase during grandfather phase");
+        require(grandfatheredIntoRound[msg.sender] == _roundNumber, "Must have ticket from previous round to purchase during grandfather phase");
     }
 
     ticketsSold[_roundNumber]++;
-    hasTicket[msg.sender][_roundNumber] = true;
+    grandfatheredIntoRound[msg.sender] = _roundNumber + 1;
 
     emit TicketPurchased(...);
 }
