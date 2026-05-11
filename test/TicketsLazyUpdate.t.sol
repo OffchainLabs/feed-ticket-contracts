@@ -173,4 +173,83 @@ contract TicketsLazyUpdateTest is BaseTicketsTest {
         assertEq(tickets.roundStart(), FIRST_ROUND_START + 3 * ROUND_DURATION);
         assertEq(tickets.excessTicketsSold(), 350 - 3 * TARGET_TICKETS);
     }
+
+    function test_queuedDurationTakesEffectAtLeastOneRoundAfterQueuing() public {
+        uint32 newDuration = ROUND_DURATION + 1;
+
+        vm.warp(FIRST_ROUND_START + ROUND_DURATION);
+        assertEq(tickets.roundNumber(), 1);
+
+        vm.prank(marketParamsSetter);
+        tickets.setRoundDuration(newDuration);
+
+        assertEq(tickets.nextRoundDuration(), newDuration);
+        assertEq(tickets.roundDuration(), ROUND_DURATION);
+        assertEq(tickets.roundEnd(), FIRST_ROUND_START + 2 * ROUND_DURATION);
+
+        vm.warp(FIRST_ROUND_START + 2 * ROUND_DURATION);
+        assertEq(tickets.roundNumber(), 2);
+
+        assertEq(tickets.roundDuration(), newDuration);
+        assertEq(tickets.roundStart(), FIRST_ROUND_START + 2 * ROUND_DURATION);
+        assertEq(tickets.roundEnd(), FIRST_ROUND_START + 2 * ROUND_DURATION + newDuration);
+    }
+
+    function test_queuedTargetTakesEffectAtLeastOneRoundAfterQueuing() public {
+        uint16 newTarget = TARGET_TICKETS + 1;
+
+        vm.warp(FIRST_ROUND_START + ROUND_DURATION);
+        assertEq(tickets.roundNumber(), 1);
+
+        vm.prank(marketParamsSetter);
+        tickets.setTargetTicketsPerRound(newTarget);
+
+        assertEq(tickets.nextTargetTicketsPerRound(), newTarget);
+        assertEq(tickets.targetTicketsPerRound(), TARGET_TICKETS);
+
+        vm.warp(FIRST_ROUND_START + 2 * ROUND_DURATION);
+        assertEq(tickets.roundNumber(), 2);
+
+        assertEq(tickets.targetTicketsPerRound(), newTarget);
+    }
+
+    function test_queuedMaxTakesEffectAtLeastOneRoundAfterQueuing() public {
+        uint16 newMax = MAX_TICKETS + 1;
+
+        vm.warp(FIRST_ROUND_START + ROUND_DURATION);
+        assertEq(tickets.roundNumber(), 1);
+
+        vm.prank(marketParamsSetter);
+        tickets.setMaxTicketsPerRound(newMax);
+
+        assertEq(tickets.nextMaxTicketsPerRound(), newMax);
+        assertEq(tickets.maxTicketsPerRound(), MAX_TICKETS);
+
+        vm.warp(FIRST_ROUND_START + 2 * ROUND_DURATION);
+        assertEq(tickets.roundNumber(), 2);
+
+        assertEq(tickets.maxTicketsPerRound(), newMax);
+    }
+
+    function test_queuedPricingParamsTakeEffectAtLeastOneRoundAfterQueuing() public {
+        uint64 newMinPrice = MINIMUM_PRICE + 1;
+        uint24 newFraction = PRICE_UPDATE_FRACTION + 1;
+
+        vm.warp(FIRST_ROUND_START + ROUND_DURATION);
+        assertEq(tickets.roundNumber(), 1);
+
+        vm.prank(marketParamsSetter);
+        tickets.setPricingParams(newMinPrice, newFraction);
+
+        assertEq(tickets.nextMinimumPrice(), newMinPrice);
+        assertEq(tickets.nextPriceUpdateFraction(), newFraction);
+        assertEq(tickets.minimumPrice(), MINIMUM_PRICE);
+        assertEq(tickets.priceUpdateFraction(), PRICE_UPDATE_FRACTION);
+
+        vm.warp(FIRST_ROUND_START + 2 * ROUND_DURATION);
+        assertEq(tickets.roundNumber(), 2);
+
+        assertEq(tickets.minimumPrice(), newMinPrice);
+        assertEq(tickets.priceUpdateFraction(), newFraction);
+    }
 }
