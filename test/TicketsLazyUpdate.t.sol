@@ -256,4 +256,22 @@ contract TicketsLazyUpdateTest is BaseTicketsTest {
         assertEq(tickets.minimumPrice(), newMinPrice);
         assertEq(tickets.priceUpdateFraction(), newFraction);
     }
+
+    function test_queuedGrandfatherFractionTakesEffectAtLeastOneRoundAfterQueuing() public {
+        uint8 newFraction = GRANDFATHER_PERIOD_FRACTION + 1;
+
+        vm.warp(FIRST_ROUND_START + ROUND_DURATION);
+        assertEq(tickets.roundNumber(), 1);
+
+        vm.prank(marketParamsSetter);
+        tickets.setGrandfatherPeriodFraction(newFraction);
+
+        assertEq(tickets.nextGrandfatherPeriodFraction(), newFraction);
+        assertEq(tickets.grandfatherPeriodFraction(), GRANDFATHER_PERIOD_FRACTION);
+
+        vm.warp(FIRST_ROUND_START + 2 * ROUND_DURATION);
+        assertEq(tickets.roundNumber(), 2);
+
+        assertEq(tickets.grandfatherPeriodFraction(), newFraction);
+    }
 }
