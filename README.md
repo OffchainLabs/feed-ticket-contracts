@@ -202,19 +202,19 @@ The `ApiKeyRegistry` simply maps user accounts to hashes of user generated API k
 
 ```solidity
 contract ApiKeyRegistry {
-    mapping(address => bytes32) public keyHash;
+    mapping(address => bytes32) public getKeyHash;
 
     event KeyHashUpdated(address indexed user, bytes32 newKeyHash);
 
     function registerKeyHash(bytes32 newKeyHash) external {
-        keyHash[msg.sender] = newKeyHash;
+        getKeyHash[msg.sender] = newKeyHash;
         emit KeyHashUpdated(msg.sender, newKeyHash);
     }
 
     function getMultipleKeyHashes(address[] calldata accounts) external view returns (bytes32[] memory hashes) {
         hashes = new bytes32[](accounts.length);
         for (uint256 i = 0; i < accounts.length; i++) {
-            hashes[i] = keyHash[accounts[i]];
+            hashes[i] = getKeyHash[accounts[i]];
         }
     }
 }
