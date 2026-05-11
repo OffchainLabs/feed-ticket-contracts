@@ -34,7 +34,7 @@ The `ApiKeyRegistry` contract maps ticket holder accounts to hashes of API keys.
 
 Limit 1 ticket per address per round. If users want multiple tickets they must sybil.
 
-Admin setters are queued and applied in a future round. Specifically, updates are applied the round after the next round with activity.
+Admin setters queue their new values rather than applying them immediately. Queued values are applied by the lazy-update modifier when it rolls stored round state forward (see below). Concretely, a value queued in round `R` takes effect at the start of the first round strictly after `R` that sees any mutating call. Rounds with no activity are skipped. The queued value keeps waiting until activity resumes.
 
 We update round information lazily on the first state mutating call during the round. We keep this state private since it can be stale. We expose view functions that will apply appropriate changes to stored round information before returning it. It's possible that there are no mutating calls during a round, so we must be able to apply changes caused by multiple dead rounds in constant time.
 
@@ -116,28 +116,28 @@ setBeneficiary(address newBeneficiary) external onlyRole(BENEFICIARY_SETTER) laz
     emit BeneficiarySet(...);
 }
 
-// Takes effect next round
+// Queued; takes effect on the first mutating call in a later round
 setRoundDuration(uint256 newDuration) external onlyRole(MARKET_PARAMS_SETTER) lazyUpdateRoundState {
     require(newDuration != 0, "Zero round duration");
     nextRoundDuration = newDuration;
     emit RoundDurationQueued(...);
 }
 
-// Takes effect next round
+// Queued; takes effect on the first mutating call in a later round
 setMaxTicketsPerRound(uint256 newMax) external onlyRole(MARKET_PARAMS_SETTER) lazyUpdateRoundState {
     require(newMax != 0, "Zero max tickets per round");
     nextMaxTicketsPerRound = newMax;
     emit MaxTicketsPerRoundQueued(...);
 }
 
-// Takes effect next round
+// Queued; takes effect on the first mutating call in a later round
 setTargetTicketsPerRound(uint256 newTarget) external onlyRole(MARKET_PARAMS_SETTER) lazyUpdateRoundState {
     require(newTarget != 0, "Zero target tickets per round");
     nextTargetTicketsPerRound = newTarget;
     emit TargetTicketsPerRoundQueued(...);
 }
 
-// Takes effect next round
+// Queued; takes effect on the first mutating call in a later round
 // Note that updates affecting pricing might make price jump suddenly
 setPricingParams(
     uint256 newMinimumPrice,
