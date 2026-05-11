@@ -22,6 +22,7 @@ contract TicketsE2ETest is Test {
     uint16 constant MAX = 8;
     uint64 constant MIN_PRICE = 1 ether;
     uint24 constant FRACTION = 10;
+    uint8 constant GRANDFATHER_PERIOD_FRACTION = 128;
     uint40 constant FIRST_ROUND_START = 1_700_000_000;
 
     address[10] buyers;
@@ -32,16 +33,19 @@ contract TicketsE2ETest is Test {
         bytes memory initData = abi.encodeCall(
             Tickets.initialize,
             (
-                defaultAdmin,
-                beneficiarySetter,
-                marketParamsSetter,
-                beneficiary,
-                ROUND_DURATION,
-                TARGET,
-                MAX,
-                MIN_PRICE,
-                FRACTION,
-                FIRST_ROUND_START
+                Tickets.InitParams({
+                    defaultAdmin: defaultAdmin,
+                    beneficiarySetter: beneficiarySetter,
+                    marketParamsSetter: marketParamsSetter,
+                    beneficiary: beneficiary,
+                    roundDuration: ROUND_DURATION,
+                    targetTicketsPerRound: TARGET,
+                    maxTicketsPerRound: MAX,
+                    minimumPrice: MIN_PRICE,
+                    priceUpdateFraction: FRACTION,
+                    grandfatherPeriodFraction: GRANDFATHER_PERIOD_FRACTION,
+                    firstRoundStart: FIRST_ROUND_START
+                })
             )
         );
         tickets = Tickets(address(new TransparentUpgradeableProxy(address(impl), proxyAdmin, initData)));

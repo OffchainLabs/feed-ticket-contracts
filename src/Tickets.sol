@@ -7,6 +7,21 @@ import {
 import {ITickets} from "./interfaces/ITickets.sol";
 
 contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
+    /// @notice Parameters passed to `initialize`. Bundled to avoid stack-too-deep at the call site.
+    struct InitParams {
+        address defaultAdmin;
+        address beneficiarySetter;
+        address marketParamsSetter;
+        address beneficiary;
+        uint24 roundDuration;
+        uint16 targetTicketsPerRound;
+        uint16 maxTicketsPerRound;
+        uint64 minimumPrice;
+        uint24 priceUpdateFraction;
+        uint8 grandfatherPeriodFraction;
+        uint40 firstRoundStart;
+    }
+
     bytes32 public constant BENEFICIARY_SETTER = keccak256("BENEFICIARY_SETTER");
     bytes32 public constant MARKET_PARAMS_SETTER = keccak256("MARKET_PARAMS_SETTER");
 
@@ -98,36 +113,22 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         _;
     }
 
-    function initialize(
-        address defaultAdmin,
-        address beneficiarySetter,
-        address marketParamsSetter,
-        address _beneficiary,
-        uint24 _roundDuration,
-        uint16 _targetTicketsPerRound,
-        uint16 _maxTicketsPerRound,
-        uint64 _minimumPrice,
-        uint24 _priceUpdateFraction,
-        uint40 firstRoundStart
-    ) external initializer {
+    function initialize(InitParams calldata p) external initializer {
         __AccessControlEnumerable_init();
-        _initRoles(defaultAdmin, beneficiarySetter, marketParamsSetter);
+        _grantRole(DEFAULT_ADMIN_ROLE, p.defaultAdmin);
+        _grantRole(BENEFICIARY_SETTER, p.beneficiarySetter);
+        _grantRole(MARKET_PARAMS_SETTER, p.marketParamsSetter);
 
-        beneficiary = _beneficiary;
-        roundDuration = _roundDuration;
-        targetTicketsPerRound = _targetTicketsPerRound;
-        maxTicketsPerRound = _maxTicketsPerRound;
-        minimumPrice = _minimumPrice;
-        priceUpdateFraction = _priceUpdateFraction;
+        beneficiary = p.beneficiary;
+        roundDuration = p.roundDuration;
+        targetTicketsPerRound = p.targetTicketsPerRound;
+        maxTicketsPerRound = p.maxTicketsPerRound;
+        minimumPrice = p.minimumPrice;
+        priceUpdateFraction = p.priceUpdateFraction;
+        grandfatherPeriodFraction = p.grandfatherPeriodFraction;
 
-        _roundStart = firstRoundStart;
-        _currentPrice = _minimumPrice;
-    }
-
-    function _initRoles(address defaultAdmin, address beneficiarySetter, address marketParamsSetter) internal {
-        _grantRole(DEFAULT_ADMIN_ROLE, defaultAdmin);
-        _grantRole(BENEFICIARY_SETTER, beneficiarySetter);
-        _grantRole(MARKET_PARAMS_SETTER, marketParamsSetter);
+        _roundStart = p.firstRoundStart;
+        _currentPrice = p.minimumPrice;
     }
 
     function roundsElapsedSinceStored() public view returns (uint256) {
