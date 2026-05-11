@@ -9,6 +9,19 @@ The basic mechanism is as follows:
 - Once the round ends the newly purchased tickets become "active", while tickets from prior rounds become "inactive" (i.e. the sequencer no longer respects the old tickets and starts respecting the new ones)
 - Once the round ends, the next one begins immediately with a new price which is set by an EIP-4844 like mechanism. 
 
+# Actors & Trust Model
+
+- Sequencer
+    - The sequencer is trusted to actually serve the priority feed to the correct users
+- Market Parameter Setter
+    - Can set various market parameters such as max tickets per round, round timing, etc. Changing certain parameters can cause sudden price changes or affect the true value of tickets that have already been purchased.
+- Beneficiary
+    - The beneficiary is trusted to not sybil the auction. The beneficiary can purchase tickets for free, thereby reducing the real supply and pushing the price up arbitrarily (even to the point of DoS).
+- Proxy Admin
+    - Can upgrade the `Tickets` contract arbitrarily. Can steal any sale proceeds that haven't yet been flushed to the beneficiary.
+- Users
+    - Have no special privileges. Are allowed and expected to sybil for multiple tickets.
+
 # Specification
 
 There are fundamentally two pieces in the onchain system. 
@@ -19,7 +32,7 @@ The `ApiKeyRegistry` contract maps ticket holder accounts to hashes of API keys.
 
 ## `Tickets`
 
-Limit 1 ticket per customer per round.
+Limit 1 ticket per address per round. If users want multiple tickets they must sybil.
 
 Admin setters are queued and applied in a future round. Specifically, updates are applied the round after the next round with activity.
 
@@ -246,17 +259,19 @@ Solving for `E'`:
 E' = F' · ln(M/M') + E · F'/F
 ```
 
+At the moment, we've deemed discontinuous jumps acceptable.
+
 ## Configurable Grandfather Phase
 
 The mechanism assumes that in the first half of the round, only previous round ticket holders can purchase new tickets. We may want to make this configurable instead of fixed at half.
 
-## Timelocked Admin
-
-We should consider putting the admin behind a timelock to boost confidence in the market rules not changing unpredictably. I would imagine we want this contract to have a similar setup to the ELA where the DAO controls the proxy and OCL controls a few select levers.
+TODO: implement
 
 ## First round start in the future
 
 Currently, the first round starts immediately when the tickets contract is deployed. We may want to be able to specify a future time
+
+TODO: implement
 
 ## ERC-20 as Currency
 
