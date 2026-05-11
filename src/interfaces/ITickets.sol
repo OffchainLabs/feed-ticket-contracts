@@ -132,24 +132,24 @@ interface ITickets {
     function distributeSaleProceeds() external;
 
     /// @notice Set the account that receives sale proceeds. Takes effect immediately.
-    /// @param  newBeneficiary The new beneficiary. Must be non-zero.
+    /// @param  newBeneficiary The new beneficiary.
     function setBeneficiary(address newBeneficiary) external;
 
     /// @notice Queue a new round duration. Takes effect next active round.
-    /// @param  newDuration The new duration of each round. Must be non-zero.
+    /// @param  newDuration The new duration of each round.
     function setRoundDuration(uint32 newDuration) external;
 
     /// @notice Queue a new hard cap on tickets sold per round. Takes effect next active round.
-    /// @param  newMax The new max tickets per round. Must be non-zero.
+    /// @param  newMax The new max tickets per round.
     function setMaxTicketsPerRound(uint16 newMax) external;
 
     /// @notice Queue a new target tickets per round. Takes effect next active round.
-    /// @param  newTarget The new target tickets per round. Must be non-zero.
+    /// @param  newTarget The new target tickets per round.
     function setTargetTicketsPerRound(uint16 newTarget) external;
 
     /// @notice Queue new pricing parameters. Takes effect next active round.
     ///         May cause a discontinuous jump in the current price.
-    /// @param  newMinimumPrice        The new minimum ticket price. Must be non-zero.
-    /// @param  newPriceUpdateFraction The new price update fraction. Must be non-zero.
+    /// @param  newMinimumPrice        The new minimum ticket price.
+    /// @param  newPriceUpdateFraction The new price update fraction.
     function setPricingParams(uint64 newMinimumPrice, uint24 newPriceUpdateFraction) external;
 }
