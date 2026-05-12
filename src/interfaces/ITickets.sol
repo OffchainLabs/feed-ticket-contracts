@@ -51,45 +51,60 @@ interface ITickets {
     /// @notice Emitted when stored round state is rolled forward by the lazy update modifier.
     event RoundStateUpdated();
 
+    /// @notice Purchase one ticket for the current round. Caller must send exactly `currentPrice()` value.
+    ///         During the grandfather phase at the start of a round, only holders of a ticket from the
+    ///         previous round may purchase.
+    /// @param  expectedRound Round the caller expects to be current. Reverts if it does not match.
+    function purchaseTicket(uint256 expectedRound) external payable;
+
+    /// @notice Forward all accumulated sale proceeds to the current beneficiary. Permissionless.
+    function distributeSaleProceeds() external;
+
     /// @notice Account that receives ticket sale proceeds.
     function beneficiary() external view returns (address);
 
     /// @notice Duration of a round, in seconds.
-    /// @dev    Surfaces the queued value as soon as a round has elapsed. The contract's arithmetic
-    ///         only switches to it once a mutative call commits it to storage; until then the
-    ///         previous setting remains in effect.
+    /// @dev    Returns the queued value if one is queued and a round has elapsed, even before a
+    ///         mutative call has committed it to storage. The contract's arithmetic keeps using
+    ///         the stored value until that commit, so this view can diverge from the value in
+    ///         effect until the next mutative call within the round.
     function roundDuration() external view returns (uint256);
 
     /// @notice Targeted number of tickets to sell per round. Drives the pricing function.
-    /// @dev    Surfaces the queued value as soon as a round has elapsed. The contract's arithmetic
-    ///         only switches to it once a mutative call commits it to storage; until then the
-    ///         previous setting remains in effect.
+    /// @dev    Returns the queued value if one is queued and a round has elapsed, even before a
+    ///         mutative call has committed it to storage. The contract's arithmetic keeps using
+    ///         the stored value until that commit, so this view can diverge from the value in
+    ///         effect until the next mutative call within the round.
     function targetTicketsPerRound() external view returns (uint256);
 
     /// @notice Hard cap on tickets sold per round.
-    /// @dev    Surfaces the queued value as soon as a round has elapsed. The contract's arithmetic
-    ///         only switches to it once a mutative call commits it to storage; until then the
-    ///         previous setting remains in effect.
+    /// @dev    Returns the queued value if one is queued and a round has elapsed, even before a
+    ///         mutative call has committed it to storage. The contract's arithmetic keeps using
+    ///         the stored value until that commit, so this view can diverge from the value in
+    ///         effect until the next mutative call within the round.
     function maxTicketsPerRound() external view returns (uint256);
 
     /// @notice Minimum ticket price. Floor of the pricing function.
-    /// @dev    Surfaces the queued value as soon as a round has elapsed. The contract's arithmetic
-    ///         only switches to it once a mutative call commits it to storage; until then the
-    ///         previous setting remains in effect.
+    /// @dev    Returns the queued value if one is queued and a round has elapsed, even before a
+    ///         mutative call has committed it to storage. The contract's arithmetic keeps using
+    ///         the stored value until that commit, so this view can diverge from the value in
+    ///         effect until the next mutative call within the round.
     function minimumPrice() external view returns (uint256);
 
     /// @notice Parameter controlling how quickly price moves per excess ticket sold.
-    /// @dev    Surfaces the queued value as soon as a round has elapsed. The contract's arithmetic
-    ///         only switches to it once a mutative call commits it to storage; until then the
-    ///         previous setting remains in effect.
+    /// @dev    Returns the queued value if one is queued and a round has elapsed, even before a
+    ///         mutative call has committed it to storage. The contract's arithmetic keeps using
+    ///         the stored value until that commit, so this view can diverge from the value in
+    ///         effect until the next mutative call within the round.
     function priceUpdateFraction() external view returns (uint256);
 
     /// @notice Length of the grandfather phase at the start of each round, as a fraction of 256
     ///         of the round duration. During the grandfather phase only holders of a ticket from
     ///         the previous round may purchase. e.g. 128 = first half of the round.
-    /// @dev    Surfaces the queued value as soon as a round has elapsed. The contract's arithmetic
-    ///         only switches to it once a mutative call commits it to storage; until then the
-    ///         previous setting remains in effect.
+    /// @dev    Returns the queued value if one is queued and a round has elapsed, even before a
+    ///         mutative call has committed it to storage. The contract's arithmetic keeps using
+    ///         the stored value until that commit, so this view can diverge from the value in
+    ///         effect until the next mutative call within the round.
     function grandfatherPeriodFraction() external view returns (uint256);
 
     /// @notice Queued round duration. Takes effect next active round; zero if none queued.
@@ -112,12 +127,7 @@ interface ITickets {
     function nextGrandfatherPeriodFraction() external view returns (uint8);
 
     /// @notice Queued override for `excessTicketsSold()`, applied together with the next pricing
-    ///         params so the admin can keep `currentPrice` continuous across a pricing-param change
-    ///         (which would otherwise jump discontinuously).
-    /// @dev    Bundled with `setPricingParams`: written and reset together with `nextMinimumPrice`
-    ///         and `nextPriceUpdateFraction`, and gated on the same `nextPriceUpdateFraction != 0`
-    ///         sentinel. No separate "no override queued" sentinel: 0 is a valid override value
-    ///         while a pricing update is queued, and the field is meaningless otherwise.
+    ///         params so the admin can keep `currentPrice` relatively stable across a pricing-param change.
     function excessTicketsSoldOverride() external view returns (uint56);
 
     /// @notice The round into which `user` is grandfathered based on their most recent ticket
@@ -143,44 +153,39 @@ interface ITickets {
     function roundStart() external view returns (uint256);
 
     /// @notice End timestamp of the current round (exclusive).
-    /// @dev    Surfaces the queued value as soon as a round has elapsed. The contract's arithmetic
-    ///         only switches to it once a mutative call commits it to storage; until then the
-    ///         previous setting remains in effect.
+    /// @dev    Composed from queued-update-aware views, so it reflects queued updates once a round
+    ///         has elapsed. The contract's arithmetic keeps using stored values until a mutative
+    ///         call commits them, so this view can diverge from the value in effect until the
+    ///         next mutative call within the round.
     function roundEnd() external view returns (uint256);
 
     /// @notice End timestamp of the grandfather phase of the current round (exclusive). Before this
     ///         time only holders of a ticket from the previous round may purchase.
-    /// @dev    Surfaces the queued value as soon as a round has elapsed. The contract's arithmetic
-    ///         only switches to it once a mutative call commits it to storage; until then the
-    ///         previous setting remains in effect.
+    /// @dev    Composed from queued-update-aware views, so it reflects queued updates once a round
+    ///         has elapsed. The contract's arithmetic keeps using stored values until a mutative
+    ///         call commits them, so this view can diverge from the value in effect until the
+    ///         next mutative call within the round.
     function grandfatherPeriodEnd() external view returns (uint256);
 
     /// @notice Total tickets sold in excess of the cumulative target as of the end of last round.
-    /// @dev    Once a round has elapsed and a pricing update is queued, this surfaces
-    ///         `excessTicketsSoldOverride` instead of the natural decay value so the admin can
-    ///         keep `currentPrice` continuous across a pricing-param change. The override is
-    ///         committed into `_excessTicketsSold` by the next mutative call.
+    /// @dev    Once a round has elapsed, this view returns either:
+    ///         (a) `excessTicketsSoldOverride` if a pricing update is queued - lets the admin
+    ///             avoid a price jump across the param change; or
+    ///         (b) the stored value plus the prior round's `ticketsSold`, minus elapsed rounds'
+    ///             worth of target (saturated at zero).
+    ///         The contract's arithmetic keeps using the stored value until a mutative call commits.
     function excessTicketsSold() external view returns (uint256);
 
     /// @notice Ticket price for the current round, in wei.
-    /// @dev    The price is `fake_exponential(minimumPrice, excessTicketsSold(), priceUpdateFraction)`
+    /// @dev    The price is `fake_exponential(minimumPrice(), excessTicketsSold(), priceUpdateFraction())`
     ///         (EIP-4844 style), clamped at `type(uint72).max` (~4722 ether). If the formula would
     ///         exceed that cap, this returns `type(uint72).max` and tickets are sold at the cap
     ///         rather than at the higher formula price.
     ///
-    ///         Surfaces the queued value as soon as a round has elapsed. The contract's arithmetic
-    ///         only switches to it once a mutative call commits it to storage; until then the
-    ///         previous setting remains in effect.
+    ///         Composed from queued-update-aware views, so it reflects queued updates once a round
+    ///         has elapsed. The contract's arithmetic keeps using stored values until a mutative
+    ///         call commits them, so this view can briefly diverge from the value in effect.
     function currentPrice() external view returns (uint256);
-
-    /// @notice Purchase one ticket for the current round. Caller must send exactly `currentPrice()` value.
-    ///         During the grandfather phase at the start of a round, only holders of a ticket from the
-    ///         previous round may purchase.
-    /// @param  expectedRound Round the caller expects to be current. Reverts if it does not match.
-    function purchaseTicket(uint256 expectedRound) external payable;
-
-    /// @notice Forward all accumulated sale proceeds to the current beneficiary. Permissionless.
-    function distributeSaleProceeds() external;
 
     /// @notice Set the account that receives sale proceeds. Takes effect immediately.
     /// @param  newBeneficiary The new beneficiary.
@@ -208,12 +213,6 @@ interface ITickets {
     ///         May cause a discontinuous jump in the current price.
     ///         The resulting price after the update takes effect will be
     ///         `fake_exponential(newMinimumPrice, excessTicketsSoldOverride, newPriceUpdateFraction)`
-    /// @dev    The three parameters MUST be queued and committed as a coupled triple:
-    ///         `nextMinimumPrice`, `nextPriceUpdateFraction`, and `excessTicketsSoldOverride`
-    ///         are always set together here and reset together on commit. The `minimumPrice()`
-    ///         view, the `excessTicketsSold()` view, and the storage-commit path all treat
-    ///         `nextPriceUpdateFraction != 0` as the single "pricing update queued" sentinel
-    ///         (saving slot reads of `nextMinimumPrice` and `excessTicketsSoldOverride`).
     /// @param  newMinimumPrice              The new minimum ticket price.
     ///                                      Must be greater than zero, which is reserved as the
     ///                                      "no update queued" sentinel.
