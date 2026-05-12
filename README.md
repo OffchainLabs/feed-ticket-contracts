@@ -209,10 +209,6 @@ When a round ends/advances, the sequencer compares the new list of api keys to t
 
 The sequencer cannot allow more than one open connection per key. If more than one connection is allowed then people will share keys.
 
-# Secondary Markets
-
-Despite tickets being non-transferrable, a secondary market can still be built. It could look something like a bunch of vault contracts (one per ticket). Users would purchase tickets _through_ the vault contracts, which would then each purchase a ticket. Ownership of these vaults grants owners the ability to interact with the `ApiKeyRegistry` _through_ the vault, and ownership _could_ be transferrable.
-
 # Potential Improvements
 
 ## Continuous Pricing Across Param Updates
