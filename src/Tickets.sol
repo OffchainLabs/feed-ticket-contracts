@@ -155,7 +155,7 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     }
 
     /// @inheritdoc ITickets
-    function purchaseTicket(uint256 expectedRound) external payable {
+    function purchaseTicket(uint256 expectedRound, bytes32 apiKeyHash) external payable {
         _lazyUpdateRoundState();
         require(expectedRound == _roundNumber, "Round number mismatch");
         require(msg.value == _currentPrice, "Incorrect ticket price");
@@ -178,7 +178,7 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         ticketsSold[_roundNumber]++;
         grandfatheredIntoRound[msg.sender] = uint256(_roundNumber) + 1;
 
-        emit TicketPurchased(msg.sender, _roundNumber, msg.value);
+        emit TicketPurchased(msg.sender, _roundNumber, msg.value, apiKeyHash);
     }
 
     /// @inheritdoc ITickets
