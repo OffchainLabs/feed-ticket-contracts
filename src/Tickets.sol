@@ -109,6 +109,16 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     }
 
     function initialize(InitParams calldata p) external initializer {
+        require(p.roundDuration > 0, "Round duration must be greater than zero");
+        require(p.targetTicketsPerRound > 0, "Target tickets per round must be greater than zero");
+        require(p.maxTicketsPerRound > 0, "Max tickets per round must be greater than zero");
+        require(p.minimumPrice > 0, "Minimum price must be greater than zero");
+        require(p.priceUpdateFraction > 0, "Price update fraction must be greater than zero");
+        require(
+            p.grandfatherPeriodFraction != GRANDFATHER_PERIOD_SENTINEL,
+            "Grandfather period fraction cannot be type(uint8).max"
+        );
+
         __AccessControlEnumerable_init();
         _initRoles(p.defaultAdmin, p.beneficiarySetter, p.marketParamsSetter);
 
