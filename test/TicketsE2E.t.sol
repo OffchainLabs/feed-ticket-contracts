@@ -28,7 +28,7 @@ contract TicketsE2ETest is Test {
     address[10] buyers;
 
     function setUp() public {
-        vm.warp(FIRST_ROUND_START);
+        vm.warp(FIRST_ROUND_START - 1);
         impl = new Tickets();
         bytes memory initData = abi.encodeCall(
             Tickets.initialize,
@@ -47,6 +47,7 @@ contract TicketsE2ETest is Test {
                 }))
         );
         tickets = Tickets(address(new TransparentUpgradeableProxy(address(impl), proxyAdmin, initData)));
+        vm.warp(FIRST_ROUND_START);
         for (uint256 i = 0; i < buyers.length; i++) {
             buyers[i] = makeAddr(string.concat("buyer", vm.toString(i)));
             vm.deal(buyers[i], 100 ether);

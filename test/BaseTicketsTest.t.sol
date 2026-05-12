@@ -61,9 +61,10 @@ abstract contract BaseTicketsTest is Test {
     uint40 constant FIRST_ROUND_START = 1_700_000_000;
 
     function setUp() public virtual {
-        vm.warp(FIRST_ROUND_START);
+        vm.warp(FIRST_ROUND_START - 1);
         impl = new TicketsHarness();
         tickets = TicketsHarness(address(new TransparentUpgradeableProxy(address(impl), proxyAdmin, _initData())));
+        vm.warp(FIRST_ROUND_START);
     }
 
     function _initData() internal view returns (bytes memory) {

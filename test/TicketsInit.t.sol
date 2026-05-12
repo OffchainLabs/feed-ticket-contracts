@@ -4,6 +4,7 @@ pragma solidity ^0.8.20;
 // forge-lint: disable-start
 
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {BaseTicketsTest} from "./BaseTicketsTest.t.sol";
 import {Tickets} from "../src/Tickets.sol";
 
@@ -52,5 +53,12 @@ contract TicketsInitTest is BaseTicketsTest {
     function test_initialize_disabledOnImplementation() public {
         vm.expectRevert(Initializable.InvalidInitialization.selector);
         impl.initialize(_params());
+    }
+
+    function test_initialize_revertsWhenFirstRoundStartEqualsNow() public {
+        Tickets.InitParams memory p = _params();
+        p.firstRoundStart = uint40(block.timestamp);
+        vm.expectRevert(bytes("First round start must be in the future"));
+        new TransparentUpgradeableProxy(address(impl), proxyAdmin, abi.encodeCall(Tickets.initialize, (p)));
     }
 }

@@ -127,6 +127,8 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
             p.grandfatherPeriodFraction != GRANDFATHER_PERIOD_SENTINEL,
             "Grandfather period fraction cannot be type(uint8).max"
         );
+        // forge-lint: disable-next-line(block-timestamp)
+        require(p.firstRoundStart > block.timestamp, "First round start must be in the future");
 
         __AccessControlEnumerable_init();
         _initRoles(p.defaultAdmin, p.beneficiarySetter, p.marketParamsSetter);
