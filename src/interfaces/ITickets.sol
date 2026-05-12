@@ -38,7 +38,11 @@ interface ITickets {
     /// @notice Emitted when new pricing parameters are queued. Takes effect next active round.
     /// @param  newMinimumPrice The minimum ticket price.
     /// @param  newPriceUpdateFraction The price update fraction.
-    event PricingParamsQueued(uint256 newMinimumPrice, uint256 newPriceUpdateFraction);
+    /// @param  newExcessTicketsSoldOverride The value to install as `excessTicketsSold` when the
+    ///                                      queued pricing params are committed.
+    event PricingParamsQueued(
+        uint256 newMinimumPrice, uint256 newPriceUpdateFraction, uint256 newExcessTicketsSoldOverride
+    );
 
     /// @notice Emitted when a new grandfather period fraction is queued. Takes effect next active round.
     /// @param  newFraction The new grandfather phase length as a fraction of 256 of the round.

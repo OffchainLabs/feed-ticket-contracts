@@ -231,8 +231,8 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         uint256 elapsed = roundsElapsedSinceStored();
         if (elapsed == 0) return _excessTicketsSold;
 
-        // since priceUpdateFraction and excessTicketsSoldOverride are set together, we only check the sentinel for
-        // priceUpdateFraction to save gas. If nextPriceUpdateFraction != 0, that means an admin has queued a pricing update
+        // since nextPriceUpdateFraction and excessTicketsSoldOverride are set together, we only check the sentinel
+        // for nextPriceUpdateFraction to save gas. If nextPriceUpdateFraction != 0, an admin has queued a pricing update
         if (nextPriceUpdateFraction != 0) return excessTicketsSoldOverride;
 
         uint256 gross = _excessTicketsSold + ticketsSold[_roundNumber];
@@ -282,7 +282,7 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         nextMinimumPrice = newMinimumPrice;
         nextPriceUpdateFraction = newPriceUpdateFraction;
         excessTicketsSoldOverride = newExcessTicketsSoldOverride;
-        emit PricingParamsQueued(newMinimumPrice, newPriceUpdateFraction);
+        emit PricingParamsQueued(newMinimumPrice, newPriceUpdateFraction, newExcessTicketsSoldOverride);
     }
 
     function setGrandfatherPeriodFraction(uint8 newFraction) external onlyRole(MARKET_PARAMS_SETTER) {
