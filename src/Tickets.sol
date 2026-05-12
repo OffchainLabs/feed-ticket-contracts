@@ -94,8 +94,6 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
 
     // ------ End Slot 1 ------ //
 
-    address public beneficiary;
-
     /// @inheritdoc ITickets
     /// @dev Type matches minimumPrice.
     uint64 public nextMinimumPrice;
@@ -103,6 +101,8 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     /// @inheritdoc ITickets
     /// @dev Type matches excessTicketsSold.
     uint56 public excessTicketsSoldOverride;
+
+    address public beneficiary;
 
     /// @inheritdoc ITickets
     mapping(address => uint256) public grandfatheredIntoRound;

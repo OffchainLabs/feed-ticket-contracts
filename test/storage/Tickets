@@ -32,11 +32,11 @@
 |-------------------------------+-----------------------------+------+--------+-------+-------------------------|
 | nextGrandfatherPeriodFraction | uint8                       | 1    | 27     | 1     | src/Tickets.sol:Tickets |
 |-------------------------------+-----------------------------+------+--------+-------+-------------------------|
-| beneficiary                   | address                     | 2    | 0      | 20    | src/Tickets.sol:Tickets |
+| nextMinimumPrice              | uint64                      | 2    | 0      | 8     | src/Tickets.sol:Tickets |
 |-------------------------------+-----------------------------+------+--------+-------+-------------------------|
-| nextMinimumPrice              | uint64                      | 2    | 20     | 8     | src/Tickets.sol:Tickets |
+| excessTicketsSoldOverride     | uint56                      | 2    | 8      | 7     | src/Tickets.sol:Tickets |
 |-------------------------------+-----------------------------+------+--------+-------+-------------------------|
-| excessTicketsSoldOverride     | uint56                      | 3    | 0      | 7     | src/Tickets.sol:Tickets |
+| beneficiary                   | address                     | 3    | 0      | 20    | src/Tickets.sol:Tickets |
 |-------------------------------+-----------------------------+------+--------+-------+-------------------------|
 | grandfatheredIntoRound        | mapping(address => uint256) | 4    | 0      | 32    | src/Tickets.sol:Tickets |
 |-------------------------------+-----------------------------+------+--------+-------+-------------------------|
