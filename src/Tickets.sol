@@ -178,7 +178,7 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         ticketsSold[_roundNumber]++;
         grandfatheredIntoRound[msg.sender] = uint256(_roundNumber) + 1;
 
-        emit TicketPurchased(msg.sender, _roundNumber, msg.value, apiKeyHash);
+        emit TicketPurchased(msg.sender, _roundNumber, apiKeyHash, msg.value);
     }
 
     /// @inheritdoc ITickets

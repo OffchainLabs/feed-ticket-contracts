@@ -24,7 +24,7 @@ The basic mechanism is as follows:
 
 # Specification
 
-1 ticket per address. 1 API key per ticket. 1 connection per API key.
+1 ticket per address per round. 1 API key per ticket. 1 connection per API key.
 
 We update round information lazily on the first mutative call during the round. We keep this state private since it can be stale. We expose view functions that will apply appropriate changes to stored round information before returning it.
 
@@ -98,7 +98,7 @@ In addition to the public state, `Tickets` has the following view functions:
 `Tickets` has the following mutative functions:
 
 ```solidity
-function purchaseTicket(uint256 expectedRound) external payable {
+function purchaseTicket(uint256 expectedRound, bytes32 apiKeyHash) external payable {
     _lazyUpdateRoundState();
     require(expectedRound == _roundNumber, "Round number mismatch");
     require(msg.value == _currentPrice, "Incorrect ticket price");
@@ -112,7 +112,7 @@ function purchaseTicket(uint256 expectedRound) external payable {
     ticketsSold[_roundNumber]++;
     grandfatheredIntoRound[msg.sender] = _roundNumber + 1;
 
-    emit TicketPurchased(...);
+    emit TicketPurchased(msg.sender, _roundNumber, apiKeyHash, msg.value);
 }
 ```
 

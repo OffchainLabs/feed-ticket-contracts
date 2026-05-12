@@ -95,7 +95,7 @@ contract TicketsPurchaseTest is BaseTicketsTest {
         vm.deal(buyer, MINIMUM_PRICE);
 
         vm.expectEmit(true, true, false, true, address(tickets));
-        emit ITickets.TicketPurchased(buyer, 0, MINIMUM_PRICE, bytes32(0));
+        emit ITickets.TicketPurchased(buyer, 0, bytes32(0), MINIMUM_PRICE);
 
         vm.prank(buyer);
         tickets.purchaseTicket{value: MINIMUM_PRICE}(0, bytes32(0));

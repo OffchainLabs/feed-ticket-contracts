@@ -11,9 +11,9 @@ interface ITickets {
     /// @notice Emitted when a ticket is purchased.
     /// @param  buyer The account that purchased the ticket.
     /// @param  round The round the ticket was purchased in.
-    /// @param  price The price paid for the ticket.
     /// @param  apiKeyHash The hash of the API key associated with the ticket purchase.
-    event TicketPurchased(address indexed buyer, uint256 indexed round, uint256 price, bytes32 apiKeyHash);
+    /// @param  price The price paid for the ticket.
+    event TicketPurchased(address indexed buyer, uint256 indexed round, bytes32 indexed apiKeyHash, uint256 price);
 
     /// @notice Emitted when accumulated sale proceeds are forwarded to the beneficiary.
     /// @param  beneficiary The account that received the proceeds.
