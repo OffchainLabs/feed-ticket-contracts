@@ -50,6 +50,7 @@ The only mutative calls that _do not_ trigger lazy update are setting the benefi
 - `nextMinimumPrice` - if set, upcoming rounds will use it
 - `nextPriceUpdateFraction` - if set, upcoming rounds will use it
 - `nextGrandfatherPeriodFraction` - if set, upcoming rounds will use it
+- `excessTicketsSoldOverride` - queued override for `excessTicketsSold()`
 - `grandfatheredIntoRound` - maps user => the round into which they are grandfathered (i.e. the round in which they may purchase during the grandfather phase). Concretely, after a user purchases a ticket in round `R`, this is set to `R + 1`. Returns 0 if the user has never purchased; the +1 encoding lets us distinguish "never bought" from "bought in round 0".
 - `ticketsSold` - maps roundnum => numtickets
 
@@ -93,6 +94,7 @@ In addition to the public state, `Tickets` has the following view functions:
     - `return roundStart() + (roundDuration() * grandfatherPeriodFraction()) / 256`
 - `excessTicketsSold()` - the total "extra" number of tickets that have been sold as of the last round relative to the "targeted" number.
     - `if (_roundNumber == roundNumber()) return _excessTicketsSold;`
+    - `else if (nextPriceUpdateFraction != 0) return excessTicketsSoldOverride;`
     - `else return max(0, _excessTicketsSold + ticketsSold[_roundNumber] - roundsElapsedSinceStored() * _targetTicketsPerRound)`
     - max(0, ...) underflows in solidity. code's for illustration
 - `currentPrice()` - the ticket price (in wei) for the current round
@@ -151,10 +153,11 @@ setMaxTicketsPerRound(uint16 newMax) external onlyRole(MARKET_PARAMS_SETTER) {..
 setTargetTicketsPerRound(uint16 newTarget) external onlyRole(MARKET_PARAMS_SETTER) {...}
 
 // Queued; committed by the first mutative call in a later round
-// Note that updates affecting pricing might make price jump suddenly
+// Updates affecting pricing make the price jump suddenly. newExcessTicketsSoldOverride is provided to minimize jumps
 setPricingParams(
     uint64 newMinimumPrice,
-    uint40 newPriceUpdateFraction
+    uint40 newPriceUpdateFraction,
+    uint56 newExcessTicketsSoldOverride
 ) external onlyRole(MARKET_PARAMS_SETTER) {...}
 
 // Queued; committed by the first mutative call in a later round
@@ -174,7 +177,7 @@ setGrandfatherPeriodFraction(uint8 newFraction) external onlyRole(MARKET_PARAMS_
 
 ### Optimized Data Sizes
 
-Hot path state lives in slot 0 and a common-case purchase only loads that slot. Slot 1 holds colder state read during round rollover. Slot 2 holds other information that is only occasionally accessed during round rollover due to an admin configuration change.
+Hot path state lives in slot 0 and a common-case purchase only loads that slot. Slot 1 holds colder state read during round rollover. Slots 2 and above hold other information that is only occasionally accessed during round rollover due to an admin configuration change.
 
 Slot 0 (256 bits used):
 - `_roundDuration` (uint24 seconds): up to ~194 days per round
@@ -195,9 +198,10 @@ Slot 1 (224 bits used):
 - `nextPriceUpdateFraction` (uint40): matches `_priceUpdateFraction`
 - `nextGrandfatherPeriodFraction` (uint8): matches `_grandfatherPeriodFraction`
 
-Slot 2 (224 bits used):
+Slots 2+:
 - `beneficiary` (address): account that receives sale proceeds
 - `nextMinimumPrice` (uint64): matches `_minimumPrice`
+- `excessTicketsSoldOverride` (uint56): matches `_excessTicketsSold`.
 
 ## `ApiKeyRegistry`
 
@@ -248,7 +252,7 @@ Despite tickets being non-transferrable, a secondary market can still be built. 
 
 ## Continuous Pricing Across Param Updates
 
-The price is `currentPrice = fake_exponential(M, E, F) ≈ M · e^(E/F)` where `M = minimumPrice`, `E = excessTicketsSold`, `F = priceUpdateFraction`. As written, changing `nextMinimumPrice` / `nextPriceUpdateFraction` causes the price to jump discontinuously.
+The price is `currentPrice = fake_exponential(M, E, F) ≈ M · e^(E/F)` where `M = minimumPrice`, `E = excessTicketsSold`, `F = priceUpdateFraction`. By default, changing `nextMinimumPrice` / `nextPriceUpdateFraction` causes the price to jump discontinuously.
 
 To make the price continuous across a pricing-param update, recompute `E` during lazy update (at the moment the new params are applied) so that
 

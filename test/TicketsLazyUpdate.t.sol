@@ -77,6 +77,30 @@ contract TicketsLazyUpdateTest is BaseTicketsTest {
         assertEq(tickets.excessTicketsSold(), 350 - 2 * TARGET_TICKETS);
     }
 
+    /// @dev With a queued pricing update, excessTicketsSold() returns the override (not the
+    ///      natural-decay value) once a round has elapsed, and the override does not itself
+    ///      decay across further inactive rounds. The override is distinct from both
+    ///      `_excessTicketsSold` (0) and the natural-decay value (350 - 1 * TARGET_TICKETS = 250).
+    function test_excessTicketsSold_returnsOverrideWhenPricingUpdateQueuedAndRoundElapsed() public {
+        tickets.exposed_setTicketsSold(0, 350);
+
+        uint56 newExcessOverride = 42;
+        vm.prank(marketParamsSetter);
+        tickets.setPricingParams(MINIMUM_PRICE, PRICE_UPDATE_FRACTION, newExcessOverride);
+
+        // Boundary - 1: still in the first round, override does not apply.
+        vm.warp(FIRST_ROUND_START + ROUND_DURATION - 1);
+        assertEq(tickets.excessTicketsSold(), 0);
+
+        // Boundary: one round elapsed, override applies in place of the natural-decay value.
+        vm.warp(FIRST_ROUND_START + ROUND_DURATION);
+        assertEq(tickets.excessTicketsSold(), newExcessOverride);
+
+        // Further inactive rounds: override does not itself decay.
+        vm.warp(FIRST_ROUND_START + 5 * ROUND_DURATION);
+        assertEq(tickets.excessTicketsSold(), newExcessOverride);
+    }
+
     function test_lazyUpdateRoundState_writesViewValuesToPrivateState() public {
         tickets.exposed_setTicketsSold(0, 350);
         vm.warp(FIRST_ROUND_START + 3 * ROUND_DURATION + 17);
