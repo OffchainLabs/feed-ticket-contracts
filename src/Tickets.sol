@@ -225,18 +225,21 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     }
 
     function setRoundDuration(uint24 newDuration) external onlyRole(MARKET_PARAMS_SETTER) {
+        require(newDuration > 0, "Round duration must be greater than zero");
         _lazyUpdateRoundState();
         nextRoundDuration = newDuration;
         emit RoundDurationQueued(newDuration);
     }
 
     function setMaxTicketsPerRound(uint16 newMax) external onlyRole(MARKET_PARAMS_SETTER) {
+        require(newMax > 0, "Max tickets per round must be greater than zero");
         _lazyUpdateRoundState();
         nextMaxTicketsPerRound = newMax;
         emit MaxTicketsPerRoundQueued(newMax);
     }
 
     function setTargetTicketsPerRound(uint16 newTarget) external onlyRole(MARKET_PARAMS_SETTER) {
+        require(newTarget > 0, "Target tickets per round must be greater than zero");
         _lazyUpdateRoundState();
         nextTargetTicketsPerRound = newTarget;
         emit TargetTicketsPerRoundQueued(newTarget);
@@ -246,6 +249,8 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         external
         onlyRole(MARKET_PARAMS_SETTER)
     {
+        require(newMinimumPrice > 0, "Minimum price must be greater than zero");
+        require(newPriceUpdateFraction > 0, "Price update fraction must be greater than zero");
         _lazyUpdateRoundState();
         nextMinimumPrice = newMinimumPrice;
         nextPriceUpdateFraction = newPriceUpdateFraction;
@@ -253,6 +258,7 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     }
 
     function setGrandfatherPeriodFraction(uint8 newFraction) external onlyRole(MARKET_PARAMS_SETTER) {
+        require(newFraction > 0, "Grandfather period fraction must be greater than zero");
         _lazyUpdateRoundState();
         nextGrandfatherPeriodFraction = newFraction;
         emit GrandfatherPeriodFractionQueued(newFraction);
@@ -289,17 +295,17 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
             _maxTicketsPerRound = nextMaxTicketsPerRound;
             nextMaxTicketsPerRound = 0;
         }
-        if (nextMinimumPrice != 0) {
-            _minimumPrice = nextMinimumPrice;
-            nextMinimumPrice = 0;
-        }
-        if (nextPriceUpdateFraction != 0) {
-            _priceUpdateFraction = nextPriceUpdateFraction;
-            nextPriceUpdateFraction = 0;
-        }
         if (nextGrandfatherPeriodFraction != 0) {
             _grandfatherPeriodFraction = nextGrandfatherPeriodFraction;
             nextGrandfatherPeriodFraction = 0;
+        }
+        // nextPriceUpdateFraction and nextMinimumPrice are set together,
+        // so we only check sentinel for nextPriceUpdateFraction to save gas.
+        if (nextPriceUpdateFraction != 0) {
+            _priceUpdateFraction = nextPriceUpdateFraction;
+            _minimumPrice = nextMinimumPrice;
+            nextPriceUpdateFraction = 0;
+            nextMinimumPrice = 0;
         }
     }
 
