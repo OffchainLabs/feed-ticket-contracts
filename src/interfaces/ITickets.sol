@@ -101,9 +101,10 @@ interface ITickets {
     function nextMinimumPrice() external view returns (uint64);
 
     /// @notice Queued price update fraction. Takes effect next active round; zero if none queued.
-    function nextPriceUpdateFraction() external view returns (uint24);
+    function nextPriceUpdateFraction() external view returns (uint40);
 
-    /// @notice Queued grandfather period fraction. Takes effect next active round; zero if none queued.
+    /// @notice Queued grandfather period fraction. Takes effect next active round; `type(uint8).max`
+    ///         if none queued (since 0 is a valid grandfather fraction meaning "no grandfather phase").
     function nextGrandfatherPeriodFraction() external view returns (uint8);
 
     /// @notice The round into which `user` is grandfathered based on their most recent ticket
@@ -170,23 +171,40 @@ interface ITickets {
 
     /// @notice Queue a new round duration. Takes effect next active round.
     /// @param  newDuration The new duration of each round.
+    ///                     Must be greater than zero, which is reserved as the
+    ///                     "no update queued" sentinel and is an invalid value.
     function setRoundDuration(uint24 newDuration) external;
 
     /// @notice Queue a new hard cap on tickets sold per round. Takes effect next active round.
     /// @param  newMax The new max tickets per round.
+    ///                Must be greater than zero, which is reserved as the
+    ///                "no update queued" sentinel and is an invalid value.
     function setMaxTicketsPerRound(uint16 newMax) external;
 
     /// @notice Queue a new target tickets per round. Takes effect next active round.
     /// @param  newTarget The new target tickets per round.
+    ///                   Must be greater than zero, which is reserved as the
+    ///                   "no update queued" sentinel and is an invalid value.
     function setTargetTicketsPerRound(uint16 newTarget) external;
 
     /// @notice Queue new pricing parameters. Takes effect next active round.
     ///         May cause a discontinuous jump in the current price.
+    /// @dev    The two parameters MUST be queued and committed as a coupled pair:
+    ///         `nextMinimumPrice` and `nextPriceUpdateFraction` are always set together
+    ///         here and reset together on commit. The `minimumPrice()` view and the
+    ///         storage-commit path both treat `nextPriceUpdateFraction != 0` as the
+    ///         single "pricing update queued" sentinel (saving a slot read of
+    ///         `nextMinimumPrice`).
     /// @param  newMinimumPrice        The new minimum ticket price.
+    ///                                Must be greater than zero, which is reserved as the
+    ///                                "no update queued" sentinel.
     /// @param  newPriceUpdateFraction The new price update fraction.
-    function setPricingParams(uint64 newMinimumPrice, uint24 newPriceUpdateFraction) external;
+    ///                                Must be greater than zero, which is an invalid value.
+    function setPricingParams(uint64 newMinimumPrice, uint40 newPriceUpdateFraction) external;
 
     /// @notice Queue a new grandfather period fraction. Takes effect next active round.
     /// @param  newFraction The new grandfather phase length as a fraction of 256 of the round.
+    ///                     Must not equal `type(uint8).max`, which is reserved as the
+    ///                     "no update queued" sentinel; pass 0 to disable the grandfather phase.
     function setGrandfatherPeriodFraction(uint8 newFraction) external;
 }

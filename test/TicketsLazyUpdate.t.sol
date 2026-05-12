@@ -123,7 +123,7 @@ contract TicketsLazyUpdateTest is BaseTicketsTest {
         assertEq(tickets.nextMaxTicketsPerRound(), 0);
         assertEq(tickets.nextMinimumPrice(), 0);
         assertEq(tickets.nextPriceUpdateFraction(), 0);
-        assertEq(tickets.nextGrandfatherPeriodFraction(), 0);
+        assertEq(tickets.nextGrandfatherPeriodFraction(), type(uint8).max);
     }
 
     function test_views_unchangedByFirstPurchaseWithQueuedAdminSettings() public {

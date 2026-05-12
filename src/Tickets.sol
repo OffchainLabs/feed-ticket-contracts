@@ -17,7 +17,7 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         uint16 targetTicketsPerRound;
         uint16 maxTicketsPerRound;
         uint64 minimumPrice;
-        uint24 priceUpdateFraction;
+        uint40 priceUpdateFraction;
         uint8 grandfatherPeriodFraction;
         uint40 firstRoundStart;
     }
@@ -25,7 +25,13 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     bytes32 public constant BENEFICIARY_SETTER = keccak256("BENEFICIARY_SETTER");
     bytes32 public constant MARKET_PARAMS_SETTER = keccak256("MARKET_PARAMS_SETTER");
 
+    /// @dev Sentinel for "no grandfather fraction queued". Inverted from the other queued params
+    ///      (which use 0) because 0 is a valid grandfather fraction (no grandfather phase).
+    uint8 constant GRANDFATHER_PERIOD_SENTINEL = type(uint8).max;
+
     // ----- Begin Slot 0 ----- //
+
+    // -- Begin Hot Path Storage (Accessed Every Purchase) -- //
 
     /// @dev uint24 seconds - up to ~194 days.
     uint24 internal _roundDuration;
@@ -33,37 +39,38 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     /// @dev uint16 - up to 65,535.
     uint16 internal _maxTicketsPerRound;
 
-    /// @dev uint64 wei - up to ~18.4 ether.
-    uint64 internal _minimumPrice;
-
     /// @dev uint72 - up to ~4700 ether.
     ///      Caching price is cheaper than recomputing via Taylor series on each purchase.
     uint72 internal _currentPrice;
 
-    /// @dev uint32 - at 1-second rounds, supports up to ~136 years.
-    uint32 internal _roundNumber;
+    /// @dev uint40 - at 1-second rounds, supports up to ~34,865 years
+    uint40 internal _roundNumber;
 
-    /// @dev uint40 seconds - Unix timestamps to year ~36800 (well past the uint32 year-2106 limit).
+    /// @dev uint40 seconds - Unix timestamps to year ~36800.
     uint40 internal _roundStart;
 
     /// @dev uint8 - length of the grandfather phase as a fraction of 256 of the round.
     ///      e.g. 128 = first half of the round.
     uint8 internal _grandfatherPeriodFraction;
 
-    // ------ End Slot 0 ------ //
-    // ----- Begin Slot 1 ----- //
+    // -- End Hot Path Storage -- //
+
+    /// @dev uint40 - at target of 1, max of 2^16, the lowest max change we can support is
+    ///      e^((2^16 - 2) / (2^40 - 1)) = 1.00000006
+    uint40 internal _priceUpdateFraction;
 
     /// @dev Type matches maxTicketsPerRound.
     uint16 internal _targetTicketsPerRound;
 
-    /// @dev uint24 - Assuming target is 1 and max is 2^16-1, and we want a
-    ///      max change rate of 1% per round (lower change needs larger fraction), then
-    ///      1.01 = e^(A/B), A = 65534, solve for B -> B = 6.58611*10^6, log2(B) = 23.
-    uint24 internal _priceUpdateFraction;
+    // ------ End Slot 0 ------ //
+    // ----- Begin Slot 1 ----- //
 
-    /// @dev uint48 - Up to 2^16 excess/round (uint16 cap) * 2^32 rounds (uint32 _roundNumber)
-    ///      = 2^48 worst-case excess.
-    uint48 internal _excessTicketsSold;
+    /// @dev uint64 wei - up to ~18.4 ether.
+    uint64 internal _minimumPrice;
+
+    /// @dev uint56 - Up to 2^16 excess/round (uint16 cap) * 2^40 rounds (uint40 _roundNumber)
+    ///      = 2^56 worst-case excess.
+    uint56 internal _excessTicketsSold;
 
     /// @inheritdoc ITickets
     /// @dev Type matches roundDuration.
@@ -78,12 +85,8 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     uint16 public nextMaxTicketsPerRound;
 
     /// @inheritdoc ITickets
-    /// @dev Type matches minimumPrice.
-    uint64 public nextMinimumPrice;
-
-    /// @inheritdoc ITickets
     /// @dev Type matches priceUpdateFraction.
-    uint24 public nextPriceUpdateFraction;
+    uint40 public nextPriceUpdateFraction;
 
     /// @inheritdoc ITickets
     /// @dev Type matches grandfatherPeriodFraction.
@@ -94,6 +97,10 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     address public beneficiary;
 
     /// @inheritdoc ITickets
+    /// @dev Type matches minimumPrice.
+    uint64 public nextMinimumPrice;
+
+    /// @inheritdoc ITickets
     mapping(address => uint256) public grandfatheredIntoRound;
     mapping(uint256 => uint256) public ticketsSold;
 
@@ -102,6 +109,16 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     }
 
     function initialize(InitParams calldata p) external initializer {
+        require(p.roundDuration > 0, "Round duration must be greater than zero");
+        require(p.targetTicketsPerRound > 0, "Target tickets per round must be greater than zero");
+        require(p.maxTicketsPerRound > 0, "Max tickets per round must be greater than zero");
+        require(p.minimumPrice > 0, "Minimum price must be greater than zero");
+        require(p.priceUpdateFraction > 0, "Price update fraction must be greater than zero");
+        require(
+            p.grandfatherPeriodFraction != GRANDFATHER_PERIOD_SENTINEL,
+            "Grandfather period fraction cannot be type(uint8).max"
+        );
+
         __AccessControlEnumerable_init();
         _initRoles(p.defaultAdmin, p.beneficiarySetter, p.marketParamsSetter);
 
@@ -115,6 +132,8 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
 
         _roundStart = p.firstRoundStart;
         _currentPrice = p.minimumPrice;
+
+        nextGrandfatherPeriodFraction = GRANDFATHER_PERIOD_SENTINEL;
     }
 
     function _initRoles(address defaultAdmin, address beneficiarySetter, address marketParamsSetter) internal {
@@ -179,27 +198,29 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     }
 
     function roundDuration() public view returns (uint256) {
-        return _applyAdminUpdate(_roundDuration, nextRoundDuration);
+        return _applyAdminUpdate(_roundDuration, nextRoundDuration, 0);
     }
 
     function maxTicketsPerRound() external view returns (uint256) {
-        return _applyAdminUpdate(_maxTicketsPerRound, nextMaxTicketsPerRound);
+        return _applyAdminUpdate(_maxTicketsPerRound, nextMaxTicketsPerRound, 0);
     }
 
     function minimumPrice() public view returns (uint256) {
-        return _applyAdminUpdate(_minimumPrice, nextMinimumPrice);
+        // since nextPriceUpdateFraction and nextMinimumPrice are set together,
+        // we only check the sentinel for nextPriceUpdateFraction to save gas.
+        return _applyAdminUpdate(_minimumPrice, nextPriceUpdateFraction != 0 ? nextMinimumPrice : 0, 0);
     }
 
     function targetTicketsPerRound() external view returns (uint256) {
-        return _applyAdminUpdate(_targetTicketsPerRound, nextTargetTicketsPerRound);
+        return _applyAdminUpdate(_targetTicketsPerRound, nextTargetTicketsPerRound, 0);
     }
 
     function priceUpdateFraction() public view returns (uint256) {
-        return _applyAdminUpdate(_priceUpdateFraction, nextPriceUpdateFraction);
+        return _applyAdminUpdate(_priceUpdateFraction, nextPriceUpdateFraction, 0);
     }
 
     function grandfatherPeriodFraction() public view returns (uint256) {
-        return _applyAdminUpdate(_grandfatherPeriodFraction, nextGrandfatherPeriodFraction);
+        return _applyAdminUpdate(_grandfatherPeriodFraction, nextGrandfatherPeriodFraction, GRANDFATHER_PERIOD_SENTINEL);
     }
 
     function excessTicketsSold() public view returns (uint256) {
@@ -222,27 +243,32 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     }
 
     function setRoundDuration(uint24 newDuration) external onlyRole(MARKET_PARAMS_SETTER) {
+        require(newDuration > 0, "Round duration must be greater than zero");
         _lazyUpdateRoundState();
         nextRoundDuration = newDuration;
         emit RoundDurationQueued(newDuration);
     }
 
     function setMaxTicketsPerRound(uint16 newMax) external onlyRole(MARKET_PARAMS_SETTER) {
+        require(newMax > 0, "Max tickets per round must be greater than zero");
         _lazyUpdateRoundState();
         nextMaxTicketsPerRound = newMax;
         emit MaxTicketsPerRoundQueued(newMax);
     }
 
     function setTargetTicketsPerRound(uint16 newTarget) external onlyRole(MARKET_PARAMS_SETTER) {
+        require(newTarget > 0, "Target tickets per round must be greater than zero");
         _lazyUpdateRoundState();
         nextTargetTicketsPerRound = newTarget;
         emit TargetTicketsPerRoundQueued(newTarget);
     }
 
-    function setPricingParams(uint64 newMinimumPrice, uint24 newPriceUpdateFraction)
+    function setPricingParams(uint64 newMinimumPrice, uint40 newPriceUpdateFraction)
         external
         onlyRole(MARKET_PARAMS_SETTER)
     {
+        require(newMinimumPrice > 0, "Minimum price must be greater than zero");
+        require(newPriceUpdateFraction > 0, "Price update fraction must be greater than zero");
         _lazyUpdateRoundState();
         nextMinimumPrice = newMinimumPrice;
         nextPriceUpdateFraction = newPriceUpdateFraction;
@@ -250,6 +276,7 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     }
 
     function setGrandfatherPeriodFraction(uint8 newFraction) external onlyRole(MARKET_PARAMS_SETTER) {
+        require(newFraction != GRANDFATHER_PERIOD_SENTINEL, "Grandfather period fraction cannot be type(uint8).max");
         _lazyUpdateRoundState();
         nextGrandfatherPeriodFraction = newFraction;
         emit GrandfatherPeriodFractionQueued(newFraction);
@@ -257,9 +284,9 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
 
     function _lazyUpdateRoundState() internal {
         if (roundsElapsedSinceStored() > 0) {
-            uint32 newRoundNumber = uint32(roundNumber());
+            uint40 newRoundNumber = uint40(roundNumber());
             uint40 newRoundStart = uint40(roundStart());
-            uint48 newExcessTicketsSold = uint48(excessTicketsSold());
+            uint56 newExcessTicketsSold = uint56(excessTicketsSold());
             uint72 newCurrentPrice = uint72(currentPrice());
 
             _roundNumber = newRoundNumber;
@@ -286,22 +313,26 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
             _maxTicketsPerRound = nextMaxTicketsPerRound;
             nextMaxTicketsPerRound = 0;
         }
-        if (nextMinimumPrice != 0) {
-            _minimumPrice = nextMinimumPrice;
-            nextMinimumPrice = 0;
+        if (nextGrandfatherPeriodFraction != GRANDFATHER_PERIOD_SENTINEL) {
+            _grandfatherPeriodFraction = nextGrandfatherPeriodFraction;
+            nextGrandfatherPeriodFraction = GRANDFATHER_PERIOD_SENTINEL;
         }
+        // nextPriceUpdateFraction and nextMinimumPrice are set together,
+        // so we only check sentinel for nextPriceUpdateFraction to save gas.
         if (nextPriceUpdateFraction != 0) {
             _priceUpdateFraction = nextPriceUpdateFraction;
+            _minimumPrice = nextMinimumPrice;
             nextPriceUpdateFraction = 0;
-        }
-        if (nextGrandfatherPeriodFraction != 0) {
-            _grandfatherPeriodFraction = nextGrandfatherPeriodFraction;
-            nextGrandfatherPeriodFraction = 0;
+            nextMinimumPrice = 0;
         }
     }
 
-    function _applyAdminUpdate(uint256 currValue, uint256 nextValue) internal view returns (uint256) {
-        return roundsElapsedSinceStored() > 0 && nextValue != 0 ? nextValue : currValue;
+    function _applyAdminUpdate(uint256 currValue, uint256 nextValue, uint256 sentinelValue)
+        internal
+        view
+        returns (uint256)
+    {
+        return roundsElapsedSinceStored() > 0 && nextValue != sentinelValue ? nextValue : currValue;
     }
 
     /// @notice Approximates `factor * e^(numerator / denominator)` via a Taylor series with
