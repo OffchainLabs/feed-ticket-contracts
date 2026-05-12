@@ -335,39 +335,35 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
             _excessTicketsSold = newExcessTicketsSold;
             _currentPrice = newCurrentPrice;
 
-            _storeAdminUpdates();
+            if (nextRoundDuration != 0) {
+                _roundDuration = nextRoundDuration;
+                nextRoundDuration = 0;
+            }
+            if (nextTargetTicketsPerRound != 0) {
+                _targetTicketsPerRound = nextTargetTicketsPerRound;
+                nextTargetTicketsPerRound = 0;
+            }
+            if (nextMaxTicketsPerRound != 0) {
+                _maxTicketsPerRound = nextMaxTicketsPerRound;
+                nextMaxTicketsPerRound = 0;
+            }
+            if (nextGrandfatherPeriodFraction != GRANDFATHER_PERIOD_SENTINEL) {
+                _grandfatherPeriodFraction = nextGrandfatherPeriodFraction;
+                nextGrandfatherPeriodFraction = GRANDFATHER_PERIOD_SENTINEL;
+            }
+            // nextPriceUpdateFraction and nextMinimumPrice are set together,
+            // so we only check sentinel for nextPriceUpdateFraction to save gas.
+            if (nextPriceUpdateFraction != 0) {
+                _priceUpdateFraction = nextPriceUpdateFraction;
+                _minimumPrice = nextMinimumPrice;
+                nextPriceUpdateFraction = 0;
+                nextMinimumPrice = 0;
+
+                // excessTicketsSoldOverride is applied in excessTicketsSold(), which has already been called
+                excessTicketsSoldOverride = 0;
+            }
 
             emit RoundStateUpdated();
-        }
-    }
-
-    function _storeAdminUpdates() internal {
-        if (nextRoundDuration != 0) {
-            _roundDuration = nextRoundDuration;
-            nextRoundDuration = 0;
-        }
-        if (nextTargetTicketsPerRound != 0) {
-            _targetTicketsPerRound = nextTargetTicketsPerRound;
-            nextTargetTicketsPerRound = 0;
-        }
-        if (nextMaxTicketsPerRound != 0) {
-            _maxTicketsPerRound = nextMaxTicketsPerRound;
-            nextMaxTicketsPerRound = 0;
-        }
-        if (nextGrandfatherPeriodFraction != GRANDFATHER_PERIOD_SENTINEL) {
-            _grandfatherPeriodFraction = nextGrandfatherPeriodFraction;
-            nextGrandfatherPeriodFraction = GRANDFATHER_PERIOD_SENTINEL;
-        }
-        // nextPriceUpdateFraction and nextMinimumPrice are set together,
-        // so we only check sentinel for nextPriceUpdateFraction to save gas.
-        if (nextPriceUpdateFraction != 0) {
-            _priceUpdateFraction = nextPriceUpdateFraction;
-            _minimumPrice = nextMinimumPrice;
-            nextPriceUpdateFraction = 0;
-            nextMinimumPrice = 0;
-
-            // excessTicketsSoldOverride is applied in excessTicketsSold(), which has already been called
-            excessTicketsSoldOverride = 0;
         }
     }
 
