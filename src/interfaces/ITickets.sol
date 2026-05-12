@@ -64,41 +64,47 @@ interface ITickets {
     function beneficiary() external view returns (address);
 
     /// @notice Duration of a round, in seconds.
-    /// @dev    Uses queued config updates if appropriate.
-    ///         If a config update is queued but never applied within the round,
-    ///         then this function will have returned an incorrect value.
+    /// @dev    Returns the queued value if one is queued and a round has elapsed, even before a
+    ///         mutative call has committed it to storage. The contract's arithmetic keeps using
+    ///         the stored value until that commit, so this view can diverge from the value in
+    ///         effect until the next mutative call within the round.
     function roundDuration() external view returns (uint256);
 
     /// @notice Targeted number of tickets to sell per round. Drives the pricing function.
-    /// @dev    Uses queued config updates if appropriate.
-    ///         If a config update is queued but never applied within the round,
-    ///         then this function will have returned an incorrect value.
+    /// @dev    Returns the queued value if one is queued and a round has elapsed, even before a
+    ///         mutative call has committed it to storage. The contract's arithmetic keeps using
+    ///         the stored value until that commit, so this view can diverge from the value in
+    ///         effect until the next mutative call within the round.
     function targetTicketsPerRound() external view returns (uint256);
 
     /// @notice Hard cap on tickets sold per round.
-    /// @dev    Uses queued config updates if appropriate.
-    ///         If a config update is queued but never applied within the round,
-    ///         then this function will have returned an incorrect value.
+    /// @dev    Returns the queued value if one is queued and a round has elapsed, even before a
+    ///         mutative call has committed it to storage. The contract's arithmetic keeps using
+    ///         the stored value until that commit, so this view can diverge from the value in
+    ///         effect until the next mutative call within the round.
     function maxTicketsPerRound() external view returns (uint256);
 
     /// @notice Minimum ticket price. Floor of the pricing function.
-    /// @dev    Applies queued config updates if appropriate.
-    ///         If a config update is queued but never applied within the round,
-    ///         then this function will have returned an incorrect value.
+    /// @dev    Returns the queued value if one is queued and a round has elapsed, even before a
+    ///         mutative call has committed it to storage. The contract's arithmetic keeps using
+    ///         the stored value until that commit, so this view can diverge from the value in
+    ///         effect until the next mutative call within the round.
     function minimumPrice() external view returns (uint256);
 
     /// @notice Parameter controlling how quickly price moves per excess ticket sold.
-    /// @dev    Applies queued config updates if appropriate.
-    ///         If a config update is queued but never applied within the round,
-    ///         then this function will have returned an incorrect value.
+    /// @dev    Returns the queued value if one is queued and a round has elapsed, even before a
+    ///         mutative call has committed it to storage. The contract's arithmetic keeps using
+    ///         the stored value until that commit, so this view can diverge from the value in
+    ///         effect until the next mutative call within the round.
     function priceUpdateFraction() external view returns (uint256);
 
     /// @notice Length of the grandfather phase at the start of each round, as a fraction of 256
     ///         of the round duration. During the grandfather phase only holders of a ticket from
     ///         the previous round may purchase. e.g. 128 = first half of the round.
-    /// @dev    Applies queued config updates if appropriate.
-    ///         If a config update is queued but never applied within the round,
-    ///         then this function will have returned an incorrect value.
+    /// @dev    Returns the queued value if one is queued and a round has elapsed, even before a
+    ///         mutative call has committed it to storage. The contract's arithmetic keeps using
+    ///         the stored value until that commit, so this view can diverge from the value in
+    ///         effect until the next mutative call within the round.
     function grandfatherPeriodFraction() external view returns (uint256);
 
     /// @notice Queued round duration. Takes effect next active round; zero if none queued.
@@ -147,16 +153,27 @@ interface ITickets {
     function roundStart() external view returns (uint256);
 
     /// @notice End timestamp of the current round (exclusive).
-    /// @dev    Surfaces the queued value as soon as a round has elapsed. The contract's arithmetic
-    ///         only switches to it once a mutative call commits it to storage; until then the
-    ///         previous setting remains in effect.
+    /// @dev    Composed from queued-update-aware views, so it reflects queued updates once a round
+    ///         has elapsed. The contract's arithmetic keeps using stored values until a mutative
+    ///         call commits them, so this view can diverge from the value in effect until the
+    ///         next mutative call within the round.
     function roundEnd() external view returns (uint256);
 
     /// @notice End timestamp of the grandfather phase of the current round (exclusive). Before this
     ///         time only holders of a ticket from the previous round may purchase.
+    /// @dev    Composed from queued-update-aware views, so it reflects queued updates once a round
+    ///         has elapsed. The contract's arithmetic keeps using stored values until a mutative
+    ///         call commits them, so this view can diverge from the value in effect until the
+    ///         next mutative call within the round.
     function grandfatherPeriodEnd() external view returns (uint256);
 
     /// @notice Total tickets sold in excess of the cumulative target as of the end of last round.
+    /// @dev    Once a round has elapsed, this view returns either:
+    ///         (a) `excessTicketsSoldOverride` if a pricing update is queued - lets the admin
+    ///             avoid a price jump across the param change; or
+    ///         (b) the stored value plus the prior round's `ticketsSold`, minus elapsed rounds'
+    ///             worth of target (saturated at zero).
+    ///         The contract's arithmetic keeps using the stored value until a mutative call commits.
     function excessTicketsSold() external view returns (uint256);
 
     /// @notice Ticket price for the current round, in wei.
@@ -164,6 +181,10 @@ interface ITickets {
     ///         (EIP-4844 style), clamped at `type(uint72).max` (~4722 ether). If the formula would
     ///         exceed that cap, this returns `type(uint72).max` and tickets are sold at the cap
     ///         rather than at the higher formula price.
+    ///
+    ///         Composed from queued-update-aware views, so it reflects queued updates once a round
+    ///         has elapsed. The contract's arithmetic keeps using stored values until a mutative
+    ///         call commits them, so this view can briefly diverge from the value in effect.
     function currentPrice() external view returns (uint256);
 
     /// @notice Set the account that receives sale proceeds. Takes effect immediately.
