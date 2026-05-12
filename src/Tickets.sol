@@ -102,10 +102,13 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     /// @dev Type matches excessTicketsSold.
     uint56 public excessTicketsSoldOverride;
 
+    /// @inheritdoc ITickets
     address public beneficiary;
 
     /// @inheritdoc ITickets
     mapping(address => uint256) public grandfatheredIntoRound;
+
+    /// @inheritdoc ITickets
     mapping(uint256 => uint256) public ticketsSold;
 
     constructor() {
@@ -146,6 +149,7 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         _grantRole(MARKET_PARAMS_SETTER, marketParamsSetter);
     }
 
+    /// @inheritdoc ITickets
     function purchaseTicket(uint256 expectedRound) external payable {
         _lazyUpdateRoundState();
         require(expectedRound == _roundNumber, "Round number mismatch");
@@ -172,6 +176,7 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         emit TicketPurchased(msg.sender, _roundNumber, msg.value);
     }
 
+    /// @inheritdoc ITickets
     function distributeSaleProceeds() external {
         uint256 amount = address(this).balance;
         (bool success,) = beneficiary.call{value: amount}("");
@@ -179,54 +184,66 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         emit ProceedsDistributed(beneficiary, amount);
     }
 
+    /// @inheritdoc ITickets
     function roundsElapsedSinceStored() public view returns (uint256) {
         // forge-lint: disable-next-line(block-timestamp)
         require(block.timestamp >= _roundStart, "Current time is before first round start");
         return (block.timestamp - uint256(_roundStart)) / uint256(_roundDuration);
     }
 
+    /// @inheritdoc ITickets
     function roundNumber() public view returns (uint256) {
         return uint256(_roundNumber) + roundsElapsedSinceStored();
     }
 
+    /// @inheritdoc ITickets
     function roundStart() public view returns (uint256) {
         return uint256(_roundStart) + roundsElapsedSinceStored() * uint256(_roundDuration);
     }
 
+    /// @inheritdoc ITickets
     function roundEnd() external view returns (uint256) {
         return roundStart() + roundDuration();
     }
 
+    /// @inheritdoc ITickets
     function grandfatherPeriodEnd() external view returns (uint256) {
         return roundStart() + (roundDuration() * grandfatherPeriodFraction()) / 256;
     }
 
+    /// @inheritdoc ITickets
     function roundDuration() public view returns (uint256) {
         return _applyAdminUpdate(_roundDuration, nextRoundDuration, 0);
     }
 
+    /// @inheritdoc ITickets
     function maxTicketsPerRound() external view returns (uint256) {
         return _applyAdminUpdate(_maxTicketsPerRound, nextMaxTicketsPerRound, 0);
     }
 
+    /// @inheritdoc ITickets
     function minimumPrice() public view returns (uint256) {
         // since nextPriceUpdateFraction and nextMinimumPrice are set together,
         // we only check the sentinel for nextPriceUpdateFraction to save gas.
         return _applyAdminUpdate(_minimumPrice, nextPriceUpdateFraction != 0 ? nextMinimumPrice : 0, 0);
     }
 
+    /// @inheritdoc ITickets
     function targetTicketsPerRound() external view returns (uint256) {
         return _applyAdminUpdate(_targetTicketsPerRound, nextTargetTicketsPerRound, 0);
     }
 
+    /// @inheritdoc ITickets
     function priceUpdateFraction() public view returns (uint256) {
         return _applyAdminUpdate(_priceUpdateFraction, nextPriceUpdateFraction, 0);
     }
 
+    /// @inheritdoc ITickets
     function grandfatherPeriodFraction() public view returns (uint256) {
         return _applyAdminUpdate(_grandfatherPeriodFraction, nextGrandfatherPeriodFraction, GRANDFATHER_PERIOD_SENTINEL);
     }
 
+    /// @inheritdoc ITickets
     function excessTicketsSold() public view returns (uint256) {
         uint256 elapsed = roundsElapsedSinceStored();
         if (elapsed == 0) return _excessTicketsSold;
@@ -240,17 +257,20 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         return gross > consumed ? gross - consumed : 0;
     }
 
+    /// @inheritdoc ITickets
     function currentPrice() public view returns (uint256) {
         uint256 result = _fakeExponential(minimumPrice(), excessTicketsSold(), priceUpdateFraction());
         // forge-lint: disable-next-line(unsafe-typecast)
         return result > type(uint72).max ? type(uint72).max : uint72(result);
     }
 
+    /// @inheritdoc ITickets
     function setBeneficiary(address newBeneficiary) external onlyRole(BENEFICIARY_SETTER) {
         beneficiary = newBeneficiary;
         emit BeneficiarySet(newBeneficiary);
     }
 
+    /// @inheritdoc ITickets
     function setRoundDuration(uint24 newDuration) external onlyRole(MARKET_PARAMS_SETTER) {
         require(newDuration > 0, "Round duration must be greater than zero");
         _lazyUpdateRoundState();
@@ -258,6 +278,7 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         emit RoundDurationQueued(newDuration);
     }
 
+    /// @inheritdoc ITickets
     function setMaxTicketsPerRound(uint16 newMax) external onlyRole(MARKET_PARAMS_SETTER) {
         require(newMax > 0, "Max tickets per round must be greater than zero");
         _lazyUpdateRoundState();
@@ -265,6 +286,7 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         emit MaxTicketsPerRoundQueued(newMax);
     }
 
+    /// @inheritdoc ITickets
     function setTargetTicketsPerRound(uint16 newTarget) external onlyRole(MARKET_PARAMS_SETTER) {
         require(newTarget > 0, "Target tickets per round must be greater than zero");
         _lazyUpdateRoundState();
@@ -293,6 +315,7 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         emit PricingParamsQueued(newMinimumPrice, newPriceUpdateFraction, newExcessTicketsSoldOverride);
     }
 
+    /// @inheritdoc ITickets
     function setGrandfatherPeriodFraction(uint8 newFraction) external onlyRole(MARKET_PARAMS_SETTER) {
         require(newFraction != GRANDFATHER_PERIOD_SENTINEL, "Grandfather period fraction cannot be type(uint8).max");
         _lazyUpdateRoundState();
