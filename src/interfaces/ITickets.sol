@@ -103,7 +103,8 @@ interface ITickets {
     /// @notice Queued price update fraction. Takes effect next active round; zero if none queued.
     function nextPriceUpdateFraction() external view returns (uint40);
 
-    /// @notice Queued grandfather period fraction. Takes effect next active round; zero if none queued.
+    /// @notice Queued grandfather period fraction. Takes effect next active round; `type(uint8).max`
+    ///         if none queued (since 0 is a valid grandfather fraction meaning "no grandfather phase").
     function nextGrandfatherPeriodFraction() external view returns (uint8);
 
     /// @notice The round into which `user` is grandfathered based on their most recent ticket
@@ -188,5 +189,7 @@ interface ITickets {
 
     /// @notice Queue a new grandfather period fraction. Takes effect next active round.
     /// @param  newFraction The new grandfather phase length as a fraction of 256 of the round.
+    ///                     Must not equal `type(uint8).max`, which is reserved as the
+    ///                     "no update queued" sentinel; pass 0 to disable the grandfather phase.
     function setGrandfatherPeriodFraction(uint8 newFraction) external;
 }

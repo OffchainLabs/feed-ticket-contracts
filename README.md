@@ -158,10 +158,9 @@ setPricingParams(
 ) external onlyRole(MARKET_PARAMS_SETTER) {...}
 
 // Queued; committed by the first mutative call in a later round
-// `newFraction` is a numerator over 256 of the round duration. Note that 0 is treated
-// as "no update queued" by the lazy-update machinery, so once the grandfather phase
-// is set to a nonzero value it cannot be returned to zero via the setter; use a small
-// nonzero value (e.g. 1) to make the phase effectively negligible.
+// `newFraction` is a numerator over 256 of the round duration. Unlike the other queued
+// params, the "no update queued" sentinel is `type(uint8).max` (255) rather than 0, so
+// 0 is a valid value (disables the grandfather phase entirely). Passing 255 reverts.
 setGrandfatherPeriodFraction(uint8 newFraction) external onlyRole(MARKET_PARAMS_SETTER) {...}
 ```
 

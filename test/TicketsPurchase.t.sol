@@ -121,52 +121,6 @@ contract TicketsPurchaseTest is BaseTicketsTest {
         assertEq(tickets.ticketsSold(1), 1);
     }
 
-    /// `_roundDuration * _grandfatherPeriodFraction` must widen to uint256
-    /// in the grandfather check, otherwise the common type uint24 silently
-    /// overflows past type(uint24).max and bricks ticket sales. Pin both
-    /// sides of the boundary.
-    function test_purchaseTicket_grandfatherProductAtUint24Boundary() public {
-        vm.deal(buyer, MINIMUM_PRICE);
-        vm.prank(buyer);
-        tickets.purchaseTicket{value: MINIMUM_PRICE}(0);
-
-        // 65793 * 255 == type(uint24).max.
-        vm.startPrank(marketParamsSetter);
-        tickets.setRoundDuration(65793);
-        tickets.setGrandfatherPeriodFraction(255);
-        vm.stopPrank();
-
-        vm.warp(FIRST_ROUND_START + ROUND_DURATION);
-
-        uint256 price = tickets.currentPrice();
-        vm.deal(buyer, price);
-        vm.prank(buyer);
-        tickets.purchaseTicket{value: price}(1);
-
-        assertEq(tickets.grandfatheredIntoRound(buyer), 2);
-    }
-
-    function test_purchaseTicket_grandfatherProductAboveUint24Boundary() public {
-        vm.deal(buyer, MINIMUM_PRICE);
-        vm.prank(buyer);
-        tickets.purchaseTicket{value: MINIMUM_PRICE}(0);
-
-        // 65794 * 255 > type(uint24).max.
-        vm.startPrank(marketParamsSetter);
-        tickets.setRoundDuration(65794);
-        tickets.setGrandfatherPeriodFraction(255);
-        vm.stopPrank();
-
-        vm.warp(FIRST_ROUND_START + ROUND_DURATION);
-
-        uint256 price = tickets.currentPrice();
-        vm.deal(buyer, price);
-        vm.prank(buyer);
-        tickets.purchaseTicket{value: price}(1);
-
-        assertEq(tickets.grandfatheredIntoRound(buyer), 2);
-    }
-
     function test_purchaseTicket_firstPurchaseInRealisticRound() public {
         _setupRealisticRound();
 

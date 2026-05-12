@@ -25,6 +25,10 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     bytes32 public constant BENEFICIARY_SETTER = keccak256("BENEFICIARY_SETTER");
     bytes32 public constant MARKET_PARAMS_SETTER = keccak256("MARKET_PARAMS_SETTER");
 
+    /// @dev Sentinel for "no grandfather fraction queued". Inverted from the other queued params
+    ///      (which use 0) because 0 is a valid grandfather fraction (no grandfather phase).
+    uint8 constant GRANDFATHER_PERIOD_SENTINEL = type(uint8).max;
+
     // ----- Begin Slot 0 ----- //
 
     // -- Begin Hot Path Storage (Accessed Every Purchase) -- //
@@ -118,6 +122,8 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
 
         _roundStart = p.firstRoundStart;
         _currentPrice = p.minimumPrice;
+
+        nextGrandfatherPeriodFraction = GRANDFATHER_PERIOD_SENTINEL;
     }
 
     function _initRoles(address defaultAdmin, address beneficiarySetter, address marketParamsSetter) internal {
@@ -182,29 +188,29 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     }
 
     function roundDuration() public view returns (uint256) {
-        return _applyAdminUpdate(_roundDuration, nextRoundDuration);
+        return _applyAdminUpdate(_roundDuration, nextRoundDuration, 0);
     }
 
     function maxTicketsPerRound() external view returns (uint256) {
-        return _applyAdminUpdate(_maxTicketsPerRound, nextMaxTicketsPerRound);
+        return _applyAdminUpdate(_maxTicketsPerRound, nextMaxTicketsPerRound, 0);
     }
 
     function minimumPrice() public view returns (uint256) {
         // since nextPriceUpdateFraction and nextMinimumPrice are set together, 
         // we only check the sentinel for nextPriceUpdateFraction to save gas.
-        return _applyAdminUpdate(_minimumPrice, nextPriceUpdateFraction != 0 ? nextMinimumPrice : 0);
+        return _applyAdminUpdate(_minimumPrice, nextPriceUpdateFraction != 0 ? nextMinimumPrice : 0, 0);
     }
 
     function targetTicketsPerRound() external view returns (uint256) {
-        return _applyAdminUpdate(_targetTicketsPerRound, nextTargetTicketsPerRound);
+        return _applyAdminUpdate(_targetTicketsPerRound, nextTargetTicketsPerRound, 0);
     }
 
     function priceUpdateFraction() public view returns (uint256) {
-        return _applyAdminUpdate(_priceUpdateFraction, nextPriceUpdateFraction);
+        return _applyAdminUpdate(_priceUpdateFraction, nextPriceUpdateFraction, 0);
     }
 
     function grandfatherPeriodFraction() public view returns (uint256) {
-        return _applyAdminUpdate(_grandfatherPeriodFraction, nextGrandfatherPeriodFraction);
+        return _applyAdminUpdate(_grandfatherPeriodFraction, nextGrandfatherPeriodFraction, GRANDFATHER_PERIOD_SENTINEL);
     }
 
     function excessTicketsSold() public view returns (uint256) {
@@ -260,7 +266,7 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     }
 
     function setGrandfatherPeriodFraction(uint8 newFraction) external onlyRole(MARKET_PARAMS_SETTER) {
-        require(newFraction > 0, "Grandfather period fraction must be greater than zero");
+        require(newFraction != GRANDFATHER_PERIOD_SENTINEL, "Grandfather period fraction cannot be type(uint8).max");
         _lazyUpdateRoundState();
         nextGrandfatherPeriodFraction = newFraction;
         emit GrandfatherPeriodFractionQueued(newFraction);
@@ -297,9 +303,9 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
             _maxTicketsPerRound = nextMaxTicketsPerRound;
             nextMaxTicketsPerRound = 0;
         }
-        if (nextGrandfatherPeriodFraction != 0) {
+        if (nextGrandfatherPeriodFraction != GRANDFATHER_PERIOD_SENTINEL) {
             _grandfatherPeriodFraction = nextGrandfatherPeriodFraction;
-            nextGrandfatherPeriodFraction = 0;
+            nextGrandfatherPeriodFraction = GRANDFATHER_PERIOD_SENTINEL;
         }
         // nextPriceUpdateFraction and nextMinimumPrice are set together,
         // so we only check sentinel for nextPriceUpdateFraction to save gas.
@@ -311,8 +317,8 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         }
     }
 
-    function _applyAdminUpdate(uint256 currValue, uint256 nextValue) internal view returns (uint256) {
-        return roundsElapsedSinceStored() > 0 && nextValue != 0 ? nextValue : currValue;
+    function _applyAdminUpdate(uint256 currValue, uint256 nextValue, uint256 sentinelValue) internal view returns (uint256) {
+        return roundsElapsedSinceStored() > 0 && nextValue != sentinelValue ? nextValue : currValue;
     }
 
     /// @notice Approximates `factor * e^(numerator / denominator)` via a Taylor series with
