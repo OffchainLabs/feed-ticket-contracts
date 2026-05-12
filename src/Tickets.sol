@@ -94,11 +94,15 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
 
     // ------ End Slot 1 ------ //
 
-    address public beneficiary;
-
     /// @inheritdoc ITickets
     /// @dev Type matches minimumPrice.
     uint64 public nextMinimumPrice;
+
+    /// @inheritdoc ITickets
+    /// @dev Type matches excessTicketsSold.
+    uint56 public excessTicketsSoldOverride;
+
+    address public beneficiary;
 
     /// @inheritdoc ITickets
     mapping(address => uint256) public grandfatheredIntoRound;
@@ -226,6 +230,11 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     function excessTicketsSold() public view returns (uint256) {
         uint256 elapsed = roundsElapsedSinceStored();
         if (elapsed == 0) return _excessTicketsSold;
+
+        // since nextPriceUpdateFraction and excessTicketsSoldOverride are set together, we only check the sentinel
+        // for nextPriceUpdateFraction to save gas. If nextPriceUpdateFraction != 0, an admin has queued a pricing update
+        if (nextPriceUpdateFraction != 0) return excessTicketsSoldOverride;
+
         uint256 gross = _excessTicketsSold + ticketsSold[_roundNumber];
         uint256 consumed = elapsed * _targetTicketsPerRound;
         return gross > consumed ? gross - consumed : 0;
@@ -263,16 +272,18 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         emit TargetTicketsPerRoundQueued(newTarget);
     }
 
-    function setPricingParams(uint64 newMinimumPrice, uint40 newPriceUpdateFraction)
-        external
-        onlyRole(MARKET_PARAMS_SETTER)
-    {
+    function setPricingParams(
+        uint64 newMinimumPrice,
+        uint40 newPriceUpdateFraction,
+        uint56 newExcessTicketsSoldOverride
+    ) external onlyRole(MARKET_PARAMS_SETTER) {
         require(newMinimumPrice > 0, "Minimum price must be greater than zero");
         require(newPriceUpdateFraction > 0, "Price update fraction must be greater than zero");
         _lazyUpdateRoundState();
         nextMinimumPrice = newMinimumPrice;
         nextPriceUpdateFraction = newPriceUpdateFraction;
-        emit PricingParamsQueued(newMinimumPrice, newPriceUpdateFraction);
+        excessTicketsSoldOverride = newExcessTicketsSoldOverride;
+        emit PricingParamsQueued(newMinimumPrice, newPriceUpdateFraction, newExcessTicketsSoldOverride);
     }
 
     function setGrandfatherPeriodFraction(uint8 newFraction) external onlyRole(MARKET_PARAMS_SETTER) {
@@ -324,6 +335,9 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
             _minimumPrice = nextMinimumPrice;
             nextPriceUpdateFraction = 0;
             nextMinimumPrice = 0;
+
+            // excessTicketsSoldOverride is applied in excessTicketsSold(), which has already been called
+            excessTicketsSoldOverride = 0;
         }
     }
 
