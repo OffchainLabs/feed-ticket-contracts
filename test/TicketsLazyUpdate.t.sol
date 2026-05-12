@@ -98,13 +98,14 @@ contract TicketsLazyUpdateTest is BaseTicketsTest {
         uint16 newMax = 300;
         uint64 newMinPrice = 2 ether;
         uint24 newFraction = 75;
+        uint56 newExcessOverride = 42;
         uint8 newGrandfatherFraction = 200;
 
         vm.startPrank(marketParamsSetter);
         tickets.setRoundDuration(newDuration);
         tickets.setTargetTicketsPerRound(newTarget);
         tickets.setMaxTicketsPerRound(newMax);
-        tickets.setPricingParams(newMinPrice, newFraction);
+        tickets.setPricingParams(newMinPrice, newFraction, newExcessOverride);
         tickets.setGrandfatherPeriodFraction(newGrandfatherFraction);
         vm.stopPrank();
 
@@ -116,6 +117,7 @@ contract TicketsLazyUpdateTest is BaseTicketsTest {
         assertEq(tickets.maxTicketsPerRound(), newMax);
         assertEq(tickets.minimumPrice(), newMinPrice);
         assertEq(tickets.priceUpdateFraction(), newFraction);
+        assertEq(tickets.excessTicketsSold(), newExcessOverride);
         assertEq(tickets.grandfatherPeriodFraction(), newGrandfatherFraction);
 
         assertEq(tickets.nextRoundDuration(), 0);
@@ -123,6 +125,7 @@ contract TicketsLazyUpdateTest is BaseTicketsTest {
         assertEq(tickets.nextMaxTicketsPerRound(), 0);
         assertEq(tickets.nextMinimumPrice(), 0);
         assertEq(tickets.nextPriceUpdateFraction(), 0);
+        assertEq(tickets.excessTicketsSoldOverride(), 0);
         assertEq(tickets.nextGrandfatherPeriodFraction(), type(uint8).max);
     }
 
@@ -138,7 +141,7 @@ contract TicketsLazyUpdateTest is BaseTicketsTest {
         tickets.setRoundDuration(2 hours);
         tickets.setTargetTicketsPerRound(150);
         tickets.setMaxTicketsPerRound(300);
-        tickets.setPricingParams(2 ether, 75);
+        tickets.setPricingParams(2 ether, 75, 0);
         vm.stopPrank();
 
         vm.warp(FIRST_ROUND_START + ROUND_DURATION);
@@ -175,11 +178,12 @@ contract TicketsLazyUpdateTest is BaseTicketsTest {
 
         // Queue updates that would change every view if applied: nextRoundDuration would
         // halve elapsed rounds; nextTargetTicketsPerRound would zero out the excess below.
+        // setPricingParams intentionally omitted: a queued pricing update diverts
+        // excessTicketsSold() to the override, which is covered separately.
         vm.startPrank(marketParamsSetter);
         tickets.setRoundDuration(ROUND_DURATION + 1);
         tickets.setTargetTicketsPerRound(TARGET_TICKETS + 1);
         tickets.setMaxTicketsPerRound(MAX_TICKETS + 1);
-        tickets.setPricingParams(MINIMUM_PRICE + 1, PRICE_UPDATE_FRACTION + 1);
         vm.stopPrank();
 
         // 3 inactive rounds elapse; no mutating call ever flushes the queue.
@@ -256,7 +260,7 @@ contract TicketsLazyUpdateTest is BaseTicketsTest {
         assertEq(tickets.roundNumber(), 1);
 
         vm.prank(marketParamsSetter);
-        tickets.setPricingParams(newMinPrice, newFraction);
+        tickets.setPricingParams(newMinPrice, newFraction, 0);
 
         assertEq(tickets.nextMinimumPrice(), newMinPrice);
         assertEq(tickets.nextPriceUpdateFraction(), newFraction);

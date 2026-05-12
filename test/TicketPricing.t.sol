@@ -35,7 +35,7 @@ contract TicketPricingTest is BaseTicketsTest {
     ///      while `currentPrice()` recomputes with new ones.
     function test_currentPrice_equalsStoredAfterPricingParamUpdateApplies() public {
         vm.prank(marketParamsSetter);
-        tickets.setPricingParams(2 ether, 100);
+        tickets.setPricingParams(2 ether, 100, 0);
 
         vm.warp(FIRST_ROUND_START + ROUND_DURATION);
         tickets.exposed_lazyUpdateRoundState();
