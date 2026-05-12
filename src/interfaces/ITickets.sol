@@ -64,40 +64,40 @@ interface ITickets {
     function beneficiary() external view returns (address);
 
     /// @notice Duration of a round, in seconds.
-    /// @dev    Uses queued config updates if appropriate. 
-    ///         If a config update is queued but never applied within the round, 
+    /// @dev    Uses queued config updates if appropriate.
+    ///         If a config update is queued but never applied within the round,
     ///         then this function will have returned an incorrect value.
     function roundDuration() external view returns (uint256);
 
     /// @notice Targeted number of tickets to sell per round. Drives the pricing function.
-    /// @dev    Uses queued config updates if appropriate. 
-    ///         If a config update is queued but never applied within the round, 
+    /// @dev    Uses queued config updates if appropriate.
+    ///         If a config update is queued but never applied within the round,
     ///         then this function will have returned an incorrect value.
     function targetTicketsPerRound() external view returns (uint256);
 
     /// @notice Hard cap on tickets sold per round.
-    /// @dev    Uses queued config updates if appropriate. 
-    ///         If a config update is queued but never applied within the round, 
+    /// @dev    Uses queued config updates if appropriate.
+    ///         If a config update is queued but never applied within the round,
     ///         then this function will have returned an incorrect value.
     function maxTicketsPerRound() external view returns (uint256);
 
     /// @notice Minimum ticket price. Floor of the pricing function.
-    /// @dev    Applies queued config updates if appropriate. 
-    ///         If a config update is queued but never applied within the round, 
+    /// @dev    Applies queued config updates if appropriate.
+    ///         If a config update is queued but never applied within the round,
     ///         then this function will have returned an incorrect value.
     function minimumPrice() external view returns (uint256);
 
     /// @notice Parameter controlling how quickly price moves per excess ticket sold.
-    /// @dev    Applies queued config updates if appropriate. 
-    ///         If a config update is queued but never applied within the round, 
+    /// @dev    Applies queued config updates if appropriate.
+    ///         If a config update is queued but never applied within the round,
     ///         then this function will have returned an incorrect value.
     function priceUpdateFraction() external view returns (uint256);
 
     /// @notice Length of the grandfather phase at the start of each round, as a fraction of 256
     ///         of the round duration. During the grandfather phase only holders of a ticket from
     ///         the previous round may purchase. e.g. 128 = first half of the round.
-    /// @dev    Applies queued config updates if appropriate. 
-    ///         If a config update is queued but never applied within the round, 
+    /// @dev    Applies queued config updates if appropriate.
+    ///         If a config update is queued but never applied within the round,
     ///         then this function will have returned an incorrect value.
     function grandfatherPeriodFraction() external view returns (uint256);
 
