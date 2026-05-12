@@ -206,7 +206,7 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     }
 
     function minimumPrice() public view returns (uint256) {
-        // since nextPriceUpdateFraction and nextMinimumPrice are set together, 
+        // since nextPriceUpdateFraction and nextMinimumPrice are set together,
         // we only check the sentinel for nextPriceUpdateFraction to save gas.
         return _applyAdminUpdate(_minimumPrice, nextPriceUpdateFraction != 0 ? nextMinimumPrice : 0, 0);
     }
@@ -327,7 +327,11 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         }
     }
 
-    function _applyAdminUpdate(uint256 currValue, uint256 nextValue, uint256 sentinelValue) internal view returns (uint256) {
+    function _applyAdminUpdate(uint256 currValue, uint256 nextValue, uint256 sentinelValue)
+        internal
+        view
+        returns (uint256)
+    {
         return roundsElapsedSinceStored() > 0 && nextValue != sentinelValue ? nextValue : currValue;
     }
 
