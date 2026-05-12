@@ -143,6 +143,7 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         nextGrandfatherPeriodFraction = GRANDFATHER_PERIOD_SENTINEL;
     }
 
+    /// @dev Grants the three admin roles. Called once from `initialize`.
     function _initRoles(address defaultAdmin, address beneficiarySetter, address marketParamsSetter) internal {
         _grantRole(DEFAULT_ADMIN_ROLE, defaultAdmin);
         _grantRole(BENEFICIARY_SETTER, beneficiarySetter);
@@ -323,6 +324,8 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         emit GrandfatherPeriodFractionQueued(newFraction);
     }
 
+    /// @dev On the first mutative call of a new round, rolls stored round state forward and
+    ///      commits any queued admin updates. No-op within the same round.
     function _lazyUpdateRoundState() internal {
         if (roundsElapsedSinceStored() > 0) {
             uint40 newRoundNumber = uint40(roundNumber());
@@ -367,6 +370,7 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         }
     }
 
+    /// @dev View-side queued-update helper
     function _applyAdminUpdate(uint256 currValue, uint256 nextValue, uint256 sentinelValue)
         internal
         view
