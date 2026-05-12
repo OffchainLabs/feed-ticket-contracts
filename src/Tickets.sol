@@ -4,7 +4,7 @@ pragma solidity ^0.8.20;
 import {
     AccessControlEnumerableUpgradeable
 } from "@openzeppelin/contracts-upgradeable/access/extensions/AccessControlEnumerableUpgradeable.sol";
-import {ITickets} from "./interfaces/ITickets.sol";
+import {ITickets} from "./ITickets.sol";
 
 contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     /// @notice Parameters passed to `initialize`. Bundled to avoid stack-too-deep at the call site.
@@ -155,7 +155,7 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     }
 
     /// @inheritdoc ITickets
-    function purchaseTicket(uint256 expectedRound) external payable {
+    function purchaseTicket(uint256 expectedRound, bytes32 apiKeyHash) external payable {
         _lazyUpdateRoundState();
         require(expectedRound == _roundNumber, "Round number mismatch");
         require(msg.value == _currentPrice, "Incorrect ticket price");
@@ -178,7 +178,7 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         ticketsSold[_roundNumber]++;
         grandfatheredIntoRound[msg.sender] = uint256(_roundNumber) + 1;
 
-        emit TicketPurchased(msg.sender, _roundNumber, msg.value);
+        emit TicketPurchased(msg.sender, _roundNumber, apiKeyHash, msg.value);
     }
 
     /// @inheritdoc ITickets

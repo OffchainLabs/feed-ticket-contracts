@@ -3,7 +3,7 @@ pragma solidity ^0.8.20;
 
 // forge-lint: disable-start
 
-import {ITickets} from "../src/interfaces/ITickets.sol";
+import {ITickets} from "../src/ITickets.sol";
 import {BaseTicketsTest} from "./BaseTicketsTest.t.sol";
 
 contract TicketsLazyUpdateTest is BaseTicketsTest {
@@ -159,7 +159,7 @@ contract TicketsLazyUpdateTest is BaseTicketsTest {
         // Buyer needs a round 0 ticket to be grandfathered for round 1's grandfather phase.
         vm.deal(buyer, MINIMUM_PRICE);
         vm.prank(buyer);
-        tickets.purchaseTicket{value: MINIMUM_PRICE}(0);
+        tickets.purchaseTicket{value: MINIMUM_PRICE}(0, bytes32(0));
 
         vm.startPrank(marketParamsSetter);
         tickets.setRoundDuration(2 hours);
@@ -183,7 +183,7 @@ contract TicketsLazyUpdateTest is BaseTicketsTest {
 
         vm.deal(buyer, priceBefore);
         vm.prank(buyer);
-        tickets.purchaseTicket{value: priceBefore}(1);
+        tickets.purchaseTicket{value: priceBefore}(1, bytes32(0));
 
         assertEq(tickets.roundDuration(), roundDurBefore);
         assertEq(tickets.targetTicketsPerRound(), targetBefore);

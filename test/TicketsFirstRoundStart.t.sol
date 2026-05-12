@@ -102,14 +102,14 @@ contract TicketsFirstRoundStartTest is BaseTicketsTest {
         vm.deal(buyer, MINIMUM_PRICE);
         vm.prank(buyer);
         vm.expectRevert(bytes(PRE_START_REVERT));
-        tickets.purchaseTicket{value: MINIMUM_PRICE}(0);
+        tickets.purchaseTicket{value: MINIMUM_PRICE}(0, bytes32(0));
     }
 
     function test_purchaseTicket_succeedsAtStart() public {
         vm.warp(FIRST_ROUND_START);
         vm.deal(buyer, MINIMUM_PRICE);
         vm.prank(buyer);
-        tickets.purchaseTicket{value: MINIMUM_PRICE}(0);
+        tickets.purchaseTicket{value: MINIMUM_PRICE}(0, bytes32(0));
         assertEq(tickets.grandfatheredIntoRound(buyer), 1);
     }
 }

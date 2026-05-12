@@ -11,8 +11,9 @@ interface ITickets {
     /// @notice Emitted when a ticket is purchased.
     /// @param  buyer The account that purchased the ticket.
     /// @param  round The round the ticket was purchased in.
+    /// @param  apiKeyHash The hash of the API key associated with the ticket purchase.
     /// @param  price The price paid for the ticket.
-    event TicketPurchased(address indexed buyer, uint256 indexed round, uint256 price);
+    event TicketPurchased(address indexed buyer, uint256 indexed round, bytes32 indexed apiKeyHash, uint256 price);
 
     /// @notice Emitted when accumulated sale proceeds are forwarded to the beneficiary.
     /// @param  beneficiary The account that received the proceeds.
@@ -55,7 +56,8 @@ interface ITickets {
     ///         During the grandfather phase at the start of a round, only holders of a ticket from the
     ///         previous round may purchase.
     /// @param  expectedRound Round the caller expects to be current. Reverts if it does not match.
-    function purchaseTicket(uint256 expectedRound) external payable;
+    /// @param  apiKeyHash    The hash of the API key to associate with the ticket purchase.
+    function purchaseTicket(uint256 expectedRound, bytes32 apiKeyHash) external payable;
 
     /// @notice Forward all accumulated sale proceeds to the current beneficiary. Permissionless.
     function distributeSaleProceeds() external;

@@ -57,7 +57,7 @@ contract TicketsE2ETest is Test {
     function _buy(address buyer, uint256 round) internal returns (uint256 price) {
         price = tickets.currentPrice();
         vm.prank(buyer);
-        tickets.purchaseTicket{value: price}(round);
+        tickets.purchaseTicket{value: price}(round, bytes32(0));
     }
 
     function test_severalRoundsEvolveLogically() public {
@@ -80,17 +80,17 @@ contract TicketsE2ETest is Test {
         // Cannot buy twice in the same round.
         vm.expectRevert("Cannot buy two tickets in one round");
         vm.prank(buyers[0]);
-        tickets.purchaseTicket{value: MIN_PRICE}(0);
+        tickets.purchaseTicket{value: MIN_PRICE}(0, bytes32(0));
 
         // Wrong price reverts.
         vm.expectRevert("Incorrect ticket price");
         vm.prank(buyers[7]);
-        tickets.purchaseTicket{value: MIN_PRICE + 1}(0);
+        tickets.purchaseTicket{value: MIN_PRICE + 1}(0, bytes32(0));
 
         // Wrong expectedRound reverts.
         vm.expectRevert("Round number mismatch");
         vm.prank(buyers[7]);
-        tickets.purchaseTicket{value: MIN_PRICE}(1);
+        tickets.purchaseTicket{value: MIN_PRICE}(1, bytes32(0));
 
         // Fill the final slot so the round closes at the cap.
         totalSpent += _buy(buyers[MAX - 1], 0);
@@ -99,7 +99,7 @@ contract TicketsE2ETest is Test {
         // 9th buy hits the cap.
         vm.expectRevert("Max tickets sold for this round");
         vm.prank(buyers[8]);
-        tickets.purchaseTicket{value: MIN_PRICE}(0);
+        tickets.purchaseTicket{value: MIN_PRICE}(0, bytes32(0));
 
         // ===== Round 1 — grandfather phase restricts to round-0 holders =====
         vm.warp(FIRST_ROUND_START + ROUND_DURATION);
@@ -115,7 +115,7 @@ contract TicketsE2ETest is Test {
         // buyers[8] never bought in round 0 → reverts during grandfather phase.
         vm.expectRevert("Must have ticket from previous round to purchase during grandfather phase");
         vm.prank(buyers[8]);
-        tickets.purchaseTicket{value: r1Price}(1);
+        tickets.purchaseTicket{value: r1Price}(1, bytes32(0));
         // A grandfathered buyer succeeds at the same instant.
         totalSpent += _buy(buyers[0], 1);
 
@@ -147,7 +147,7 @@ contract TicketsE2ETest is Test {
         // buyers[2] only ever bought in round 0 → not grandfathered for round 2 → reverts.
         vm.expectRevert("Must have ticket from previous round to purchase during grandfather phase");
         vm.prank(buyers[2]);
-        tickets.purchaseTicket{value: r1Price}(2);
+        tickets.purchaseTicket{value: r1Price}(2, bytes32(0));
 
         // After grandfather phase: anyone may buy.
         vm.warp(tickets.grandfatherPeriodEnd());
@@ -175,7 +175,7 @@ contract TicketsE2ETest is Test {
         // 9th buy hits the cap.
         vm.expectRevert("Max tickets sold for this round");
         vm.prank(buyers[8]);
-        tickets.purchaseTicket{value: r3Price}(3);
+        tickets.purchaseTicket{value: r3Price}(3, bytes32(0));
 
         // ===== Distribute proceeds =====
         assertEq(address(tickets).balance, totalSpent);
