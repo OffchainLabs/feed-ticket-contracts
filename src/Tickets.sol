@@ -272,6 +272,13 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         emit TargetTicketsPerRoundQueued(newTarget);
     }
 
+    /// @inheritdoc ITickets
+    /// @dev The three parameters MUST be queued and committed as a coupled triple:
+    ///      `nextMinimumPrice`, `nextPriceUpdateFraction`, and `excessTicketsSoldOverride`
+    ///      are always set together here and reset together on commit. The `minimumPrice()`
+    ///      view, the `excessTicketsSold()` view, and the storage-commit path all treat
+    ///      `nextPriceUpdateFraction != 0` as the single "pricing update queued" sentinel
+    ///      (saving slot reads of `nextMinimumPrice` and `excessTicketsSoldOverride`).
     function setPricingParams(
         uint64 newMinimumPrice,
         uint40 newPriceUpdateFraction,
