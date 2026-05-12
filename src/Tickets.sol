@@ -22,7 +22,9 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         uint40 firstRoundStart;
     }
 
+    /// @notice Role that can set the beneficiary account.
     bytes32 public constant BENEFICIARY_SETTER = keccak256("BENEFICIARY_SETTER");
+    /// @notice Role that can queue updates to market parameters.
     bytes32 public constant MARKET_PARAMS_SETTER = keccak256("MARKET_PARAMS_SETTER");
 
     /// @dev Sentinel for "no grandfather fraction queued". Inverted from the other queued params
