@@ -107,6 +107,15 @@ interface ITickets {
     ///         if none queued (since 0 is a valid grandfather fraction meaning "no grandfather phase").
     function nextGrandfatherPeriodFraction() external view returns (uint8);
 
+    /// @notice Queued override for `excessTicketsSold()`, applied together with the next pricing
+    ///         params so the admin can keep `currentPrice` continuous across a pricing-param change
+    ///         (which would otherwise jump discontinuously).
+    /// @dev    Bundled with `setPricingParams`: written and reset together with `nextMinimumPrice`
+    ///         and `nextPriceUpdateFraction`, and gated on the same `nextPriceUpdateFraction != 0`
+    ///         sentinel. No separate "no override queued" sentinel: 0 is a valid override value
+    ///         while a pricing update is queued, and the field is meaningless otherwise.
+    function excessTicketsSoldOverride() external view returns (uint56);
+
     /// @notice The round into which `user` is grandfathered based on their most recent ticket
     ///         purchase. Concretely, if the user's latest purchase was in round `R`, this returns
     ///         `R + 1` (the round in which they may purchase during the grandfather phase).
@@ -143,6 +152,10 @@ interface ITickets {
     function grandfatherPeriodEnd() external view returns (uint256);
 
     /// @notice Total tickets sold in excess of the cumulative target as of the end of last round.
+    /// @dev    Once a round has elapsed and a pricing update is queued, this surfaces
+    ///         `excessTicketsSoldOverride` instead of the natural decay value so the admin can
+    ///         keep `currentPrice` continuous across a pricing-param change. The override is
+    ///         committed into `_excessTicketsSold` by the next mutative call.
     function excessTicketsSold() external view returns (uint256);
 
     /// @notice Ticket price for the current round, in wei.
@@ -188,19 +201,27 @@ interface ITickets {
     function setTargetTicketsPerRound(uint16 newTarget) external;
 
     /// @notice Queue new pricing parameters. Takes effect next active round.
-    ///         May cause a discontinuous jump in the current price.
-    /// @dev    The two parameters MUST be queued and committed as a coupled pair:
-    ///         `nextMinimumPrice` and `nextPriceUpdateFraction` are always set together
-    ///         here and reset together on commit. The `minimumPrice()` view and the
-    ///         storage-commit path both treat `nextPriceUpdateFraction != 0` as the
-    ///         single "pricing update queued" sentinel (saving a slot read of
-    ///         `nextMinimumPrice`).
-    /// @param  newMinimumPrice        The new minimum ticket price.
-    ///                                Must be greater than zero, which is reserved as the
-    ///                                "no update queued" sentinel.
-    /// @param  newPriceUpdateFraction The new price update fraction.
-    ///                                Must be greater than zero, which is an invalid value.
-    function setPricingParams(uint64 newMinimumPrice, uint40 newPriceUpdateFraction) external;
+    ///         May cause a discontinuous jump in the current price. 
+    ///         The resulting price after the update takes effect will be
+    ///         `fake_exponential(newMinimumPrice, excessTicketsSoldOverride, newPriceUpdateFraction)`
+    /// @dev    The three parameters MUST be queued and committed as a coupled triple:
+    ///         `nextMinimumPrice`, `nextPriceUpdateFraction`, and `excessTicketsSoldOverride`
+    ///         are always set together here and reset together on commit. The `minimumPrice()`
+    ///         view, the `excessTicketsSold()` view, and the storage-commit path all treat
+    ///         `nextPriceUpdateFraction != 0` as the single "pricing update queued" sentinel
+    ///         (saving slot reads of `nextMinimumPrice` and `excessTicketsSoldOverride`).
+    /// @param  newMinimumPrice              The new minimum ticket price.
+    ///                                      Must be greater than zero, which is reserved as the
+    ///                                      "no update queued" sentinel.
+    /// @param  newPriceUpdateFraction       The new price update fraction.
+    ///                                      Must be greater than zero, which is an invalid value.
+    /// @param  newExcessTicketsSoldOverride The value to install as `excessTicketsSold` when the
+    ///                                      queued pricing params are committed.
+    function setPricingParams(
+        uint64 newMinimumPrice,
+        uint40 newPriceUpdateFraction,
+        uint56 newExcessTicketsSoldOverride
+    ) external;
 
     /// @notice Queue a new grandfather period fraction. Takes effect next active round.
     /// @param  newFraction The new grandfather phase length as a fraction of 256 of the round.
