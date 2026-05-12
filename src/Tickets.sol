@@ -151,7 +151,7 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         require(expectedRound == _roundNumber, "Round number mismatch");
         require(msg.value == _currentPrice, "Incorrect ticket price");
         require(ticketsSold[_roundNumber] < _maxTicketsPerRound, "Max tickets sold for this round");
-        require(grandfatheredIntoRound[msg.sender] != _roundNumber + 1, "Cannot buy two tickets in one round");
+        require(grandfatheredIntoRound[msg.sender] != uint256(_roundNumber) + 1, "Cannot buy two tickets in one round");
 
         // forge-lint: disable-start(block-timestamp)
         if (
@@ -167,7 +167,7 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         // forge-lint: disable-end(block-timestamp)
 
         ticketsSold[_roundNumber]++;
-        grandfatheredIntoRound[msg.sender] = _roundNumber + 1;
+        grandfatheredIntoRound[msg.sender] = uint256(_roundNumber) + 1;
 
         emit TicketPurchased(msg.sender, _roundNumber, msg.value);
     }
@@ -182,15 +182,15 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     function roundsElapsedSinceStored() public view returns (uint256) {
         // forge-lint: disable-next-line(block-timestamp)
         require(block.timestamp >= _roundStart, "Current time is before first round start");
-        return (block.timestamp - _roundStart) / _roundDuration;
+        return (block.timestamp - uint256(_roundStart)) / uint256(_roundDuration);
     }
 
     function roundNumber() public view returns (uint256) {
-        return _roundNumber + roundsElapsedSinceStored();
+        return uint256(_roundNumber) + roundsElapsedSinceStored();
     }
 
     function roundStart() public view returns (uint256) {
-        return _roundStart + roundsElapsedSinceStored() * _roundDuration;
+        return uint256(_roundStart) + roundsElapsedSinceStored() * uint256(_roundDuration);
     }
 
     function roundEnd() external view returns (uint256) {
@@ -235,8 +235,8 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         // for nextPriceUpdateFraction to save gas. If nextPriceUpdateFraction != 0, an admin has queued a pricing update
         if (nextPriceUpdateFraction != 0) return excessTicketsSoldOverride;
 
-        uint256 gross = _excessTicketsSold + ticketsSold[_roundNumber];
-        uint256 consumed = elapsed * _targetTicketsPerRound;
+        uint256 gross = uint256(_excessTicketsSold) + ticketsSold[_roundNumber];
+        uint256 consumed = elapsed * uint256(_targetTicketsPerRound);
         return gross > consumed ? gross - consumed : 0;
     }
 
