@@ -101,7 +101,7 @@ interface ITickets {
     function nextMinimumPrice() external view returns (uint64);
 
     /// @notice Queued price update fraction. Takes effect next active round; zero if none queued.
-    function nextPriceUpdateFraction() external view returns (uint24);
+    function nextPriceUpdateFraction() external view returns (uint40);
 
     /// @notice Queued grandfather period fraction. Takes effect next active round; zero if none queued.
     function nextGrandfatherPeriodFraction() external view returns (uint8);
@@ -184,7 +184,7 @@ interface ITickets {
     ///         May cause a discontinuous jump in the current price.
     /// @param  newMinimumPrice        The new minimum ticket price.
     /// @param  newPriceUpdateFraction The new price update fraction.
-    function setPricingParams(uint64 newMinimumPrice, uint24 newPriceUpdateFraction) external;
+    function setPricingParams(uint64 newMinimumPrice, uint40 newPriceUpdateFraction) external;
 
     /// @notice Queue a new grandfather period fraction. Takes effect next active round.
     /// @param  newFraction The new grandfather phase length as a fraction of 256 of the round.

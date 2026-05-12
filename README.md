@@ -154,7 +154,7 @@ setTargetTicketsPerRound(uint16 newTarget) external onlyRole(MARKET_PARAMS_SETTE
 // Note that updates affecting pricing might make price jump suddenly
 setPricingParams(
     uint64 newMinimumPrice,
-    uint24 newPriceUpdateFraction
+    uint40 newPriceUpdateFraction
 ) external onlyRole(MARKET_PARAMS_SETTER) {...}
 
 // Queued; committed by the first mutative call in a later round
@@ -175,27 +175,30 @@ setGrandfatherPeriodFraction(uint8 newFraction) external onlyRole(MARKET_PARAMS_
 
 ### Optimized Data Sizes
 
-The hot state variables are packed into two 256-bit slots to minimize SLOADs per purchase.
+Hot path state lives in slot 0 and a common-case purchase only loads that slot. Slot 1 holds colder state read during round rollover. Slot 2 holds other information that is only occasionally accessed during round rollover due to an admin configuration change.
 
 Slot 0 (256 bits used):
 - `_roundDuration` (uint24 seconds): up to ~194 days per round
 - `_maxTicketsPerRound` (uint16): up to 65,535 tickets per round
-- `_minimumPrice` (uint64): up to ~18.4 ether
 - `_currentPrice` (uint72): cached so we don't recompute the Taylor series on each purchase; capped at ~4722 ether
-- `_roundNumber` (uint32): at 1-second rounds, ~136 years before overflow
+- `_roundNumber` (uint40): at 1-second rounds, well past uint32's ~136-year limit
 - `_roundStart` (uint40 seconds): Unix timestamps past year 36800
 - `_grandfatherPeriodFraction` (uint8): numerator over 256 of the round duration
-
-Slot 1 (240 bits used):
+- `_priceUpdateFraction` (uint40): 23 bits cover a 1% max change at target=1, max=65535; widened to uint40 to fill slot 0
 - `_targetTicketsPerRound` (uint16): matches `_maxTicketsPerRound`'s range
-- `_priceUpdateFraction` (uint24): with target=1 and max=65535, a 1% max change per round requires denominator ~6.6M (~23 bits)
-- `_excessTicketsSold` (uint48): worst case is uint16 cap per round * uint32 rounds = 2^48
+
+Slot 1 (224 bits used):
+- `_minimumPrice` (uint64): up to ~18.4 ether
+- `_excessTicketsSold` (uint56): worst case is uint16 cap per round * uint40 rounds = 2^56
 - `nextRoundDuration` (uint24): matches `_roundDuration`
 - `nextTargetTicketsPerRound` (uint16): matches `_targetTicketsPerRound`
 - `nextMaxTicketsPerRound` (uint16): matches `_maxTicketsPerRound`
-- `nextMinimumPrice` (uint64): matches `_minimumPrice`
-- `nextPriceUpdateFraction` (uint24): matches `_priceUpdateFraction`
+- `nextPriceUpdateFraction` (uint40): matches `_priceUpdateFraction`
 - `nextGrandfatherPeriodFraction` (uint8): matches `_grandfatherPeriodFraction`
+
+Slot 2 (224 bits used):
+- `beneficiary` (address): account that receives sale proceeds
+- `nextMinimumPrice` (uint64): matches `_minimumPrice`
 
 ## `ApiKeyRegistry`
 
