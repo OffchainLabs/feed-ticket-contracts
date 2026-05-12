@@ -190,7 +190,9 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     }
 
     function minimumPrice() public view returns (uint256) {
-        return _applyAdminUpdate(_minimumPrice, nextMinimumPrice);
+        // since nextPriceUpdateFraction and nextMinimumPrice are set together, 
+        // we only check the sentinel for nextPriceUpdateFraction to save gas.
+        return _applyAdminUpdate(_minimumPrice, nextPriceUpdateFraction != 0 ? nextMinimumPrice : 0);
     }
 
     function targetTicketsPerRound() external view returns (uint256) {
