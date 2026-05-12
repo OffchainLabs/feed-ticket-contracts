@@ -5,6 +5,7 @@ pragma solidity ^0.8.20;
 
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {Test} from "forge-std/Test.sol";
+import {ITickets} from "../src/ITickets.sol";
 import {Tickets} from "../src/Tickets.sol";
 
 contract TicketsE2ETest is Test {
@@ -78,17 +79,17 @@ contract TicketsE2ETest is Test {
         }
 
         // Cannot buy twice in the same round.
-        vm.expectRevert("Cannot buy two tickets in one round");
+        vm.expectRevert(ITickets.AlreadyPurchasedInRound.selector);
         vm.prank(buyers[0]);
         tickets.purchaseTicket{value: MIN_PRICE}(0, bytes32(0));
 
         // Wrong price reverts.
-        vm.expectRevert("Incorrect ticket price");
+        vm.expectRevert(ITickets.IncorrectTicketPrice.selector);
         vm.prank(buyers[7]);
         tickets.purchaseTicket{value: MIN_PRICE + 1}(0, bytes32(0));
 
         // Wrong expectedRound reverts.
-        vm.expectRevert("Round number mismatch");
+        vm.expectRevert(ITickets.RoundNumberMismatch.selector);
         vm.prank(buyers[7]);
         tickets.purchaseTicket{value: MIN_PRICE}(1, bytes32(0));
 
@@ -97,7 +98,7 @@ contract TicketsE2ETest is Test {
         assertEq(tickets.ticketsSold(0), MAX);
 
         // 9th buy hits the cap.
-        vm.expectRevert("Max tickets sold for this round");
+        vm.expectRevert(ITickets.MaxTicketsSold.selector);
         vm.prank(buyers[8]);
         tickets.purchaseTicket{value: MIN_PRICE}(0, bytes32(0));
 
@@ -113,7 +114,7 @@ contract TicketsE2ETest is Test {
         uint256 r1GrandfatherEnd = tickets.grandfatherPeriodEnd();
         vm.warp(r1GrandfatherEnd - 1);
         // buyers[8] never bought in round 0 → reverts during grandfather phase.
-        vm.expectRevert("Must have ticket from previous round to purchase during grandfather phase");
+        vm.expectRevert(ITickets.NotGrandfathered.selector);
         vm.prank(buyers[8]);
         tickets.purchaseTicket{value: r1Price}(1, bytes32(0));
         // A grandfathered buyer succeeds at the same instant.
@@ -145,7 +146,7 @@ contract TicketsE2ETest is Test {
         totalSpent += _buy(buyers[8], 2);
 
         // buyers[2] only ever bought in round 0 → not grandfathered for round 2 → reverts.
-        vm.expectRevert("Must have ticket from previous round to purchase during grandfather phase");
+        vm.expectRevert(ITickets.NotGrandfathered.selector);
         vm.prank(buyers[2]);
         tickets.purchaseTicket{value: r1Price}(2, bytes32(0));
 
@@ -173,7 +174,7 @@ contract TicketsE2ETest is Test {
         assertEq(tickets.ticketsSold(3), MAX);
 
         // 9th buy hits the cap.
-        vm.expectRevert("Max tickets sold for this round");
+        vm.expectRevert(ITickets.MaxTicketsSold.selector);
         vm.prank(buyers[8]);
         tickets.purchaseTicket{value: r3Price}(3, bytes32(0));
 
