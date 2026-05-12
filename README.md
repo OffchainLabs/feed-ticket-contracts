@@ -24,15 +24,7 @@ The basic mechanism is as follows:
 
 # Specification
 
-There are fundamentally two pieces in the onchain system. 
-
-The `Tickets` contract sells and tracks tickets.
-
-The `ApiKeyRegistry` contract maps ticket holder accounts to hashes of API keys.
-
-## `Tickets`
-
-Limit 1 ticket per address per round. If users want multiple tickets they must sybil.
+1 ticket per address. 1 API key per ticket. 1 connection per API key.
 
 We update round information lazily on the first mutative call during the round. We keep this state private since it can be stale. We expose view functions that will apply appropriate changes to stored round information before returning it.
 
@@ -203,46 +195,19 @@ Slots 2+:
 - `nextMinimumPrice` (uint64): matches `_minimumPrice`
 - `excessTicketsSoldOverride` (uint56): matches `_excessTicketsSold`.
 
-## `ApiKeyRegistry`
-
-The `ApiKeyRegistry` simply maps user accounts to hashes of user generated API keys that will be used to authenticate with the sequencer.
-
-```solidity
-contract ApiKeyRegistry {
-    mapping(address => bytes32) public getKeyHash;
-
-    event KeyHashUpdated(address indexed user, bytes32 newKeyHash);
-
-    function registerKeyHash(bytes32 newKeyHash) external {
-        getKeyHash[msg.sender] = newKeyHash;
-        emit KeyHashUpdated(msg.sender, newKeyHash);
-    }
-
-    function getMultipleKeyHashes(address[] calldata accounts) external view returns (bytes32[] memory hashes) {
-        hashes = new bytes32[](accounts.length);
-        for (uint256 i = 0; i < accounts.length; i++) {
-            hashes[i] = getKeyHash[accounts[i]];
-        }
-    }
-}
-```
-
 # How Buyers Use the System
 
-1. [One time] Generate an API key and record its hash in the `ApiKeyRegistry` using the account that will purchase tickets
-1. [Each Round] Purchase tickets through the `Tickets` contract
+Each round, purchase tickets through the `Tickets` contract, passing in the hash of an API key they've generated. 
 
-Buyers can choose to use a smart contract to do both steps to avoid having a pile of money sitting on a hot EOA.
+Users can use the same API key for multiple purchases. Using the same key to purchase two tickets in the same round is permitted.
 
 # How the Sequencer Uses the System
 
-The sequencer subscribes to `TicketPurchased` to reconstruct the list of ticket holders for each round in real time.
+The sequencer subscribes to `TicketPurchased` to reconstruct the list of ticket holders and their key hashes for each round in real time.
 
-When a round ends/advances, the sequencer takes the full list of ticket holders for the newly active round and queries the `ApiKeyRegistry` to get key hashes. Any overlap between the previously active ticket holder set and currently active ticket holder set should not have their websocket connections closed. Everyone who was in the previous set and not in the new set has their connection closed. When a new connection comes in, the provided API key is hashed and checked against the list of currently active key hashes.
+When a round ends/advances, the sequencer compares the new list of api keys to the old list of api keys. Any overlap between the previously active keys and currently active keys should not have their websocket connections closed. Keys that were included in the previous set and not in the new set have their connection closed. When a new connection comes in, the provided API key is hashed and checked against the list of currently active key hashes.
 
-The sequencer will also have to subscribe to `KeyHashUpdated` events to keep the list of active key hashes up to date. Active ticket holders may rotate keys mid round. If there is an open connection using a key that has just been overwritten in the contract, it should be dropped.
-
-The sequencer cannot allow more than one open connection per ticket holder. If more than one connection is allowed then people will share tickets.
+The sequencer cannot allow more than one open connection per key. If more than one connection is allowed then people will share keys.
 
 # Secondary Markets
 
@@ -271,3 +236,5 @@ At the moment, we've deemed discontinuous jumps acceptable.
 ## ERC-20 as Currency
 
 Currently we use ETH, we might want to use ERC-20.
+
+## Multiple tickets per address
