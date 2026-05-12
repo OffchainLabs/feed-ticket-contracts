@@ -205,7 +205,7 @@ interface ITickets {
     function setTargetTicketsPerRound(uint16 newTarget) external;
 
     /// @notice Queue new pricing parameters. Takes effect next active round.
-    ///         May cause a discontinuous jump in the current price. 
+    ///         May cause a discontinuous jump in the current price.
     ///         The resulting price after the update takes effect will be
     ///         `fake_exponential(newMinimumPrice, excessTicketsSoldOverride, newPriceUpdateFraction)`
     /// @dev    The three parameters MUST be queued and committed as a coupled triple:

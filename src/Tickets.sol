@@ -272,10 +272,11 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         emit TargetTicketsPerRoundQueued(newTarget);
     }
 
-    function setPricingParams(uint64 newMinimumPrice, uint40 newPriceUpdateFraction, uint56 newExcessTicketsSoldOverride)
-        external
-        onlyRole(MARKET_PARAMS_SETTER)
-    {
+    function setPricingParams(
+        uint64 newMinimumPrice,
+        uint40 newPriceUpdateFraction,
+        uint56 newExcessTicketsSoldOverride
+    ) external onlyRole(MARKET_PARAMS_SETTER) {
         require(newMinimumPrice > 0, "Minimum price must be greater than zero");
         require(newPriceUpdateFraction > 0, "Price update fraction must be greater than zero");
         _lazyUpdateRoundState();
