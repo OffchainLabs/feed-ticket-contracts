@@ -178,9 +178,8 @@ interface ITickets {
     /// @param  user The account to check.
     function grandfatheredIntoRound(address user) external view returns (uint256);
 
-    /// @notice Number of tickets sold in `round`.
-    /// @param  round The round to query.
-    function ticketsSold(uint256 round) external view returns (uint256);
+    /// @notice Number of tickets sold in the current round.
+    function ticketsSoldThisRound() external view returns (uint256);
 
     /// @notice Number of full rounds that have elapsed since the stored round start.
     function roundsElapsedSinceStored() external view returns (uint256);
