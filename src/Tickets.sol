@@ -82,6 +82,8 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     uint56 internal _excessTicketsSold;
 
     /// @inheritdoc ITickets
+    /// @dev Set by every queued admin setter, cleared by `_lazyUpdateRoundState` after the queued
+    ///      values are committed.
     bool public isAdminUpdateQueued;
 
     // -- End Warm Path Storage -- //

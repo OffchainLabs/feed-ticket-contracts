@@ -151,7 +151,8 @@ interface ITickets {
     ///         effect until the next mutative call within the round.
     function grandfatherPeriodFraction() external view returns (uint256);
 
-    /// @notice Whether an admin update is currently queued.
+    /// @notice True iff at least one queued admin update has not yet been committed by lazy update.
+    ///         Cleared on the first mutative call of a later round.
     function isAdminUpdateQueued() external view returns (bool);
 
     /// @notice Queued round duration. Takes effect next active round; zero if none queued.
@@ -175,6 +176,8 @@ interface ITickets {
 
     /// @notice Queued override for `excessTicketsSold()`, applied together with the next pricing
     ///         params so the admin can keep `currentPrice` relatively stable across a pricing-param change.
+    ///         Reads `type(uint56).max` (the "no override queued" sentinel) when no override is queued,
+    ///         so that 0 is a valid override value.
     function excessTicketsSoldOverride() external view returns (uint56);
 
     /// @notice The round into which `user` is grandfathered based on their most recent ticket
@@ -266,6 +269,8 @@ interface ITickets {
     ///                                      Must be greater than zero, which is an invalid value.
     /// @param  newExcessTicketsSoldOverride The value to install as `excessTicketsSold` when the
     ///                                      queued pricing params are committed.
+    ///                                      Must not equal `type(uint56).max`, which is reserved as
+    ///                                      the "no override queued" sentinel.
     function setPricingParams(
         uint64 newMinimumPrice,
         uint40 newPriceUpdateFraction,
