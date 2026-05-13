@@ -210,8 +210,8 @@ interface ITickets {
     /// @dev    Once a round has elapsed, this view returns either:
     ///         (a) `excessTicketsSoldOverride` if a pricing update is queued - lets the admin
     ///             avoid a price jump across the param change; or
-    ///         (b) the stored value plus the prior round's `ticketsSold`, minus elapsed rounds'
-    ///             worth of target (saturated at zero).
+    ///         (b) the stored value plus `ticketsSoldThisRound`, minus elapsed
+    ///             rounds' worth of target (saturated at zero).
     ///         The contract's arithmetic keeps using the stored value until a mutative call commits.
     function excessTicketsSold() external view returns (uint256);
 
