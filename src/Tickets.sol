@@ -55,20 +55,23 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     ///      e.g. 128 = first half of the round.
     uint8 internal _grandfatherPeriodFraction;
 
+    /// @dev Type matches maxTicketsPerRound.
+    uint16 internal _ticketsSoldThisRound;
+
     // -- End Hot Path Storage -- //
 
     /// @dev uint40 - at target of 1, max of 2^16, the lowest max change we can support is
     ///      e^((2^16 - 2) / (2^40 - 1)) = 1.00000006
     uint40 internal _priceUpdateFraction;
 
-    /// @dev Type matches maxTicketsPerRound.
-    uint16 internal _targetTicketsPerRound;
-
     // ------ End Slot 0 ------ //
     // ----- Begin Slot 1 ----- //
 
     /// @dev uint64 wei - up to ~18.4 ether.
     uint64 internal _minimumPrice;
+
+    /// @dev Type matches maxTicketsPerRound.
+    uint16 internal _targetTicketsPerRound;
 
     /// @dev uint56 - Up to 2^16 excess/round (uint16 cap) * 2^40 rounds (uint40 _roundNumber)
     ///      = 2^56 worst-case excess.
@@ -109,9 +112,6 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
 
     /// @inheritdoc ITickets
     mapping(address => uint256) public grandfatheredIntoRound;
-
-    /// @inheritdoc ITickets
-    mapping(uint256 => uint256) public ticketsSold;
 
     constructor() {
         _disableInitializers();
@@ -156,7 +156,7 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         _lazyUpdateRoundState();
         if (expectedRound != _roundNumber) revert RoundNumberMismatch(expectedRound, _roundNumber);
         if (msg.value != _currentPrice) revert IncorrectTicketPrice(msg.value, _currentPrice);
-        if (ticketsSold[_roundNumber] >= _maxTicketsPerRound) revert MaxTicketsSold();
+        if (_ticketsSoldThisRound >= _maxTicketsPerRound) revert MaxTicketsSold();
         if (grandfatheredIntoRound[msg.sender] == uint256(_roundNumber) + 1) revert AlreadyPurchasedInRound();
 
         // forge-lint: disable-start(block-timestamp)
@@ -169,7 +169,7 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         }
         // forge-lint: disable-end(block-timestamp)
 
-        ticketsSold[_roundNumber]++;
+        _ticketsSoldThisRound++;
         grandfatheredIntoRound[msg.sender] = uint256(_roundNumber) + 1;
 
         emit TicketPurchased(msg.sender, _roundNumber, apiKeyHash, msg.value);
@@ -242,6 +242,10 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         return _applyAdminUpdate(_grandfatherPeriodFraction, nextGrandfatherPeriodFraction, GRANDFATHER_PERIOD_SENTINEL);
     }
 
+    function ticketsSoldThisRound() external view returns (uint256) {
+        return roundsElapsedSinceStored() == 0 ? _ticketsSoldThisRound : 0;
+    }
+
     /// @inheritdoc ITickets
     function excessTicketsSold() public view returns (uint256) {
         uint256 elapsed = roundsElapsedSinceStored();
@@ -251,7 +255,7 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         // for nextPriceUpdateFraction to save gas. If nextPriceUpdateFraction != 0, an admin has queued a pricing update
         if (nextPriceUpdateFraction != 0) return excessTicketsSoldOverride;
 
-        uint256 gross = uint256(_excessTicketsSold) + ticketsSold[_roundNumber];
+        uint256 gross = uint256(_excessTicketsSold) + _ticketsSoldThisRound;
         uint256 consumed = elapsed * uint256(_targetTicketsPerRound);
         return gross > consumed ? gross - consumed : 0;
     }
@@ -335,6 +339,7 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
             _roundStart = newRoundStart;
             _excessTicketsSold = newExcessTicketsSold;
             _currentPrice = newCurrentPrice;
+            _ticketsSoldThisRound = 0;
 
             if (nextRoundDuration != 0) {
                 _roundDuration = nextRoundDuration;

@@ -24,8 +24,8 @@ contract TicketsPurchaseTest is BaseTicketsTest {
         vm.prank(otherBuyer);
         tickets.purchaseTicket{value: MINIMUM_PRICE}(0, bytes32(0));
 
-        // Inflate ticketsSold[0] so excess after round 0 is nonzero.
-        tickets.exposed_setTicketsSold(0, 350);
+        // Inflate the round-0 count so excess after round 0 is nonzero.
+        tickets.exposed_setTicketsSoldThisRound(350);
 
         vm.warp(FIRST_ROUND_START + ROUND_DURATION);
         tickets.exposed_lazyUpdateRoundState();
@@ -42,8 +42,8 @@ contract TicketsPurchaseTest is BaseTicketsTest {
         vm.prank(otherBuyer);
         tickets.purchaseTicket{value: price1}(1, bytes32(0));
 
-        // Inflate ticketsSold[1] so excess stays nonzero after the next lazy update.
-        tickets.exposed_setTicketsSold(1, 50);
+        // Inflate the round-1 count so excess stays nonzero after the next lazy update.
+        tickets.exposed_setTicketsSoldThisRound(50);
 
         vm.warp(FIRST_ROUND_START + 2 * ROUND_DURATION);
     }
@@ -69,7 +69,7 @@ contract TicketsPurchaseTest is BaseTicketsTest {
     }
 
     function test_purchaseTicket_revertsWhenMaxTicketsSold() public {
-        tickets.exposed_setTicketsSold(0, MAX_TICKETS);
+        tickets.exposed_setTicketsSoldThisRound(MAX_TICKETS);
 
         vm.deal(buyer, MINIMUM_PRICE);
         vm.prank(buyer);
@@ -105,7 +105,7 @@ contract TicketsPurchaseTest is BaseTicketsTest {
         tickets.purchaseTicket{value: MINIMUM_PRICE}(0, bytes32(0));
 
         assertEq(tickets.grandfatheredIntoRound(buyer), 1);
-        assertEq(tickets.ticketsSold(0), 1);
+        assertEq(tickets.ticketsSoldThisRound(), 1);
         assertEq(address(tickets).balance, MINIMUM_PRICE);
     }
 
@@ -122,7 +122,7 @@ contract TicketsPurchaseTest is BaseTicketsTest {
         tickets.purchaseTicket{value: price}(1, bytes32(0));
 
         assertEq(tickets.grandfatheredIntoRound(buyer), 2);
-        assertEq(tickets.ticketsSold(1), 1);
+        assertEq(tickets.ticketsSoldThisRound(), 1);
     }
 
     function test_purchaseTicket_firstPurchaseInRealisticRound() public {
@@ -146,7 +146,7 @@ contract TicketsPurchaseTest is BaseTicketsTest {
         assertEq(tickets.exposed_storedRoundStart(), FIRST_ROUND_START + 2 * ROUND_DURATION);
         assertEq(tickets.exposed_storedExcessTicketsSold(), 200);
         assertEq(tickets.grandfatheredIntoRound(buyer), 3);
-        assertEq(tickets.ticketsSold(2), 1);
+        assertEq(tickets.ticketsSoldThisRound(), 1);
     }
 
     function test_purchaseTicket_secondPurchaseInRealisticRound() public {
@@ -169,7 +169,7 @@ contract TicketsPurchaseTest is BaseTicketsTest {
 
         assertEq(tickets.grandfatheredIntoRound(buyer), 3);
         assertEq(tickets.grandfatheredIntoRound(otherBuyer), 3);
-        assertEq(tickets.ticketsSold(2), 2);
+        assertEq(tickets.ticketsSoldThisRound(), 2);
     }
 
     function _logAccesses(string memory label) internal {

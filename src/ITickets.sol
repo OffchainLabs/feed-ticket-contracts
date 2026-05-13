@@ -178,9 +178,8 @@ interface ITickets {
     /// @param  user The account to check.
     function grandfatheredIntoRound(address user) external view returns (uint256);
 
-    /// @notice Number of tickets sold in `round`.
-    /// @param  round The round to query.
-    function ticketsSold(uint256 round) external view returns (uint256);
+    /// @notice Number of tickets sold in the current round.
+    function ticketsSoldThisRound() external view returns (uint256);
 
     /// @notice Number of full rounds that have elapsed since the stored round start.
     function roundsElapsedSinceStored() external view returns (uint256);
@@ -211,8 +210,8 @@ interface ITickets {
     /// @dev    Once a round has elapsed, this view returns either:
     ///         (a) `excessTicketsSoldOverride` if a pricing update is queued - lets the admin
     ///             avoid a price jump across the param change; or
-    ///         (b) the stored value plus the prior round's `ticketsSold`, minus elapsed rounds'
-    ///             worth of target (saturated at zero).
+    ///         (b) the stored value plus `ticketsSoldThisRound`, minus elapsed
+    ///             rounds' worth of target (saturated at zero).
     ///         The contract's arithmetic keeps using the stored value until a mutative call commits.
     function excessTicketsSold() external view returns (uint256);
 

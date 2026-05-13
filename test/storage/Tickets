@@ -14,23 +14,25 @@
 |-------------------------------+-----------------------------+------+--------+-------+-------------------------|
 | _grandfatherPeriodFraction    | uint8                       | 0    | 24     | 1     | src/Tickets.sol:Tickets |
 |-------------------------------+-----------------------------+------+--------+-------+-------------------------|
-| _priceUpdateFraction          | uint40                      | 0    | 25     | 5     | src/Tickets.sol:Tickets |
+| _ticketsSoldThisRound         | uint16                      | 0    | 25     | 2     | src/Tickets.sol:Tickets |
 |-------------------------------+-----------------------------+------+--------+-------+-------------------------|
-| _targetTicketsPerRound        | uint16                      | 0    | 30     | 2     | src/Tickets.sol:Tickets |
+| _priceUpdateFraction          | uint40                      | 0    | 27     | 5     | src/Tickets.sol:Tickets |
 |-------------------------------+-----------------------------+------+--------+-------+-------------------------|
 | _minimumPrice                 | uint64                      | 1    | 0      | 8     | src/Tickets.sol:Tickets |
 |-------------------------------+-----------------------------+------+--------+-------+-------------------------|
-| _excessTicketsSold            | uint56                      | 1    | 8      | 7     | src/Tickets.sol:Tickets |
+| _targetTicketsPerRound        | uint16                      | 1    | 8      | 2     | src/Tickets.sol:Tickets |
 |-------------------------------+-----------------------------+------+--------+-------+-------------------------|
-| nextRoundDuration             | uint24                      | 1    | 15     | 3     | src/Tickets.sol:Tickets |
+| _excessTicketsSold            | uint56                      | 1    | 10     | 7     | src/Tickets.sol:Tickets |
 |-------------------------------+-----------------------------+------+--------+-------+-------------------------|
-| nextTargetTicketsPerRound     | uint16                      | 1    | 18     | 2     | src/Tickets.sol:Tickets |
+| nextRoundDuration             | uint24                      | 1    | 17     | 3     | src/Tickets.sol:Tickets |
 |-------------------------------+-----------------------------+------+--------+-------+-------------------------|
-| nextMaxTicketsPerRound        | uint16                      | 1    | 20     | 2     | src/Tickets.sol:Tickets |
+| nextTargetTicketsPerRound     | uint16                      | 1    | 20     | 2     | src/Tickets.sol:Tickets |
 |-------------------------------+-----------------------------+------+--------+-------+-------------------------|
-| nextPriceUpdateFraction       | uint40                      | 1    | 22     | 5     | src/Tickets.sol:Tickets |
+| nextMaxTicketsPerRound        | uint16                      | 1    | 22     | 2     | src/Tickets.sol:Tickets |
 |-------------------------------+-----------------------------+------+--------+-------+-------------------------|
-| nextGrandfatherPeriodFraction | uint8                       | 1    | 27     | 1     | src/Tickets.sol:Tickets |
+| nextPriceUpdateFraction       | uint40                      | 1    | 24     | 5     | src/Tickets.sol:Tickets |
+|-------------------------------+-----------------------------+------+--------+-------+-------------------------|
+| nextGrandfatherPeriodFraction | uint8                       | 1    | 29     | 1     | src/Tickets.sol:Tickets |
 |-------------------------------+-----------------------------+------+--------+-------+-------------------------|
 | nextMinimumPrice              | uint64                      | 2    | 0      | 8     | src/Tickets.sol:Tickets |
 |-------------------------------+-----------------------------+------+--------+-------+-------------------------|
@@ -39,7 +41,5 @@
 | beneficiary                   | address                     | 3    | 0      | 20    | src/Tickets.sol:Tickets |
 |-------------------------------+-----------------------------+------+--------+-------+-------------------------|
 | grandfatheredIntoRound        | mapping(address => uint256) | 4    | 0      | 32    | src/Tickets.sol:Tickets |
-|-------------------------------+-----------------------------+------+--------+-------+-------------------------|
-| ticketsSold                   | mapping(uint256 => uint256) | 5    | 0      | 32    | src/Tickets.sol:Tickets |
 ╰-------------------------------+-----------------------------+------+--------+-------+-------------------------╯
 

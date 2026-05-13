@@ -65,12 +65,12 @@ contract TicketsLazyUpdateTest is BaseTicketsTest {
     }
 
     function test_excessTicketsSold_returnsStoredWhenNoRoundsElapsed() public {
-        tickets.exposed_setTicketsSold(0, 350);
+        tickets.exposed_setTicketsSoldThisRound(350);
         assertEq(tickets.excessTicketsSold(), 0);
     }
 
     function test_excessTicketsSold_appliesFormulaAfterAdvance() public {
-        tickets.exposed_setTicketsSold(0, 350);
+        tickets.exposed_setTicketsSoldThisRound(350);
         vm.warp(FIRST_ROUND_START + 1 * ROUND_DURATION);
         assertEq(tickets.excessTicketsSold(), 350 - TARGET_TICKETS);
         vm.warp(FIRST_ROUND_START + 3 * ROUND_DURATION - 1);
@@ -82,7 +82,7 @@ contract TicketsLazyUpdateTest is BaseTicketsTest {
     ///      decay across further inactive rounds. The override is distinct from both
     ///      `_excessTicketsSold` (0) and the natural-decay value (350 - 1 * TARGET_TICKETS = 250).
     function test_excessTicketsSold_returnsOverrideWhenPricingUpdateQueuedAndRoundElapsed() public {
-        tickets.exposed_setTicketsSold(0, 350);
+        tickets.exposed_setTicketsSoldThisRound(350);
 
         uint56 newExcessOverride = 42;
         vm.prank(marketParamsSetter);
@@ -102,7 +102,7 @@ contract TicketsLazyUpdateTest is BaseTicketsTest {
     }
 
     function test_lazyUpdateRoundState_writesViewValuesToPrivateState() public {
-        tickets.exposed_setTicketsSold(0, 350);
+        tickets.exposed_setTicketsSoldThisRound(350);
         vm.warp(FIRST_ROUND_START + 3 * ROUND_DURATION + 17);
 
         uint256 expectedRound = tickets.roundNumber();
@@ -198,7 +198,7 @@ contract TicketsLazyUpdateTest is BaseTicketsTest {
     }
 
     function test_excessAndTiming_unaffectedByQueuedAdminAcrossInactiveRounds() public {
-        tickets.exposed_setTicketsSold(0, 350);
+        tickets.exposed_setTicketsSoldThisRound(350);
 
         // Queue updates that would change every view if applied: nextRoundDuration would
         // halve elapsed rounds; nextTargetTicketsPerRound would zero out the excess below.
