@@ -36,6 +36,7 @@ The only mutative calls that _do not_ trigger lazy update are setting the benefi
 
 `Tickets` has the following public state:
 - `beneficiary` - account that receives sale proceeds
+- `isAdminUpdateQueued` - true if any of the `next*` fields (or `excessTicketsSoldOverride`) below holds a queued update that has not yet been committed by lazy update.
 - `nextRoundDuration` - if set, upcoming rounds will use this duration
 - `nextTargetTicketsPerRound` - if set, upcoming rounds will use it
 - `nextMaxTicketsPerRound` - if set, upcoming rounds will use it
@@ -89,7 +90,7 @@ In addition to the public state, `Tickets` has the following view functions:
     - returns 0 once the round has advanced beyond the stored round, since the next mutative call will reset the counter to 0 before recording any new purchase
 - `excessTicketsSold()` - the total "extra" number of tickets that have been sold as of the last round relative to the "targeted" number.
     - `if (_roundNumber == roundNumber()) return _excessTicketsSold;`
-    - `else if (nextPriceUpdateFraction != 0) return excessTicketsSoldOverride;`
+    - `else if (isAdminUpdateQueued && excessTicketsSoldOverride != type(uint56).max) return excessTicketsSoldOverride;`
     - `else return max(0, _excessTicketsSold + _ticketsSoldThisRound - roundsElapsedSinceStored() * _targetTicketsPerRound)`
     - max(0, ...) underflows in solidity. code's for illustration
 - `currentPrice()` - the ticket price (in wei) for the current round
@@ -188,6 +189,7 @@ Slot 1:
 - `_minimumPrice` (uint64): up to ~18.4 ether
 - `_targetTicketsPerRound` (uint16): matches `_maxTicketsPerRound`'s range
 - `_excessTicketsSold` (uint56): worst case is uint16 cap per round * uint40 rounds = 2^56
+- `isAdminUpdateQueued` (bool)
 - `nextRoundDuration` (uint24): matches `_roundDuration`
 - `nextTargetTicketsPerRound` (uint16): matches `_targetTicketsPerRound`
 - `nextMaxTicketsPerRound` (uint16): matches `_maxTicketsPerRound`

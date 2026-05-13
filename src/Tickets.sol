@@ -31,6 +31,9 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     ///      (which use 0) because 0 is a valid grandfather fraction (no grandfather phase).
     uint8 constant GRANDFATHER_PERIOD_SENTINEL = type(uint8).max;
 
+    /// @dev Sentinel for "no excess tickets override"
+    uint56 constant EXCESS_TICKETS_SOLD_SENTINEL = type(uint56).max;
+
     // ----- Begin Slot 0 ----- //
 
     // -- Begin Hot Path Storage (Accessed Every Purchase) -- //
@@ -59,6 +62,7 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     uint16 internal _ticketsSoldThisRound;
 
     // -- End Hot Path Storage -- //
+    // -- Begin Warm Path Storage (Accessed on Round Change) -- //
 
     /// @dev uint40 - at target of 1, max of 2^16, the lowest max change we can support is
     ///      e^((2^16 - 2) / (2^40 - 1)) = 1.00000006
@@ -76,6 +80,13 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     /// @dev uint56 - Up to 2^16 excess/round (uint16 cap) * 2^40 rounds (uint40 _roundNumber)
     ///      = 2^56 worst-case excess.
     uint56 internal _excessTicketsSold;
+
+    /// @inheritdoc ITickets
+    /// @dev Set by every queued admin setter, cleared by `_lazyUpdateRoundState` after the queued
+    ///      values are committed.
+    bool public isAdminUpdateQueued;
+
+    // -- End Warm Path Storage -- //
 
     /// @inheritdoc ITickets
     /// @dev Type matches roundDuration.
@@ -142,6 +153,7 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         _currentPrice = p.minimumPrice;
 
         nextGrandfatherPeriodFraction = GRANDFATHER_PERIOD_SENTINEL;
+        excessTicketsSoldOverride = EXCESS_TICKETS_SOLD_SENTINEL;
     }
 
     /// @dev Grants the three admin roles. Called once from `initialize`.
@@ -251,9 +263,9 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         uint256 elapsed = roundsElapsedSinceStored();
         if (elapsed == 0) return _excessTicketsSold;
 
-        // since nextPriceUpdateFraction and excessTicketsSoldOverride are set together, we only check the sentinel
-        // for nextPriceUpdateFraction to save gas. If nextPriceUpdateFraction != 0, an admin has queued a pricing update
-        if (nextPriceUpdateFraction != 0) return excessTicketsSoldOverride;
+        if (isAdminUpdateQueued && excessTicketsSoldOverride != EXCESS_TICKETS_SOLD_SENTINEL) {
+            return excessTicketsSoldOverride;
+        }
 
         uint256 gross = uint256(_excessTicketsSold) + _ticketsSoldThisRound;
         uint256 consumed = elapsed * uint256(_targetTicketsPerRound);
@@ -277,6 +289,7 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     function setRoundDuration(uint24 newDuration) external onlyRole(MARKET_PARAMS_SETTER) {
         if (newDuration == 0) revert RoundDurationZero();
         _lazyUpdateRoundState();
+        isAdminUpdateQueued = true;
         nextRoundDuration = newDuration;
         emit RoundDurationQueued(newDuration);
     }
@@ -285,6 +298,7 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     function setMaxTicketsPerRound(uint16 newMax) external onlyRole(MARKET_PARAMS_SETTER) {
         if (newMax == 0) revert MaxTicketsPerRoundZero();
         _lazyUpdateRoundState();
+        isAdminUpdateQueued = true;
         nextMaxTicketsPerRound = newMax;
         emit MaxTicketsPerRoundQueued(newMax);
     }
@@ -293,17 +307,12 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     function setTargetTicketsPerRound(uint16 newTarget) external onlyRole(MARKET_PARAMS_SETTER) {
         if (newTarget == 0) revert TargetTicketsPerRoundZero();
         _lazyUpdateRoundState();
+        isAdminUpdateQueued = true;
         nextTargetTicketsPerRound = newTarget;
         emit TargetTicketsPerRoundQueued(newTarget);
     }
 
     /// @inheritdoc ITickets
-    /// @dev The three parameters MUST be queued and committed as a coupled triple:
-    ///      `nextMinimumPrice`, `nextPriceUpdateFraction`, and `excessTicketsSoldOverride`
-    ///      are always set together here and reset together on commit. The `minimumPrice()`
-    ///      view, the `excessTicketsSold()` view, and the storage-commit path all treat
-    ///      `nextPriceUpdateFraction != 0` as the single "pricing update queued" sentinel
-    ///      (saving slot reads of `nextMinimumPrice` and `excessTicketsSoldOverride`).
     function setPricingParams(
         uint64 newMinimumPrice,
         uint40 newPriceUpdateFraction,
@@ -311,7 +320,9 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     ) external onlyRole(MARKET_PARAMS_SETTER) {
         if (newMinimumPrice == 0) revert MinimumPriceZero();
         if (newPriceUpdateFraction == 0) revert PriceUpdateFractionZero();
+        if (newExcessTicketsSoldOverride == EXCESS_TICKETS_SOLD_SENTINEL) revert ExcessTicketsSoldOverrideReserved();
         _lazyUpdateRoundState();
+        isAdminUpdateQueued = true;
         nextMinimumPrice = newMinimumPrice;
         nextPriceUpdateFraction = newPriceUpdateFraction;
         excessTicketsSoldOverride = newExcessTicketsSoldOverride;
@@ -322,6 +333,7 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     function setGrandfatherPeriodFraction(uint8 newFraction) external onlyRole(MARKET_PARAMS_SETTER) {
         if (newFraction == GRANDFATHER_PERIOD_SENTINEL) revert GrandfatherPeriodFractionReserved();
         _lazyUpdateRoundState();
+        isAdminUpdateQueued = true;
         nextGrandfatherPeriodFraction = newFraction;
         emit GrandfatherPeriodFractionQueued(newFraction);
     }
@@ -341,32 +353,38 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
             _currentPrice = newCurrentPrice;
             _ticketsSoldThisRound = 0;
 
-            if (nextRoundDuration != 0) {
-                _roundDuration = nextRoundDuration;
-                nextRoundDuration = 0;
-            }
-            if (nextTargetTicketsPerRound != 0) {
-                _targetTicketsPerRound = nextTargetTicketsPerRound;
-                nextTargetTicketsPerRound = 0;
-            }
-            if (nextMaxTicketsPerRound != 0) {
-                _maxTicketsPerRound = nextMaxTicketsPerRound;
-                nextMaxTicketsPerRound = 0;
-            }
-            if (nextGrandfatherPeriodFraction != GRANDFATHER_PERIOD_SENTINEL) {
-                _grandfatherPeriodFraction = nextGrandfatherPeriodFraction;
-                nextGrandfatherPeriodFraction = GRANDFATHER_PERIOD_SENTINEL;
-            }
-            // nextPriceUpdateFraction and nextMinimumPrice are set together,
-            // so we only check sentinel for nextPriceUpdateFraction to save gas.
-            if (nextPriceUpdateFraction != 0) {
-                _priceUpdateFraction = nextPriceUpdateFraction;
-                _minimumPrice = nextMinimumPrice;
-                nextPriceUpdateFraction = 0;
-                nextMinimumPrice = 0;
+            if (isAdminUpdateQueued) {
+                if (nextRoundDuration != 0) {
+                    _roundDuration = nextRoundDuration;
+                    nextRoundDuration = 0;
+                }
+                if (nextTargetTicketsPerRound != 0) {
+                    _targetTicketsPerRound = nextTargetTicketsPerRound;
+                    nextTargetTicketsPerRound = 0;
+                }
+                if (nextMaxTicketsPerRound != 0) {
+                    _maxTicketsPerRound = nextMaxTicketsPerRound;
+                    nextMaxTicketsPerRound = 0;
+                }
+                if (nextGrandfatherPeriodFraction != GRANDFATHER_PERIOD_SENTINEL) {
+                    _grandfatherPeriodFraction = nextGrandfatherPeriodFraction;
+                    nextGrandfatherPeriodFraction = GRANDFATHER_PERIOD_SENTINEL;
+                }
+                if (nextPriceUpdateFraction != 0) {
+                    _priceUpdateFraction = nextPriceUpdateFraction;
+                    nextPriceUpdateFraction = 0;
+                }
+                if (nextMinimumPrice != 0) {
+                    _minimumPrice = nextMinimumPrice;
+                    nextMinimumPrice = 0;
+                }
 
                 // excessTicketsSoldOverride is applied in excessTicketsSold(), which has already been called
-                excessTicketsSoldOverride = 0;
+                if (excessTicketsSoldOverride != EXCESS_TICKETS_SOLD_SENTINEL) {
+                    excessTicketsSoldOverride = EXCESS_TICKETS_SOLD_SENTINEL;
+                }
+
+                isAdminUpdateQueued = false;
             }
 
             emit RoundStateUpdated();
