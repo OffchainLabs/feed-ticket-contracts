@@ -100,13 +100,13 @@ In addition to the public state, `Tickets` has the following view functions:
 ```solidity
 function purchaseTicket(uint256 expectedRound, bytes32 apiKeyHash) external payable {
     _lazyUpdateRoundState();
-    require(expectedRound == _roundNumber, "Round number mismatch");
-    require(msg.value == _currentPrice, "Incorrect ticket price");
-    require(ticketsSold[_roundNumber] < _maxTicketsPerRound, "Max tickets sold for this round");
-    require(grandfatheredIntoRound[msg.sender] != _roundNumber + 1, "Cannot buy two tickets in one round");
+    if (expectedRound != _roundNumber) revert RoundNumberMismatch(expectedRound, _roundNumber);
+    if (msg.value != _currentPrice) revert IncorrectTicketPrice(msg.value, _currentPrice);
+    if (ticketsSold[_roundNumber] >= _maxTicketsPerRound) revert MaxTicketsSold();
+    if (grandfatheredIntoRound[msg.sender] == _roundNumber + 1) revert AlreadyPurchasedInRound();
 
     if (_roundNumber > 0 && block.timestamp < _roundStart + (_roundDuration * _grandfatherPeriodFraction) / 256) {
-        require(grandfatheredIntoRound[msg.sender] == _roundNumber, "Must have ticket from previous round to purchase during grandfather phase");
+        if (grandfatheredIntoRound[msg.sender] != _roundNumber) revert NotGrandfathered();
     }
 
     ticketsSold[_roundNumber]++;
@@ -119,7 +119,7 @@ function purchaseTicket(uint256 expectedRound, bytes32 apiKeyHash) external paya
 ```solidity
 function distributeSaleProceeds() external {
     (bool success,) = beneficiary.call{value: address(this).balance}("");
-    require(success, "Payment failed");
+    if (!success) revert PaymentFailed();
     emit ProceedsDistributed(...);
 }
 ```
