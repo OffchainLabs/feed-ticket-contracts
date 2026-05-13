@@ -18,6 +18,10 @@ interface ITickets {
     ///         `type(uint8).max`, which is reserved as the "no update queued" sentinel.
     error GrandfatherPeriodFractionReserved();
 
+    /// @notice Thrown when `setPricingParams` is called with `type(uint56).max` for the `excessTicketsSoldOverride`,
+    ///         which is reserved as the "no override queued" sentinel.
+    error ExcessTicketsSoldOverrideReserved();
+
     /// @notice Thrown when `initialize` is given a `firstRoundStart` that is not strictly in the future.
     error FirstRoundStartNotInFuture();
 
@@ -146,6 +150,9 @@ interface ITickets {
     ///         the stored value until that commit, so this view can diverge from the value in
     ///         effect until the next mutative call within the round.
     function grandfatherPeriodFraction() external view returns (uint256);
+
+    /// @notice Whether an admin update is currently queued.
+    function isAdminUpdateQueued() external view returns (bool);
 
     /// @notice Queued round duration. Takes effect next active round; zero if none queued.
     function nextRoundDuration() external view returns (uint24);

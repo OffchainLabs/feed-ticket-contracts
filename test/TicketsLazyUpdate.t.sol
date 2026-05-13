@@ -101,6 +101,37 @@ contract TicketsLazyUpdateTest is BaseTicketsTest {
         assertEq(tickets.excessTicketsSold(), newExcessOverride);
     }
 
+    /// @dev Regression: a pricing-params commit resets `excessTicketsSoldOverride` to its
+    ///      `type(uint56).max` sentinel (not 0). A later non-pricing admin update flips
+    ///      `isAdminUpdateQueued` back on, but `excessTicketsSold()` must still take the
+    ///      formula path rather than returning the stale override.
+    function test_excessTicketsSold_formulaAfterPricingCommitThenNonPricingQueue() public {
+        uint56 firstOverride = 42;
+        vm.prank(marketParamsSetter);
+        tickets.setPricingParams(MINIMUM_PRICE, PRICE_UPDATE_FRACTION, firstOverride);
+
+        vm.warp(FIRST_ROUND_START + ROUND_DURATION);
+        tickets.exposed_lazyUpdateRoundState();
+        assertEq(tickets.exposed_storedExcessTicketsSold(), firstOverride);
+        assertEq(tickets.excessTicketsSoldOverride(), type(uint56).max);
+
+        tickets.exposed_setTicketsSoldThisRound(350);
+        vm.prank(marketParamsSetter);
+        tickets.setRoundDuration(ROUND_DURATION + 1);
+
+        // Boundary - 1: elapsed == 0, view short-circuits to the stored value.
+        assertEq(tickets.excessTicketsSold(), firstOverride);
+
+        // Boundary: one round elapsed, view must take the formula path.
+        vm.warp(FIRST_ROUND_START + 2 * ROUND_DURATION);
+        uint256 expectedExcess = uint256(firstOverride) + 350 - TARGET_TICKETS;
+        assertEq(tickets.excessTicketsSold(), expectedExcess);
+
+        // Commit also writes the formula value (not the stale override) to storage.
+        tickets.exposed_lazyUpdateRoundState();
+        assertEq(tickets.exposed_storedExcessTicketsSold(), expectedExcess);
+    }
+
     function test_lazyUpdateRoundState_writesViewValuesToPrivateState() public {
         tickets.exposed_setTicketsSoldThisRound(350);
         vm.warp(FIRST_ROUND_START + 3 * ROUND_DURATION + 17);
@@ -149,7 +180,7 @@ contract TicketsLazyUpdateTest is BaseTicketsTest {
         assertEq(tickets.nextMaxTicketsPerRound(), 0);
         assertEq(tickets.nextMinimumPrice(), 0);
         assertEq(tickets.nextPriceUpdateFraction(), 0);
-        assertEq(tickets.excessTicketsSoldOverride(), 0);
+        assertEq(tickets.excessTicketsSoldOverride(), type(uint56).max);
         assertEq(tickets.nextGrandfatherPeriodFraction(), type(uint8).max);
     }
 
