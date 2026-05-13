@@ -24,8 +24,8 @@ contract TicketsHarness is Tickets {
         return _currentPrice;
     }
 
-    function exposed_setTicketsSold(uint256 round, uint256 amount) external {
-        ticketsSold[round] = amount;
+    function exposed_setTicketsSoldThisRound(uint256 amount) external {
+        _ticketsSoldThisRound = uint16(amount);
     }
 
     function exposed_lazyUpdateRoundState() external {

@@ -74,7 +74,7 @@ contract TicketsE2ETest is Test {
         for (uint256 i = 0; i < MAX - 1; i++) {
             totalSpent += _buy(buyers[i], 0);
             assertEq(tickets.grandfatheredIntoRound(buyers[i]), 1);
-            assertEq(tickets.ticketsSold(0), i + 1);
+            assertEq(tickets.ticketsSoldThisRound(), i + 1);
             assertEq(tickets.currentPrice(), MIN_PRICE);
         }
 
@@ -95,7 +95,7 @@ contract TicketsE2ETest is Test {
 
         // Fill the final slot so the round closes at the cap.
         totalSpent += _buy(buyers[MAX - 1], 0);
-        assertEq(tickets.ticketsSold(0), MAX);
+        assertEq(tickets.ticketsSoldThisRound(), MAX);
 
         // 9th buy hits the cap.
         vm.expectRevert(ITickets.MaxTicketsSold.selector);
@@ -127,7 +127,7 @@ contract TicketsE2ETest is Test {
         totalSpent += _buy(buyers[1], 1);
         totalSpent += _buy(buyers[9], 1);
 
-        assertEq(tickets.ticketsSold(1), 4);
+        assertEq(tickets.ticketsSoldThisRound(), 4);
         assertEq(tickets.grandfatheredIntoRound(buyers[0]), 2);
         assertEq(tickets.grandfatheredIntoRound(buyers[1]), 2);
         assertEq(tickets.grandfatheredIntoRound(buyers[8]), 2);
@@ -156,7 +156,7 @@ contract TicketsE2ETest is Test {
         totalSpent += _buy(buyers[3], 2);
         totalSpent += _buy(buyers[4], 2);
 
-        assertEq(tickets.ticketsSold(2), 5);
+        assertEq(tickets.ticketsSoldThisRound(), 5);
 
         // ===== Round 3 — excess and therefore price grow =====
         vm.warp(FIRST_ROUND_START + 3 * ROUND_DURATION);
@@ -171,7 +171,7 @@ contract TicketsE2ETest is Test {
         for (uint256 i = 0; i < MAX; i++) {
             totalSpent += _buy(buyers[i], 3);
         }
-        assertEq(tickets.ticketsSold(3), MAX);
+        assertEq(tickets.ticketsSoldThisRound(), MAX);
 
         // 9th buy hits the cap.
         vm.expectRevert(ITickets.MaxTicketsSold.selector);

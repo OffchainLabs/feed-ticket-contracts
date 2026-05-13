@@ -11,7 +11,7 @@ contract TicketPricingTest is BaseTicketsTest {
     }
 
     function test_currentPrice_matchesFakeExponentialOfPricingState() public {
-        tickets.exposed_setTicketsSold(0, 350);
+        tickets.exposed_setTicketsSoldThisRound(350);
         vm.warp(FIRST_ROUND_START + 2 * ROUND_DURATION);
 
         uint256 excess = tickets.excessTicketsSold();
@@ -22,7 +22,7 @@ contract TicketPricingTest is BaseTicketsTest {
     ///      `currentPrice()`. After a lazy update they must agree, otherwise a buyer who
     ///      quotes off the view and pays that amount will revert.
     function test_currentPrice_equalsStoredAfterLazyUpdate() public {
-        tickets.exposed_setTicketsSold(0, 350);
+        tickets.exposed_setTicketsSoldThisRound(350);
         vm.warp(FIRST_ROUND_START + ROUND_DURATION);
         tickets.exposed_lazyUpdateRoundState();
 
@@ -48,7 +48,7 @@ contract TicketPricingTest is BaseTicketsTest {
     ///      on the narrowing cast.
     function test_currentPrice_saturatesAtUint72Max() public {
         // E/F = 1000/50 = 20 -> e^20 ~= 4.85e8 -> raw ~= 4.85e26 wei, well past uint72.max (~4.72e21).
-        tickets.exposed_setTicketsSold(0, 1200);
+        tickets.exposed_setTicketsSoldThisRound(1200);
         vm.warp(FIRST_ROUND_START + 2 * ROUND_DURATION);
 
         uint256 raw = tickets.exposed_fakeExponential(MINIMUM_PRICE, tickets.excessTicketsSold(), PRICE_UPDATE_FRACTION);
