@@ -24,7 +24,7 @@ The basic mechanism is as follows:
 
 # Specification
 
-1 ticket per address per round. 1 API key per ticket. 1 connection per API key.
+1 ticket per address per round. 1 connection per ticket. 1 API key per ticket. Multiple tickets may have the same API key.
 
 We update round information lazily on the first mutative call during the round. We keep this state private since it can be stale. We expose view functions that will apply appropriate changes to stored round information before returning it.
 
