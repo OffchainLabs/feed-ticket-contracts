@@ -44,13 +44,13 @@ The only mutative calls that _do not_ trigger lazy update are setting the benefi
 - `nextGrandfatherPeriodFraction` - if set, upcoming rounds will use it
 - `excessTicketsSoldOverride` - queued override for `excessTicketsSold()`
 - `grandfatheredIntoRound` - maps user => the round into which they are grandfathered (i.e. the round in which they may purchase during the grandfather phase). Concretely, after a user purchases a ticket in round `R`, this is set to `R + 1`. Returns 0 if the user has never purchased; the +1 encoding lets us distinguish "never bought" from "bought in round 0".
-- `ticketsSold` - maps roundnum => numtickets
 
 Private state (committed lazily on the first mutative call in a new round):
 - `_roundNumber` - the recorded current round number
 - `_roundStart` - start timestamp of the recorded current round (inclusive)
 - `_excessTicketsSold` - the total "extra" number of tickets that have been sold as of the last stored round relative to the "targeted" number
 - `_currentPrice` - the cached price for the recorded current round (avoids recomputing the Taylor series on each purchase)
+- `_ticketsSoldThisRound` - the number of tickets sold in the recorded current round. Incremented on each purchase and reset to 0 by lazy update at the start of a new round
 - `_roundDuration` - the stored round duration; replaced by `nextRoundDuration` when the queued update is committed
 - `_targetTicketsPerRound` - the stored target; replaced by `nextTargetTicketsPerRound` when committed
 - `_maxTicketsPerRound` - the stored cap; replaced by `nextMaxTicketsPerRound` when committed
@@ -84,10 +84,13 @@ In addition to the public state, `Tickets` has the following view functions:
     - `return roundStart() + roundDuration()`
 - `grandfatherPeriodEnd()` - end timestamp of the current round's grandfather phase (exclusive). Before this time, only previous-round ticket holders may purchase.
     - `return roundStart() + (roundDuration() * grandfatherPeriodFraction()) / 256`
+- `ticketsSoldThisRound()` - the number of tickets sold in the current round.
+    - `return roundsElapsedSinceStored() == 0 ? _ticketsSoldThisRound : 0`
+    - returns 0 once the round has advanced beyond the stored round, since the next mutative call will reset the counter to 0 before recording any new purchase
 - `excessTicketsSold()` - the total "extra" number of tickets that have been sold as of the last round relative to the "targeted" number.
     - `if (_roundNumber == roundNumber()) return _excessTicketsSold;`
     - `else if (nextPriceUpdateFraction != 0) return excessTicketsSoldOverride;`
-    - `else return max(0, _excessTicketsSold + ticketsSold[_roundNumber] - roundsElapsedSinceStored() * _targetTicketsPerRound)`
+    - `else return max(0, _excessTicketsSold + _ticketsSoldThisRound - roundsElapsedSinceStored() * _targetTicketsPerRound)`
     - max(0, ...) underflows in solidity. code's for illustration
 - `currentPrice()` - the ticket price (in wei) for the current round
     - see `fake_exponential` in https://eips.ethereum.org/EIPS/eip-4844
@@ -102,14 +105,14 @@ function purchaseTicket(uint256 expectedRound, bytes32 apiKeyHash) external paya
     _lazyUpdateRoundState();
     if (expectedRound != _roundNumber) revert RoundNumberMismatch(expectedRound, _roundNumber);
     if (msg.value != _currentPrice) revert IncorrectTicketPrice(msg.value, _currentPrice);
-    if (ticketsSold[_roundNumber] >= _maxTicketsPerRound) revert MaxTicketsSold();
+    if (_ticketsSoldThisRound >= _maxTicketsPerRound) revert MaxTicketsSold();
     if (grandfatheredIntoRound[msg.sender] == _roundNumber + 1) revert AlreadyPurchasedInRound();
 
     if (_roundNumber > 0 && block.timestamp < _roundStart + (_roundDuration * _grandfatherPeriodFraction) / 256) {
         if (grandfatheredIntoRound[msg.sender] != _roundNumber) revert NotGrandfathered();
     }
 
-    ticketsSold[_roundNumber]++;
+    _ticketsSoldThisRound++;
     grandfatheredIntoRound[msg.sender] = _roundNumber + 1;
 
     emit TicketPurchased(msg.sender, _roundNumber, apiKeyHash, msg.value);
@@ -171,18 +174,19 @@ setGrandfatherPeriodFraction(uint8 newFraction) external onlyRole(MARKET_PARAMS_
 
 Hot path state lives in slot 0 and a common-case purchase only loads that slot. Slot 1 holds colder state read during round rollover. Slots 2 and above hold other information that is only occasionally accessed during round rollover due to an admin configuration change.
 
-Slot 0 (256 bits used):
+Slot 0:
 - `_roundDuration` (uint24 seconds): up to ~194 days per round
 - `_maxTicketsPerRound` (uint16): up to 65,535 tickets per round
 - `_currentPrice` (uint72): cached so we don't recompute the Taylor series on each purchase; capped at ~4722 ether
 - `_roundNumber` (uint40): at 1-second rounds, well past uint32's ~136-year limit
 - `_roundStart` (uint40 seconds): Unix timestamps past year 36800
 - `_grandfatherPeriodFraction` (uint8): numerator over 256 of the round duration
+- `_ticketsSoldThisRound` (uint16): matches `_maxTicketsPerRound`'s range
 - `_priceUpdateFraction` (uint40): 23 bits cover a 1% max change at target=1, max=65535; widened to uint40 to fill slot 0
-- `_targetTicketsPerRound` (uint16): matches `_maxTicketsPerRound`'s range
 
-Slot 1 (224 bits used):
+Slot 1:
 - `_minimumPrice` (uint64): up to ~18.4 ether
+- `_targetTicketsPerRound` (uint16): matches `_maxTicketsPerRound`'s range
 - `_excessTicketsSold` (uint56): worst case is uint16 cap per round * uint40 rounds = 2^56
 - `nextRoundDuration` (uint24): matches `_roundDuration`
 - `nextTargetTicketsPerRound` (uint16): matches `_targetTicketsPerRound`
