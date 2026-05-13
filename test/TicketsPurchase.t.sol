@@ -58,9 +58,13 @@ contract TicketsPurchaseTest is BaseTicketsTest {
     function test_purchaseTicket_revertsOnIncorrectPrice() public {
         vm.deal(buyer, MINIMUM_PRICE);
         vm.prank(buyer);
-        vm.expectRevert(abi.encodeWithSelector(ITickets.IncorrectTicketPrice.selector, MINIMUM_PRICE - 1, MINIMUM_PRICE));
+        vm.expectRevert(
+            abi.encodeWithSelector(ITickets.IncorrectTicketPrice.selector, MINIMUM_PRICE - 1, MINIMUM_PRICE)
+        );
         tickets.purchaseTicket{value: MINIMUM_PRICE - 1}(0, bytes32(0));
-        vm.expectRevert(abi.encodeWithSelector(ITickets.IncorrectTicketPrice.selector, MINIMUM_PRICE + 1, MINIMUM_PRICE));
+        vm.expectRevert(
+            abi.encodeWithSelector(ITickets.IncorrectTicketPrice.selector, MINIMUM_PRICE + 1, MINIMUM_PRICE)
+        );
         tickets.purchaseTicket{value: MINIMUM_PRICE + 1}(0, bytes32(0));
     }
 
