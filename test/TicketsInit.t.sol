@@ -6,6 +6,7 @@ pragma solidity ^0.8.20;
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {BaseTicketsTest} from "./BaseTicketsTest.t.sol";
+import {ITickets} from "../src/ITickets.sol";
 import {Tickets} from "../src/Tickets.sol";
 
 contract TicketsInitTest is BaseTicketsTest {
@@ -58,7 +59,7 @@ contract TicketsInitTest is BaseTicketsTest {
     function test_initialize_revertsWhenFirstRoundStartEqualsNow() public {
         Tickets.InitParams memory p = _params();
         p.firstRoundStart = uint40(block.timestamp);
-        vm.expectRevert(bytes("First round start must be in the future"));
+        vm.expectRevert(ITickets.FirstRoundStartNotInFuture.selector);
         new TransparentUpgradeableProxy(address(impl), proxyAdmin, abi.encodeCall(Tickets.initialize, (p)));
     }
 }

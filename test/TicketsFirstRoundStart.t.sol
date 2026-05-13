@@ -4,6 +4,7 @@ pragma solidity ^0.8.20;
 // forge-lint: disable-start
 
 import {BaseTicketsTest} from "./BaseTicketsTest.t.sol";
+import {ITickets} from "../src/ITickets.sol";
 
 /// @dev Exercises the pre-start window where `block.timestamp < firstRoundStart`. Every view
 ///      that derives state from elapsed time, plus `purchaseTicket`, must revert. At exactly
@@ -11,7 +12,7 @@ import {BaseTicketsTest} from "./BaseTicketsTest.t.sol";
 contract TicketsFirstRoundStartTest is BaseTicketsTest {
     address buyer = makeAddr("buyer");
 
-    string constant PRE_START_REVERT = "Current time is before first round start";
+    bytes4 constant PRE_START_REVERT = ITickets.BeforeFirstRoundStart.selector;
 
     function setUp() public override {
         super.setUp();
@@ -21,7 +22,7 @@ contract TicketsFirstRoundStartTest is BaseTicketsTest {
 
     function test_roundsElapsedSinceStored_revertsJustBeforeStart() public {
         vm.warp(FIRST_ROUND_START - 1);
-        vm.expectRevert(bytes(PRE_START_REVERT));
+        vm.expectRevert(PRE_START_REVERT);
         tickets.roundsElapsedSinceStored();
     }
 
@@ -32,7 +33,7 @@ contract TicketsFirstRoundStartTest is BaseTicketsTest {
 
     function test_roundNumber_revertsJustBeforeStart() public {
         vm.warp(FIRST_ROUND_START - 1);
-        vm.expectRevert(bytes(PRE_START_REVERT));
+        vm.expectRevert(PRE_START_REVERT);
         tickets.roundNumber();
     }
 
@@ -43,7 +44,7 @@ contract TicketsFirstRoundStartTest is BaseTicketsTest {
 
     function test_roundStart_revertsJustBeforeStart() public {
         vm.warp(FIRST_ROUND_START - 1);
-        vm.expectRevert(bytes(PRE_START_REVERT));
+        vm.expectRevert(PRE_START_REVERT);
         tickets.roundStart();
     }
 
@@ -54,7 +55,7 @@ contract TicketsFirstRoundStartTest is BaseTicketsTest {
 
     function test_roundEnd_revertsJustBeforeStart() public {
         vm.warp(FIRST_ROUND_START - 1);
-        vm.expectRevert(bytes(PRE_START_REVERT));
+        vm.expectRevert(PRE_START_REVERT);
         tickets.roundEnd();
     }
 
@@ -65,7 +66,7 @@ contract TicketsFirstRoundStartTest is BaseTicketsTest {
 
     function test_grandfatherPeriodEnd_revertsJustBeforeStart() public {
         vm.warp(FIRST_ROUND_START - 1);
-        vm.expectRevert(bytes(PRE_START_REVERT));
+        vm.expectRevert(PRE_START_REVERT);
         tickets.grandfatherPeriodEnd();
     }
 
@@ -77,7 +78,7 @@ contract TicketsFirstRoundStartTest is BaseTicketsTest {
 
     function test_excessTicketsSold_revertsJustBeforeStart() public {
         vm.warp(FIRST_ROUND_START - 1);
-        vm.expectRevert(bytes(PRE_START_REVERT));
+        vm.expectRevert(PRE_START_REVERT);
         tickets.excessTicketsSold();
     }
 
@@ -88,7 +89,7 @@ contract TicketsFirstRoundStartTest is BaseTicketsTest {
 
     function test_currentPrice_revertsJustBeforeStart() public {
         vm.warp(FIRST_ROUND_START - 1);
-        vm.expectRevert(bytes(PRE_START_REVERT));
+        vm.expectRevert(PRE_START_REVERT);
         tickets.currentPrice();
     }
 
@@ -101,7 +102,7 @@ contract TicketsFirstRoundStartTest is BaseTicketsTest {
         vm.warp(FIRST_ROUND_START - 1);
         vm.deal(buyer, MINIMUM_PRICE);
         vm.prank(buyer);
-        vm.expectRevert(bytes(PRE_START_REVERT));
+        vm.expectRevert(PRE_START_REVERT);
         tickets.purchaseTicket{value: MINIMUM_PRICE}(0, bytes32(0));
     }
 

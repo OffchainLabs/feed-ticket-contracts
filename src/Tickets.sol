@@ -118,17 +118,14 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     }
 
     function initialize(InitParams calldata p) external initializer {
-        require(p.roundDuration > 0, "Round duration must be greater than zero");
-        require(p.targetTicketsPerRound > 0, "Target tickets per round must be greater than zero");
-        require(p.maxTicketsPerRound > 0, "Max tickets per round must be greater than zero");
-        require(p.minimumPrice > 0, "Minimum price must be greater than zero");
-        require(p.priceUpdateFraction > 0, "Price update fraction must be greater than zero");
-        require(
-            p.grandfatherPeriodFraction != GRANDFATHER_PERIOD_SENTINEL,
-            "Grandfather period fraction cannot be type(uint8).max"
-        );
+        if (p.roundDuration == 0) revert RoundDurationZero();
+        if (p.targetTicketsPerRound == 0) revert TargetTicketsPerRoundZero();
+        if (p.maxTicketsPerRound == 0) revert MaxTicketsPerRoundZero();
+        if (p.minimumPrice == 0) revert MinimumPriceZero();
+        if (p.priceUpdateFraction == 0) revert PriceUpdateFractionZero();
+        if (p.grandfatherPeriodFraction == GRANDFATHER_PERIOD_SENTINEL) revert GrandfatherPeriodFractionReserved();
         // forge-lint: disable-next-line(block-timestamp)
-        require(p.firstRoundStart > block.timestamp, "First round start must be in the future");
+        if (p.firstRoundStart <= block.timestamp) revert FirstRoundStartNotInFuture();
 
         __AccessControlEnumerable_init();
         _initRoles(p.defaultAdmin, p.beneficiarySetter, p.marketParamsSetter);
@@ -157,10 +154,10 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     /// @inheritdoc ITickets
     function purchaseTicket(uint256 expectedRound, bytes32 apiKeyHash) external payable {
         _lazyUpdateRoundState();
-        require(expectedRound == _roundNumber, "Round number mismatch");
-        require(msg.value == _currentPrice, "Incorrect ticket price");
-        require(ticketsSold[_roundNumber] < _maxTicketsPerRound, "Max tickets sold for this round");
-        require(grandfatheredIntoRound[msg.sender] != uint256(_roundNumber) + 1, "Cannot buy two tickets in one round");
+        if (expectedRound != _roundNumber) revert RoundNumberMismatch(expectedRound, _roundNumber);
+        if (msg.value != _currentPrice) revert IncorrectTicketPrice(msg.value, _currentPrice);
+        if (ticketsSold[_roundNumber] >= _maxTicketsPerRound) revert MaxTicketsSold();
+        if (grandfatheredIntoRound[msg.sender] == uint256(_roundNumber) + 1) revert AlreadyPurchasedInRound();
 
         // forge-lint: disable-start(block-timestamp)
         if (
@@ -168,10 +165,7 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
                 && block.timestamp
                     < uint256(_roundStart) + (uint256(_roundDuration) * uint256(_grandfatherPeriodFraction)) / 256
         ) {
-            require(
-                grandfatheredIntoRound[msg.sender] == _roundNumber,
-                "Must have ticket from previous round to purchase during grandfather phase"
-            );
+            if (grandfatheredIntoRound[msg.sender] != _roundNumber) revert NotGrandfathered();
         }
         // forge-lint: disable-end(block-timestamp)
 
@@ -185,14 +179,14 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     function distributeSaleProceeds() external {
         uint256 amount = address(this).balance;
         (bool success,) = beneficiary.call{value: amount}("");
-        require(success, "Payment failed");
+        if (!success) revert PaymentFailed();
         emit ProceedsDistributed(beneficiary, amount);
     }
 
     /// @inheritdoc ITickets
     function roundsElapsedSinceStored() public view returns (uint256) {
         // forge-lint: disable-next-line(block-timestamp)
-        require(block.timestamp >= _roundStart, "Current time is before first round start");
+        if (block.timestamp < _roundStart) revert BeforeFirstRoundStart();
         return (block.timestamp - uint256(_roundStart)) / uint256(_roundDuration);
     }
 
@@ -277,7 +271,7 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
 
     /// @inheritdoc ITickets
     function setRoundDuration(uint24 newDuration) external onlyRole(MARKET_PARAMS_SETTER) {
-        require(newDuration > 0, "Round duration must be greater than zero");
+        if (newDuration == 0) revert RoundDurationZero();
         _lazyUpdateRoundState();
         nextRoundDuration = newDuration;
         emit RoundDurationQueued(newDuration);
@@ -285,7 +279,7 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
 
     /// @inheritdoc ITickets
     function setMaxTicketsPerRound(uint16 newMax) external onlyRole(MARKET_PARAMS_SETTER) {
-        require(newMax > 0, "Max tickets per round must be greater than zero");
+        if (newMax == 0) revert MaxTicketsPerRoundZero();
         _lazyUpdateRoundState();
         nextMaxTicketsPerRound = newMax;
         emit MaxTicketsPerRoundQueued(newMax);
@@ -293,7 +287,7 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
 
     /// @inheritdoc ITickets
     function setTargetTicketsPerRound(uint16 newTarget) external onlyRole(MARKET_PARAMS_SETTER) {
-        require(newTarget > 0, "Target tickets per round must be greater than zero");
+        if (newTarget == 0) revert TargetTicketsPerRoundZero();
         _lazyUpdateRoundState();
         nextTargetTicketsPerRound = newTarget;
         emit TargetTicketsPerRoundQueued(newTarget);
@@ -311,8 +305,8 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         uint40 newPriceUpdateFraction,
         uint56 newExcessTicketsSoldOverride
     ) external onlyRole(MARKET_PARAMS_SETTER) {
-        require(newMinimumPrice > 0, "Minimum price must be greater than zero");
-        require(newPriceUpdateFraction > 0, "Price update fraction must be greater than zero");
+        if (newMinimumPrice == 0) revert MinimumPriceZero();
+        if (newPriceUpdateFraction == 0) revert PriceUpdateFractionZero();
         _lazyUpdateRoundState();
         nextMinimumPrice = newMinimumPrice;
         nextPriceUpdateFraction = newPriceUpdateFraction;
@@ -322,7 +316,7 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
 
     /// @inheritdoc ITickets
     function setGrandfatherPeriodFraction(uint8 newFraction) external onlyRole(MARKET_PARAMS_SETTER) {
-        require(newFraction != GRANDFATHER_PERIOD_SENTINEL, "Grandfather period fraction cannot be type(uint8).max");
+        if (newFraction == GRANDFATHER_PERIOD_SENTINEL) revert GrandfatherPeriodFractionReserved();
         _lazyUpdateRoundState();
         nextGrandfatherPeriodFraction = newFraction;
         emit GrandfatherPeriodFractionQueued(newFraction);

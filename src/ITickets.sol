@@ -8,6 +8,44 @@ pragma solidity ^0.8.0;
 ///         each round only previous-round ticket holders may purchase; afterwards anyone may
 ///         purchase. Tickets become active once the round in which they were purchased ends.
 interface ITickets {
+    error RoundDurationZero();
+    error TargetTicketsPerRoundZero();
+    error MaxTicketsPerRoundZero();
+    error MinimumPriceZero();
+    error PriceUpdateFractionZero();
+
+    /// @notice Thrown when an initializer or `setGrandfatherPeriodFraction` is called with
+    ///         `type(uint8).max`, which is reserved as the "no update queued" sentinel.
+    error GrandfatherPeriodFractionReserved();
+
+    /// @notice Thrown when `initialize` is given a `firstRoundStart` that is not strictly in the future.
+    error FirstRoundStartNotInFuture();
+
+    /// @notice Thrown when `purchaseTicket` is called with an `expectedRound` that does not
+    ///         match the current round.
+    error RoundNumberMismatch(uint256 expected, uint256 actual);
+
+    /// @notice Thrown when `purchaseTicket` is called with `msg.value` not equal to `currentPrice`.
+    error IncorrectTicketPrice(uint256 sent, uint256 expected);
+
+    /// @notice Thrown when `purchaseTicket` would exceed `maxTicketsPerRound` for the current round.
+    error MaxTicketsSold();
+
+    /// @notice Thrown when `purchaseTicket` is called by an account that has already purchased a
+    ///         ticket in the current round.
+    error AlreadyPurchasedInRound();
+
+    /// @notice Thrown when `purchaseTicket` is called during the grandfather phase by an account
+    ///         that did not hold a ticket from the previous round.
+    error NotGrandfathered();
+
+    /// @notice Thrown when `distributeSaleProceeds` fails to transfer ETH to the beneficiary.
+    error PaymentFailed();
+
+    /// @notice Thrown by `roundsElapsedSinceStored` (and views that depend on it) when called
+    ///         before `firstRoundStart`.
+    error BeforeFirstRoundStart();
+
     /// @notice Emitted when a ticket is purchased.
     /// @param  buyer The account that purchased the ticket.
     /// @param  round The round the ticket was purchased in.

@@ -51,16 +51,20 @@ contract TicketsPurchaseTest is BaseTicketsTest {
     function test_purchaseTicket_revertsOnExpectedRoundMismatch() public {
         vm.deal(buyer, MINIMUM_PRICE);
         vm.prank(buyer);
-        vm.expectRevert("Round number mismatch");
+        vm.expectRevert(abi.encodeWithSelector(ITickets.RoundNumberMismatch.selector, 1, 0));
         tickets.purchaseTicket{value: MINIMUM_PRICE}(1, bytes32(0));
     }
 
     function test_purchaseTicket_revertsOnIncorrectPrice() public {
         vm.deal(buyer, MINIMUM_PRICE);
         vm.prank(buyer);
-        vm.expectRevert("Incorrect ticket price");
+        vm.expectRevert(
+            abi.encodeWithSelector(ITickets.IncorrectTicketPrice.selector, MINIMUM_PRICE - 1, MINIMUM_PRICE)
+        );
         tickets.purchaseTicket{value: MINIMUM_PRICE - 1}(0, bytes32(0));
-        vm.expectRevert("Incorrect ticket price");
+        vm.expectRevert(
+            abi.encodeWithSelector(ITickets.IncorrectTicketPrice.selector, MINIMUM_PRICE + 1, MINIMUM_PRICE)
+        );
         tickets.purchaseTicket{value: MINIMUM_PRICE + 1}(0, bytes32(0));
     }
 
@@ -69,7 +73,7 @@ contract TicketsPurchaseTest is BaseTicketsTest {
 
         vm.deal(buyer, MINIMUM_PRICE);
         vm.prank(buyer);
-        vm.expectRevert("Max tickets sold for this round");
+        vm.expectRevert(ITickets.MaxTicketsSold.selector);
         tickets.purchaseTicket{value: MINIMUM_PRICE}(0, bytes32(0));
     }
 
@@ -77,7 +81,7 @@ contract TicketsPurchaseTest is BaseTicketsTest {
         vm.deal(buyer, 2 * MINIMUM_PRICE);
         vm.startPrank(buyer);
         tickets.purchaseTicket{value: MINIMUM_PRICE}(0, bytes32(0));
-        vm.expectRevert("Cannot buy two tickets in one round");
+        vm.expectRevert(ITickets.AlreadyPurchasedInRound.selector);
         tickets.purchaseTicket{value: MINIMUM_PRICE}(0, bytes32(0));
         vm.stopPrank();
     }
@@ -87,7 +91,7 @@ contract TicketsPurchaseTest is BaseTicketsTest {
 
         vm.deal(buyer, MINIMUM_PRICE);
         vm.prank(buyer);
-        vm.expectRevert("Must have ticket from previous round to purchase during grandfather phase");
+        vm.expectRevert(ITickets.NotGrandfathered.selector);
         tickets.purchaseTicket{value: MINIMUM_PRICE}(1, bytes32(0));
     }
 
