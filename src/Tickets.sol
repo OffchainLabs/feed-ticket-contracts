@@ -154,8 +154,8 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     /// @inheritdoc ITickets
     function purchaseTicket(uint256 expectedRound, bytes32 apiKeyHash) external payable {
         _lazyUpdateRoundState();
-        if (expectedRound != _roundNumber) revert RoundNumberMismatch();
-        if (msg.value != _currentPrice) revert IncorrectTicketPrice();
+        if (expectedRound != _roundNumber) revert RoundNumberMismatch(expectedRound, _roundNumber);
+        if (msg.value != _currentPrice) revert IncorrectTicketPrice(msg.value, _currentPrice);
         if (ticketsSold[_roundNumber] >= _maxTicketsPerRound) revert MaxTicketsSold();
         if (grandfatheredIntoRound[msg.sender] == uint256(_roundNumber) + 1) revert AlreadyPurchasedInRound();
 

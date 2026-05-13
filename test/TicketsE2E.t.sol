@@ -84,12 +84,12 @@ contract TicketsE2ETest is Test {
         tickets.purchaseTicket{value: MIN_PRICE}(0, bytes32(0));
 
         // Wrong price reverts.
-        vm.expectRevert(ITickets.IncorrectTicketPrice.selector);
+        vm.expectRevert(abi.encodeWithSelector(ITickets.IncorrectTicketPrice.selector, MIN_PRICE + 1, MIN_PRICE));
         vm.prank(buyers[7]);
         tickets.purchaseTicket{value: MIN_PRICE + 1}(0, bytes32(0));
 
         // Wrong expectedRound reverts.
-        vm.expectRevert(ITickets.RoundNumberMismatch.selector);
+        vm.expectRevert(abi.encodeWithSelector(ITickets.RoundNumberMismatch.selector, 1, 0));
         vm.prank(buyers[7]);
         tickets.purchaseTicket{value: MIN_PRICE}(1, bytes32(0));
 

@@ -23,10 +23,10 @@ interface ITickets {
 
     /// @notice Thrown when `purchaseTicket` is called with an `expectedRound` that does not
     ///         match the current round.
-    error RoundNumberMismatch();
+    error RoundNumberMismatch(uint256 expected, uint256 actual);
 
     /// @notice Thrown when `purchaseTicket` is called with `msg.value` not equal to `currentPrice`.
-    error IncorrectTicketPrice();
+    error IncorrectTicketPrice(uint256 sent, uint256 expected);
 
     /// @notice Thrown when `purchaseTicket` would exceed `maxTicketsPerRound` for the current round.
     error MaxTicketsSold();

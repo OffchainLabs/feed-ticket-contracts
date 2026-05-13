@@ -51,16 +51,16 @@ contract TicketsPurchaseTest is BaseTicketsTest {
     function test_purchaseTicket_revertsOnExpectedRoundMismatch() public {
         vm.deal(buyer, MINIMUM_PRICE);
         vm.prank(buyer);
-        vm.expectRevert(ITickets.RoundNumberMismatch.selector);
+        vm.expectRevert(abi.encodeWithSelector(ITickets.RoundNumberMismatch.selector, 1, 0));
         tickets.purchaseTicket{value: MINIMUM_PRICE}(1, bytes32(0));
     }
 
     function test_purchaseTicket_revertsOnIncorrectPrice() public {
         vm.deal(buyer, MINIMUM_PRICE);
         vm.prank(buyer);
-        vm.expectRevert(ITickets.IncorrectTicketPrice.selector);
+        vm.expectRevert(abi.encodeWithSelector(ITickets.IncorrectTicketPrice.selector, MINIMUM_PRICE - 1, MINIMUM_PRICE));
         tickets.purchaseTicket{value: MINIMUM_PRICE - 1}(0, bytes32(0));
-        vm.expectRevert(ITickets.IncorrectTicketPrice.selector);
+        vm.expectRevert(abi.encodeWithSelector(ITickets.IncorrectTicketPrice.selector, MINIMUM_PRICE + 1, MINIMUM_PRICE));
         tickets.purchaseTicket{value: MINIMUM_PRICE + 1}(0, bytes32(0));
     }
 
