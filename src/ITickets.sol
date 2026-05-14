@@ -39,12 +39,15 @@ interface ITickets {
     ///         ticket in the current round.
     error AlreadyPurchasedInRound();
 
+    /// @notice Thrown when `purchaseTicket` or `withdrawToken` is called by an account whose
+    ///         deposited token balance is less than the amount required.
+    /// @param  balance  The caller's current deposited token balance.
+    /// @param  required The amount required to complete the operation.
+    error InsufficientTokenBalance(uint256 balance, uint256 required);
+
     /// @notice Thrown when `purchaseTicket` is called during the grandfather phase by an account
     ///         that did not hold a ticket from the previous round.
     error NotGrandfathered();
-
-    /// @notice Thrown when `distributeSaleProceeds` fails to transfer ETH to the beneficiary.
-    error PaymentFailed();
 
     /// @notice Thrown by `roundsElapsedSinceStored` (and views that depend on it) when called
     ///         before `firstRoundStart`.
@@ -61,6 +64,16 @@ interface ITickets {
     /// @param  beneficiary The account that received the proceeds.
     /// @param  amount      The amount forwarded.
     event ProceedsDistributed(address indexed beneficiary, uint256 amount);
+
+    /// @notice Emitted when an account deposits payment tokens to fund future ticket purchases.
+    /// @param  depositor The account whose internal balance is credited.
+    /// @param  amount    The amount of payment tokens transferred in.
+    event TokensDeposited(address indexed depositor, uint256 amount);
+
+    /// @notice Emitted when an account withdraws unused payment tokens from its internal balance.
+    /// @param  withdrawer The account whose internal balance is debited.
+    /// @param  amount     The amount of payment tokens transferred out.
+    event TokensWithdrawn(address indexed withdrawer, uint256 amount);
 
     /// @notice Emitted when the beneficiary is updated. Takes effect immediately.
     /// @param  newBeneficiary The new account that will receive sale proceeds.
@@ -98,11 +111,30 @@ interface ITickets {
     ///         During the grandfather phase at the start of a round, only holders of a ticket from the
     ///         previous round may purchase.
     /// @param  expectedRound Round the caller expects to be current. Reverts if it does not match.
+    /// @param  expectedPrice Price the caller expects. Reverts if the current price does not equal this value.
     /// @param  apiKeyHash    The hash of the API key to associate with the ticket purchase.
-    function purchaseTicket(uint256 expectedRound, bytes32 apiKeyHash) external payable;
+    function purchaseTicket(uint256 expectedRound, uint256 expectedPrice, bytes32 apiKeyHash) external;
 
     /// @notice Forward all accumulated sale proceeds to the current beneficiary. Permissionless.
     function distributeSaleProceeds() external;
+
+    /// @notice Deposit payment tokens to the caller's internal balance to fund future ticket
+    ///         purchases. The caller must have first approved this contract for at least `amount`.
+    /// @param  amount Number of payment tokens to pull from the caller.
+    function depositToken(uint256 amount) external;
+
+    /// @notice Withdraw unused payment tokens from the caller's internal balance.
+    /// @param  amount Number of payment tokens to return to the caller. Reverts with
+    ///                `InsufficientTokenBalance` if greater than the caller's balance.
+    function withdrawToken(uint256 amount) external;
+
+    /// @notice ERC-20 payment token accepted for ticket purchases. Set at construction; immutable.
+    function token() external view returns (address);
+
+    /// @notice Internal payment-token balance of `account`, available to be spent on ticket
+    ///         purchases or withdrawn via `withdrawToken`.
+    /// @param  account The account whose balance to read.
+    function tokenBalance(address account) external view returns (uint256);
 
     /// @notice Account that receives ticket sale proceeds.
     function beneficiary() external view returns (address);

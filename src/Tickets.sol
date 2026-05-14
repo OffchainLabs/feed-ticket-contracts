@@ -4,9 +4,13 @@ pragma solidity ^0.8.20;
 import {
     AccessControlEnumerableUpgradeable
 } from "@openzeppelin/contracts-upgradeable/access/extensions/AccessControlEnumerableUpgradeable.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ITickets} from "./ITickets.sol";
 
 contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
+    using SafeERC20 for IERC20;
+
     /// @notice Parameters passed to `initialize`. Bundled to avoid stack-too-deep at the call site.
     struct InitParams {
         address defaultAdmin;
@@ -22,6 +26,11 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         uint40 firstRoundStart;
     }
 
+    struct UserData {
+        uint40 grandfatheredRound;
+        uint216 tokenBalance;
+    }
+
     /// @notice Role that can set the beneficiary account.
     bytes32 public constant BENEFICIARY_SETTER = keccak256("BENEFICIARY_SETTER");
     /// @notice Role that can queue updates to market parameters.
@@ -33,6 +42,9 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
 
     /// @dev Sentinel for "no excess tickets override"
     uint56 constant EXCESS_TICKETS_SOLD_SENTINEL = type(uint56).max;
+
+    /// @inheritdoc ITickets
+    address public immutable token;
 
     // ----- Begin Slot 0 ----- //
 
@@ -86,7 +98,13 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     ///      values are committed.
     bool public isAdminUpdateQueued;
 
+    /// @dev uint112 - accumulated token proceeds from rounds prior to the last lazy update,
+    ///      minus distributions already made. Sized to fill the remainder of slot 1.
+    uint112 internal _storedProceeds;
+
     // -- End Warm Path Storage -- //
+
+    // ------ End Slot 1 ------ //
 
     /// @inheritdoc ITickets
     /// @dev Type matches roundDuration.
@@ -108,8 +126,6 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     /// @dev Type matches grandfatherPeriodFraction.
     uint8 public nextGrandfatherPeriodFraction;
 
-    // ------ End Slot 1 ------ //
-
     /// @inheritdoc ITickets
     /// @dev Type matches minimumPrice.
     uint64 public nextMinimumPrice;
@@ -121,10 +137,10 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     /// @inheritdoc ITickets
     address public beneficiary;
 
-    /// @inheritdoc ITickets
-    mapping(address => uint256) public grandfatheredIntoRound;
+    mapping(address => UserData) internal _userData;
 
-    constructor() {
+    constructor(address _token) {
+        token = _token;
         _disableInitializers();
     }
 
@@ -164,12 +180,13 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     }
 
     /// @inheritdoc ITickets
-    function purchaseTicket(uint256 expectedRound, bytes32 apiKeyHash) external payable {
+    function purchaseTicket(uint256 expectedRound, uint256 expectedPrice, bytes32 apiKeyHash) external {
         _lazyUpdateRoundState();
         if (expectedRound != _roundNumber) revert RoundNumberMismatch(expectedRound, _roundNumber);
-        if (msg.value != _currentPrice) revert IncorrectTicketPrice(msg.value, _currentPrice);
+        if (expectedPrice != _currentPrice) revert IncorrectTicketPrice(expectedPrice, _currentPrice);
         if (_ticketsSoldThisRound >= _maxTicketsPerRound) revert MaxTicketsSold();
-        if (grandfatheredIntoRound[msg.sender] == uint256(_roundNumber) + 1) revert AlreadyPurchasedInRound();
+        if (_userData[msg.sender].grandfatheredRound == uint256(_roundNumber) + 1) revert AlreadyPurchasedInRound();
+        if (_userData[msg.sender].tokenBalance < expectedPrice) revert InsufficientTokenBalance(_userData[msg.sender].tokenBalance, expectedPrice);
 
         // forge-lint: disable-start(block-timestamp)
         if (
@@ -177,22 +194,50 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
                 && block.timestamp
                     < uint256(_roundStart) + (uint256(_roundDuration) * uint256(_grandfatherPeriodFraction)) / 256
         ) {
-            if (grandfatheredIntoRound[msg.sender] != _roundNumber) revert NotGrandfathered();
+            if (_userData[msg.sender].grandfatheredRound != _roundNumber) revert NotGrandfathered();
         }
         // forge-lint: disable-end(block-timestamp)
 
         _ticketsSoldThisRound++;
-        grandfatheredIntoRound[msg.sender] = uint256(_roundNumber) + 1;
+        _userData[msg.sender].grandfatheredRound = _roundNumber + 1;
+        _userData[msg.sender].tokenBalance -= uint216(expectedPrice); // cast is safe because price cannot exceed uint72
 
-        emit TicketPurchased(msg.sender, _roundNumber, apiKeyHash, msg.value);
+        emit TicketPurchased(msg.sender, _roundNumber, apiKeyHash, expectedPrice);
+    }
+
+    /// @inheritdoc ITickets
+    function depositToken(uint256 amount) external {
+        _userData[msg.sender].tokenBalance += uint216(amount); // todo: safecast?
+        IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
+        emit TokensDeposited(msg.sender, amount);
+    }
+
+    /// @inheritdoc ITickets
+    function withdrawToken(uint256 amount) external {
+        if (_userData[msg.sender].tokenBalance < amount) {
+            revert InsufficientTokenBalance(_userData[msg.sender].tokenBalance, amount);
+        }
+        _userData[msg.sender].tokenBalance -= uint216(amount);
+        IERC20(token).safeTransfer(msg.sender, amount);
+        emit TokensWithdrawn(msg.sender, amount);
     }
 
     /// @inheritdoc ITickets
     function distributeSaleProceeds() external {
-        uint256 amount = address(this).balance;
-        (bool success,) = beneficiary.call{value: amount}("");
-        if (!success) revert PaymentFailed();
+        uint256 amount = _storedProceeds;
+        _storedProceeds = 0;
+        IERC20(token).safeTransfer(beneficiary, amount);
         emit ProceedsDistributed(beneficiary, amount);
+    }
+
+    /// @inheritdoc ITickets
+    function grandfatheredIntoRound(address account) external view returns (uint256) {
+        return _userData[account].grandfatheredRound;
+    }
+
+    /// @inheritdoc ITickets
+    function tokenBalance(address account) external view returns (uint256) {
+        return _userData[account].tokenBalance;
     }
 
     /// @inheritdoc ITickets
@@ -342,6 +387,8 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     ///      commits any queued admin updates. No-op within the same round.
     function _lazyUpdateRoundState() internal {
         if (roundsElapsedSinceStored() > 0) {
+            _storedProceeds += uint112(_ticketsSoldThisRound) * _currentPrice;
+
             uint40 newRoundNumber = uint40(roundNumber());
             uint40 newRoundStart = uint40(roundStart());
             uint56 newExcessTicketsSold = uint56(excessTicketsSold());
