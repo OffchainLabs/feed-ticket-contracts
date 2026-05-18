@@ -277,11 +277,25 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         _lazyUpdateRoundState();
     }
 
-    // AI: add functions for getting userdata fields
-
     /// @inheritdoc ITickets
     function tokenBalance(address account) external view returns (uint256) {
         return _userData[account].tokenBalance;
+    }
+
+    function evenTicketsHeld(address account) external view returns (uint256) {
+        return _userData[account].evenTicketsHeld;
+    }
+
+    function oddTicketsHeld(address account) external view returns (uint256) {
+        return _userData[account].oddTicketsHeld;
+    }
+
+    function lastEvenRoundPurchased(address account) external view returns (uint256) {
+        return _userData[account].lastEvenRoundPurchased;
+    }
+
+    function lastOddRoundPurchased(address account) external view returns (uint256) {
+        return _userData[account].lastOddRoundPurchased;
     }
 
     /// @inheritdoc ITickets
