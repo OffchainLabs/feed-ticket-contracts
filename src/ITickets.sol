@@ -29,7 +29,10 @@ interface ITickets {
     ///         match the current round.
     error RoundNumberMismatch(uint256 expected, uint256 actual);
 
-    /// @notice Thrown when `purchaseTicket` is called with `msg.value` not equal to `currentPrice`.
+    /// @notice Thrown when `purchaseTicket` is called with an `expectedPrice` that does not equal
+    ///         the current price.
+    /// @param  sent     The price the caller said they expected.
+    /// @param  expected The actual current price.
     error IncorrectTicketPrice(uint256 sent, uint256 expected);
 
     /// @notice Thrown when `purchaseTicket` would exceed `maxTicketsPerRound` for the current round.
@@ -107,9 +110,10 @@ interface ITickets {
     /// @notice Emitted when stored round state is rolled forward by the lazy update modifier.
     event RoundStateUpdated();
 
-    /// @notice Purchase one ticket for the current round. Caller must send exactly `currentPrice()` value.
-    ///         During the grandfather phase at the start of a round, only holders of a ticket from the
-    ///         previous round may purchase.
+    /// @notice Purchase one ticket for the current round. `expectedPrice` is debited from the
+    ///         caller's deposited token balance; the caller must have first funded that balance
+    ///         via `depositToken`. During the grandfather phase at the start of a round, only
+    ///         holders of a ticket from the previous round may purchase.
     /// @param  expectedRound Round the caller expects to be current. Reverts if it does not match.
     /// @param  expectedPrice Price the caller expects. Reverts if the current price does not equal this value.
     /// @param  apiKeyHash    The hash of the API key to associate with the ticket purchase.
@@ -257,11 +261,11 @@ interface ITickets {
     ///         The contract's arithmetic keeps using the stored value until a mutative call commits.
     function excessTicketsSold() external view returns (uint256);
 
-    /// @notice Ticket price for the current round, in wei.
+    /// @notice Ticket price for the current round, denominated in base units of the payment token.
     /// @dev    The price is `fake_exponential(minimumPrice(), excessTicketsSold(), priceUpdateFraction())`
-    ///         (EIP-4844 style), clamped at `type(uint72).max` (~4722 ether). If the formula would
-    ///         exceed that cap, this returns `type(uint72).max` and tickets are sold at the cap
-    ///         rather than at the higher formula price.
+    ///         (EIP-4844 style), clamped at `type(uint72).max`. If the formula would exceed that cap,
+    ///         this returns `type(uint72).max` and tickets are sold at the cap rather than at the
+    ///         higher formula price.
     ///
     ///         Composed from queued-update-aware views, so it reflects queued updates once a round
     ///         has elapsed. The contract's arithmetic keeps using stored values until a mutative

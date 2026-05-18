@@ -56,7 +56,7 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     /// @dev uint16 - up to 65,535.
     uint16 internal _maxTicketsPerRound;
 
-    /// @dev uint72 - up to ~4700 ether.
+    /// @dev uint72 - up to ~4.72e21 base units of the payment token.
     ///      Caching price is cheaper than recomputing via Taylor series on each purchase.
     uint72 internal _currentPrice;
 
@@ -83,7 +83,7 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     // ------ End Slot 0 ------ //
     // ----- Begin Slot 1 ----- //
 
-    /// @dev uint64 wei - up to ~18.4 ether.
+    /// @dev uint64 - up to ~1.84e19 base units of the payment token.
     uint64 internal _minimumPrice;
 
     /// @dev Type matches maxTicketsPerRound.
