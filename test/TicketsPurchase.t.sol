@@ -90,6 +90,26 @@ contract TicketsPurchaseTest is BaseTicketsTest {
         tickets.purchaseTicket(0, MINIMUM_PRICE, bytes32(0));
     }
 
+    /// @dev Boundary - 1: balance one wei short of `expectedPrice` reverts with the buyer's
+    ///      current balance as the first error arg.
+    function test_purchaseTicket_revertsAtBalanceOneBelowPrice() public {
+        _deposit(buyer, MINIMUM_PRICE - 1);
+        vm.prank(buyer);
+        vm.expectRevert(
+            abi.encodeWithSelector(ITickets.InsufficientTokenBalance.selector, MINIMUM_PRICE - 1, MINIMUM_PRICE)
+        );
+        tickets.purchaseTicket(0, MINIMUM_PRICE, bytes32(0));
+    }
+
+    /// @dev Boundary: balance exactly equal to `expectedPrice` succeeds and is debited to zero.
+    function test_purchaseTicket_succeedsAtBalanceEqualPriceAndDebitsToZero() public {
+        _deposit(buyer, MINIMUM_PRICE);
+        vm.prank(buyer);
+        tickets.purchaseTicket(0, MINIMUM_PRICE, bytes32(0));
+
+        assertEq(tickets.tokenBalance(buyer), 0);
+    }
+
     function test_purchaseTicket_revertsForNonGrandfatheredInRoundOneGrandfatherPhase() public {
         vm.warp(FIRST_ROUND_START + ROUND_DURATION);
 
