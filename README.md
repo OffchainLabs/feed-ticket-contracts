@@ -23,8 +23,6 @@ Tickets are paid for in a specific ERC-20 token, chosen at deployment time and i
     - Can upgrade the `Tickets` contract arbitrarily. Can steal any sale proceeds that haven't yet been flushed to the beneficiary, as well as any user-deposited token balances that have not yet been spent on a ticket or withdrawn.
 - Users
     - Have no special privileges. Are allowed and expected to sybil for multiple tickets.
-- Deployer (token choice)
-    - The payment token is chosen at construction and immutable. The deployer is trusted to pick a standard ERC-20 with no fee-on-transfer, no rebasing, and no transfer hooks. `depositToken` credits the caller's internal balance by the requested amount without measuring the actual balance delta, so any token whose `transferFrom` moves a different amount than requested will silently desync the contract's accounting from its real balance.
 
 # Specification
 
