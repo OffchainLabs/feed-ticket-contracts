@@ -248,7 +248,7 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         _userData[msg.sender] = userDataMem;
         _ticketsSoldThisRound += _numTickets;
 
-        emit TicketPurchased(msg.sender, _roundNumber, apiKeyHash, expectedPrice);
+        emit TicketPurchased(msg.sender, _roundNumber, apiKeyHash, expectedPrice, _numTickets);
     }
 
     /// @inheritdoc ITickets

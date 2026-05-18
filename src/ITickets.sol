@@ -62,12 +62,15 @@ interface ITickets {
     ///         before `firstRoundStart`.
     error BeforeFirstRoundStart();
 
-    /// @notice Emitted when a ticket is purchased.
-    /// @param  buyer The account that purchased the ticket.
-    /// @param  round The round the ticket was purchased in.
-    /// @param  apiKeyHash The hash of the API key associated with the ticket purchase.
-    /// @param  price The price paid for the ticket.
-    event TicketPurchased(address indexed buyer, uint256 indexed round, bytes32 indexed apiKeyHash, uint256 price);
+    /// @notice Emitted when one or more tickets are purchased in a single call.
+    /// @param  buyer       The account that purchased the tickets.
+    /// @param  round       The round the tickets were purchased in.
+    /// @param  apiKeyHash  The hash of the API key associated with the purchased tickets.
+    /// @param  price       The per-ticket price paid.
+    /// @param  numTickets  The number of tickets purchased in this call.
+    event TicketPurchased(
+        address indexed buyer, uint256 indexed round, bytes32 indexed apiKeyHash, uint256 price, uint256 numTickets
+    );
 
     /// @notice Emitted when accumulated sale proceeds are forwarded to the beneficiary.
     /// @param  beneficiary The account that received the proceeds.
