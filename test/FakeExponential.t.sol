@@ -7,6 +7,8 @@ import {Test} from "forge-std/Test.sol";
 import {Tickets} from "../src/Tickets.sol";
 
 contract TicketsHarness is Tickets {
+    constructor() Tickets(address(0)) {}
+
     function fakeExponential(uint256 factor, uint256 numerator, uint256 denominator) external pure returns (uint256) {
         return _fakeExponential(factor, numerator, denominator);
     }

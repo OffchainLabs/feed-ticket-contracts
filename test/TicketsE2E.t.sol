@@ -4,6 +4,7 @@ pragma solidity ^0.8.20;
 // forge-lint: disable-start
 
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+import {ERC20Mock} from "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
 import {Test} from "forge-std/Test.sol";
 import {ITickets} from "../src/ITickets.sol";
 import {Tickets} from "../src/Tickets.sol";
@@ -11,6 +12,7 @@ import {Tickets} from "../src/Tickets.sol";
 contract TicketsE2ETest is Test {
     Tickets impl;
     Tickets tickets;
+    ERC20Mock token;
 
     address proxyAdmin = makeAddr("proxyAdmin");
     address defaultAdmin = makeAddr("defaultAdmin");
@@ -30,7 +32,8 @@ contract TicketsE2ETest is Test {
 
     function setUp() public {
         vm.warp(FIRST_ROUND_START - 1);
-        impl = new Tickets();
+        token = new ERC20Mock();
+        impl = new Tickets(address(token));
         bytes memory initData = abi.encodeCall(
             Tickets.initialize,
             (Tickets.InitParams({
@@ -51,14 +54,17 @@ contract TicketsE2ETest is Test {
         vm.warp(FIRST_ROUND_START);
         for (uint256 i = 0; i < buyers.length; i++) {
             buyers[i] = makeAddr(string.concat("buyer", vm.toString(i)));
-            vm.deal(buyers[i], 100 ether);
         }
     }
 
     function _buy(address buyer, uint256 round) internal returns (uint256 price) {
         price = tickets.currentPrice();
-        vm.prank(buyer);
-        tickets.purchaseTicket{value: price}(round, bytes32(0));
+        token.mint(buyer, price);
+        vm.startPrank(buyer);
+        token.approve(address(tickets), price);
+        tickets.depositToken(price);
+        tickets.purchaseTicket(round, price, bytes32(0));
+        vm.stopPrank();
     }
 
     function test_severalRoundsEvolveLogically() public {
@@ -81,17 +87,17 @@ contract TicketsE2ETest is Test {
         // Cannot buy twice in the same round.
         vm.expectRevert(ITickets.AlreadyPurchasedInRound.selector);
         vm.prank(buyers[0]);
-        tickets.purchaseTicket{value: MIN_PRICE}(0, bytes32(0));
+        tickets.purchaseTicket(0, MIN_PRICE, bytes32(0));
 
         // Wrong price reverts.
         vm.expectRevert(abi.encodeWithSelector(ITickets.IncorrectTicketPrice.selector, MIN_PRICE + 1, MIN_PRICE));
         vm.prank(buyers[7]);
-        tickets.purchaseTicket{value: MIN_PRICE + 1}(0, bytes32(0));
+        tickets.purchaseTicket(0, MIN_PRICE + 1, bytes32(0));
 
         // Wrong expectedRound reverts.
         vm.expectRevert(abi.encodeWithSelector(ITickets.RoundNumberMismatch.selector, 1, 0));
         vm.prank(buyers[7]);
-        tickets.purchaseTicket{value: MIN_PRICE}(1, bytes32(0));
+        tickets.purchaseTicket(1, MIN_PRICE, bytes32(0));
 
         // Fill the final slot so the round closes at the cap.
         totalSpent += _buy(buyers[MAX - 1], 0);
@@ -100,7 +106,7 @@ contract TicketsE2ETest is Test {
         // 9th buy hits the cap.
         vm.expectRevert(ITickets.MaxTicketsSold.selector);
         vm.prank(buyers[8]);
-        tickets.purchaseTicket{value: MIN_PRICE}(0, bytes32(0));
+        tickets.purchaseTicket(0, MIN_PRICE, bytes32(0));
 
         // ===== Round 1 — grandfather phase restricts to round-0 holders =====
         vm.warp(FIRST_ROUND_START + ROUND_DURATION);
@@ -114,15 +120,23 @@ contract TicketsE2ETest is Test {
         uint256 r1GrandfatherEnd = tickets.grandfatherPeriodEnd();
         vm.warp(r1GrandfatherEnd - 1);
         // buyers[8] never bought in round 0 → reverts during grandfather phase.
+        // Pre-deposit so the InsufficientTokenBalance check passes and the grandfather check fires.
+        // buyers[8] will reuse this deposit when they succeed at the boundary below.
+        token.mint(buyers[8], r1Price);
+        vm.startPrank(buyers[8]);
+        token.approve(address(tickets), r1Price);
+        tickets.depositToken(r1Price);
         vm.expectRevert(ITickets.NotGrandfathered.selector);
-        vm.prank(buyers[8]);
-        tickets.purchaseTicket{value: r1Price}(1, bytes32(0));
+        tickets.purchaseTicket(1, r1Price, bytes32(0));
+        vm.stopPrank();
         // A grandfathered buyer succeeds at the same instant.
         totalSpent += _buy(buyers[0], 1);
 
         vm.warp(r1GrandfatherEnd);
-        // Same non-grandfathered buyer now succeeds at the boundary.
-        totalSpent += _buy(buyers[8], 1);
+        // Same non-grandfathered buyer now succeeds at the boundary, spending the prior deposit.
+        vm.prank(buyers[8]);
+        tickets.purchaseTicket(1, r1Price, bytes32(0));
+        totalSpent += r1Price;
         // Two more post-grandfather buys, mixing grandfathered and not.
         totalSpent += _buy(buyers[1], 1);
         totalSpent += _buy(buyers[9], 1);
@@ -146,13 +160,23 @@ contract TicketsE2ETest is Test {
         totalSpent += _buy(buyers[8], 2);
 
         // buyers[2] only ever bought in round 0 → not grandfathered for round 2 → reverts.
+        // Pre-deposit so the balance check passes and the grandfather check fires.
+        // buyers[2] will reuse this deposit when they succeed post-grandfather below.
+        token.mint(buyers[2], r1Price);
+        vm.startPrank(buyers[2]);
+        token.approve(address(tickets), r1Price);
+        tickets.depositToken(r1Price);
         vm.expectRevert(ITickets.NotGrandfathered.selector);
-        vm.prank(buyers[2]);
-        tickets.purchaseTicket{value: r1Price}(2, bytes32(0));
+        tickets.purchaseTicket(2, r1Price, bytes32(0));
+        vm.stopPrank();
 
         // After grandfather phase: anyone may buy.
         vm.warp(tickets.grandfatherPeriodEnd());
-        totalSpent += _buy(buyers[2], 2);
+        // buyers[2] spends the deposit made before the NotGrandfathered revert above. Price is
+        // still r1Price (excess unchanged from round 1), so the pre-deposit suffices.
+        vm.prank(buyers[2]);
+        tickets.purchaseTicket(2, r1Price, bytes32(0));
+        totalSpent += r1Price;
         totalSpent += _buy(buyers[3], 2);
         totalSpent += _buy(buyers[4], 2);
 
@@ -176,13 +200,21 @@ contract TicketsE2ETest is Test {
         // 9th buy hits the cap.
         vm.expectRevert(ITickets.MaxTicketsSold.selector);
         vm.prank(buyers[8]);
-        tickets.purchaseTicket{value: r3Price}(3, bytes32(0));
+        tickets.purchaseTicket(3, r3Price, bytes32(0));
 
         // ===== Distribute proceeds =====
-        assertEq(address(tickets).balance, totalSpent);
-        uint256 beneBefore = beneficiary.balance;
+        // Contract balance equals total deposited, which equals total spent (every _buy deposits
+        // exactly the price). Round 3's proceeds have not yet been flushed into `_storedProceeds`
+        // because no mutative call has run since the round 3 buys; trigger one via the admin so
+        // distributeSaleProceeds sweeps the entire balance.
+        assertEq(token.balanceOf(address(tickets)), totalSpent);
+        vm.warp(FIRST_ROUND_START + 4 * ROUND_DURATION);
+        vm.prank(marketParamsSetter);
+        tickets.setRoundDuration(ROUND_DURATION + 1);
+
+        uint256 beneBefore = token.balanceOf(beneficiary);
         tickets.distributeSaleProceeds();
-        assertEq(address(tickets).balance, 0);
-        assertEq(beneficiary.balance - beneBefore, totalSpent);
+        assertEq(token.balanceOf(address(tickets)), 0);
+        assertEq(token.balanceOf(beneficiary) - beneBefore, totalSpent);
     }
 }
