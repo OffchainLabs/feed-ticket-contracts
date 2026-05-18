@@ -119,7 +119,9 @@ interface ITickets {
     /// @param  apiKeyHash    The hash of the API key to associate with the ticket purchase.
     function purchaseTicket(uint256 expectedRound, uint256 expectedPrice, bytes32 apiKeyHash) external;
 
-    /// @notice Forward all accumulated sale proceeds to the current beneficiary. Permissionless.
+    /// @notice Forward sale proceeds that have been committed to `_storedProceeds` to the current
+    ///         beneficiary. Permissionless. Does not trigger lazy update, so revenue from the
+    ///         in-flight round is not included until the next mutative call rolls the round over.
     function distributeSaleProceeds() external;
 
     /// @notice Deposit payment tokens to the caller's internal balance to fund future ticket
