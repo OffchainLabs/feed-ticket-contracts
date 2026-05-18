@@ -5,8 +5,9 @@ pragma solidity ^0.8.0;
 /// @notice Sells and tracks feed tickets that grant holders access to a premium sequencer feed.
 ///         Up to a configurable cap of tickets are sold each round at a single price set by an
 ///         EIP-4844 style update rule. During a configurable grandfather phase at the start of
-///         each round only previous-round ticket holders may purchase; afterwards anyone may
-///         purchase. Tickets become active once the round in which they were purchased ends.
+///         each round, a previous-round ticket holder may purchase up to the number of tickets
+///         they held in the previous round; afterwards anyone may purchase. Tickets become
+///         active once the round in which they were purchased ends.
 interface ITickets {
     error RoundDurationZero();
     error TargetTicketsPerRoundZero();
@@ -25,24 +26,25 @@ interface ITickets {
     /// @notice Thrown when `initialize` is given a `firstRoundStart` that is not strictly in the future.
     error FirstRoundStartNotInFuture();
 
-    /// @notice Thrown when `purchaseTicket` is called with an `expectedRound` that does not
+    /// @notice Thrown when `purchaseTickets` is called with an `expectedRound` that does not
     ///         match the current round.
     /// @param  expected The round the caller passed as `expectedRound`.
     /// @param  actual   The contract's current round.
     error RoundNumberMismatch(uint256 expected, uint256 actual);
 
-    /// @notice Thrown when `purchaseTicket` is called with an `expectedPrice` that does not equal
+    /// @notice Thrown when `purchaseTickets` is called with an `expectedPrice` that does not equal
     ///         the current price.
     /// @param  expected The price the caller passed as `expectedPrice`.
     /// @param  actual   The contract's current price.
     error IncorrectTicketPrice(uint256 expected, uint256 actual);
 
+    /// @notice Thrown when `purchaseTickets` is called with `numTickets == 0`.
     error ZeroTicketsRequested();
 
-    /// @notice Thrown when `purchaseTicket` would exceed `maxTicketsPerRound` for the current round.
+    /// @notice Thrown when `purchaseTickets` would exceed `maxTicketsPerRound` for the current round.
     error MaxTicketsSold();
 
-    /// @notice Thrown when `purchaseTicket` or `withdrawToken` is called by an account whose
+    /// @notice Thrown when `purchaseTickets` or `withdrawToken` is called by an account whose
     ///         deposited token balance is less than the amount required.
     /// @param  balance  The caller's current deposited token balance.
     /// @param  required The amount required to complete the operation.
@@ -115,12 +117,14 @@ interface ITickets {
     /// @notice Emitted when stored round state is rolled forward by the lazy-update path.
     event RoundStateUpdated();
 
-    /// @notice Purchase one ticket for the current round. `expectedPrice` is debited from the
-    ///         caller's deposited token balance; the caller must have first funded that balance
-    ///         via `depositToken`. During the grandfather phase at the start of a round, only
-    ///         holders of a ticket from the previous round may purchase.
+    /// @notice Purchase one or more tickets for the current round. `expectedPrice * numTickets`
+    ///         is debited from the caller's deposited token balance; the caller must have first
+    ///         funded that balance via `depositToken`. During the grandfather phase at the start
+    ///         of a round, the caller may purchase up to the number of tickets they held in the
+    ///         previous round.
     /// @param  expectedRound Round the caller expects to be current. Reverts if it does not match.
     /// @param  expectedPrice Price the caller expects. Reverts if the current price does not equal this value.
+    /// @param  numTickets    Number of tickets to purchase. Must be non-zero.
     /// @param  apiKeyHash    The hash of the API key to associate with the ticket purchase.
     function purchaseTickets(uint256 expectedRound, uint256 expectedPrice, uint256 numTickets, bytes32 apiKeyHash)
         external;
@@ -154,15 +158,17 @@ interface ITickets {
     /// @param  account The account whose balance to read.
     function tokenBalance(address account) external view returns (uint256);
 
-    /// @notice Tickets `account` purchased in its most recent even round, as recorded by
-    ///         `lastEvenRoundPurchased(account)`. Stale once two rounds have elapsed since that
-    ///         round; consult `lastEvenRoundPurchased` to interpret.
+    /// @notice Tickets `account` is recorded as holding from `lastEvenRoundPurchased(account)`.
+    ///         Decremented as the account exercises grandfather rights in the following odd round.
+    ///         Stale once two rounds have elapsed past `lastEvenRoundPurchased(account)`; consult
+    ///         that view to interpret.
     /// @param  account The account whose even-round ticket count to read.
     function evenTicketsHeld(address account) external view returns (uint256);
 
-    /// @notice Tickets `account` purchased in its most recent odd round, as recorded by
-    ///         `lastOddRoundPurchased(account)`. Stale once two rounds have elapsed since that
-    ///         round; consult `lastOddRoundPurchased` to interpret.
+    /// @notice Tickets `account` is recorded as holding from `lastOddRoundPurchased(account)`.
+    ///         Decremented as the account exercises grandfather rights in the following even round.
+    ///         Stale once two rounds have elapsed past `lastOddRoundPurchased(account)`; consult
+    ///         that view to interpret.
     /// @param  account The account whose odd-round ticket count to read.
     function oddTicketsHeld(address account) external view returns (uint256);
 
@@ -217,8 +223,9 @@ interface ITickets {
     function priceUpdateFraction() external view returns (uint256);
 
     /// @notice Length of the grandfather phase at the start of each round, as a fraction of 256
-    ///         of the round duration. During the grandfather phase only holders of a ticket from
-    ///         the previous round may purchase. e.g. 128 = first half of the round.
+    ///         of the round duration. During the grandfather phase a previous-round ticket holder
+    ///         may purchase up to the number of tickets they held in the previous round.
+    ///         e.g. 128 = first half of the round.
     /// @dev    Returns the queued value if one is queued and a round has elapsed, even before a
     ///         mutative call has committed it to storage. The contract's arithmetic keeps using
     ///         the stored value until that commit, so this view can diverge from the value in
@@ -277,7 +284,8 @@ interface ITickets {
     function roundEnd() external view returns (uint256);
 
     /// @notice End timestamp of the grandfather phase of the current round (exclusive). Before this
-    ///         time only holders of a ticket from the previous round may purchase.
+    ///         time a previous-round ticket holder may purchase up to the number of tickets they
+    ///         held in the previous round.
     /// @dev    Composed from queued-update-aware views, so it reflects queued updates once a round
     ///         has elapsed. The contract's arithmetic keeps using stored values until a mutative
     ///         call commits them, so this view can diverge from the value in effect until the

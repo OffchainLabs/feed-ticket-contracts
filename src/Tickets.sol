@@ -28,6 +28,11 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         uint40 firstRoundStart;
     }
 
+    /// @dev Per-account state, packed into one slot. Ticket holdings are tracked in two
+    ///      parity-keyed slots so that during the grandfather phase of round `R` we can read
+    ///      the previous round's count from the opposite-parity slot without first having to
+    ///      clear it (we only clear/overwrite a parity slot on a purchase in that parity, which
+    ///      is always at least two rounds after the previous write to it).
     struct UserData {
         uint16 evenTicketsHeld;
         uint16 oddTicketsHeld;
