@@ -31,9 +31,9 @@ interface ITickets {
 
     /// @notice Thrown when `purchaseTicket` is called with an `expectedPrice` that does not equal
     ///         the current price.
-    /// @param  sent     The price the caller said they expected.
-    /// @param  expected The actual current price.
-    error IncorrectTicketPrice(uint256 sent, uint256 expected);
+    /// @param  expected The price the caller passed as `expectedPrice`.
+    /// @param  actual   The contract's current price.
+    error IncorrectTicketPrice(uint256 expected, uint256 actual);
 
     /// @notice Thrown when `purchaseTicket` would exceed `maxTicketsPerRound` for the current round.
     error MaxTicketsSold();
