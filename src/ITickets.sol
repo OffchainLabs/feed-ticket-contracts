@@ -125,9 +125,7 @@ interface ITickets {
     function distributeSaleProceeds() external;
 
     /// @notice Roll stored round state forward and commit any queued admin updates. Permissionless.
-    ///         No-op within the same round. Useful to credit a finished round's revenue to
-    ///         `_storedProceeds` so it can be drained via `distributeSaleProceeds` without waiting
-    ///         for the next buyer or admin call.
+    ///         No-op within the same round.
     function commitRoundState() external;
 
     /// @notice Deposit payment tokens to the caller's internal balance to fund future ticket
