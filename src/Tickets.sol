@@ -63,7 +63,7 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     /// @dev uint16 - up to 65,535.
     uint16 internal _maxTicketsPerRound;
 
-    /// @dev uint72 - up to ~4722e18.
+    /// @dev uint72 wei - up to ~4722e18.
     ///      Caching price is cheaper than recomputing via Taylor series on each purchase.
     uint72 internal _currentPrice;
 
