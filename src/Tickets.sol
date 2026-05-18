@@ -6,10 +6,12 @@ import {
 } from "@openzeppelin/contracts-upgradeable/access/extensions/AccessControlEnumerableUpgradeable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {ITickets} from "./ITickets.sol";
 
 contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     using SafeERC20 for IERC20;
+    using SafeCast for uint256;
 
     /// @notice Parameters passed to `initialize`. Bundled to avoid stack-too-deep at the call site.
     struct InitParams {
@@ -207,7 +209,7 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
 
     /// @inheritdoc ITickets
     function depositToken(uint256 amount) external {
-        _userData[msg.sender].tokenBalance += uint216(amount); // todo: safecast?
+        _userData[msg.sender].tokenBalance += amount.toUint216();
         IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
         emit TokensDeposited(msg.sender, amount);
     }
