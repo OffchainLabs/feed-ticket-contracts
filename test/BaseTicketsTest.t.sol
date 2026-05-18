@@ -27,8 +27,16 @@ contract TicketsHarness is Tickets {
         return _currentPrice;
     }
 
+    function exposed_storedProceeds() external view returns (uint256) {
+        return _storedProceeds;
+    }
+
     function exposed_setTicketsSoldThisRound(uint256 amount) external {
         _ticketsSoldThisRound = uint16(amount);
+    }
+
+    function exposed_setCurrentPrice(uint256 price) external {
+        _currentPrice = uint72(price);
     }
 
     function exposed_lazyUpdateRoundState() external {
