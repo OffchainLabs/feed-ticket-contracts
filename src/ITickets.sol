@@ -42,20 +42,16 @@ interface ITickets {
     /// @notice Thrown when `purchaseTicket` would exceed `maxTicketsPerRound` for the current round.
     error MaxTicketsSold();
 
-    /// @notice Thrown when `purchaseTicket` is called by an account that has already purchased a
-    ///         ticket in the current round.
-    error AlreadyPurchasedInRound();
-
     /// @notice Thrown when `purchaseTicket` or `withdrawToken` is called by an account whose
     ///         deposited token balance is less than the amount required.
     /// @param  balance  The caller's current deposited token balance.
     /// @param  required The amount required to complete the operation.
     error InsufficientTokenBalance(uint256 balance, uint256 required);
 
-    /// @notice Thrown when `purchaseTicket` is called during the grandfather phase by an account
-    ///         that did not hold a ticket from the previous round.
-    error NotGrandfathered();
-
+    /// @notice Thrown when `purchaseTickets` is called during the grandfather phase and the caller
+    ///         does not hold enough tickets from the previous round to cover the requested amount.
+    /// @param  grandfatheredTickets Tickets the caller is grandfathered to redeem this round.
+    /// @param  requestedTickets     Tickets the caller attempted to purchase.
     error NotEnoughGrandfatheredTickets(uint256 grandfatheredTickets, uint256 requestedTickets);
 
     /// @notice Thrown by `roundsElapsedSinceStored` (and views that depend on it) when called
@@ -157,6 +153,30 @@ interface ITickets {
     ///         purchases or withdrawn via `withdrawToken`.
     /// @param  account The account whose balance to read.
     function tokenBalance(address account) external view returns (uint256);
+
+    /// @notice Tickets `account` purchased in its most recent even round, as recorded by
+    ///         `lastEvenRoundPurchased(account)`. Stale once two rounds have elapsed since that
+    ///         round; consult `lastEvenRoundPurchased` to interpret.
+    /// @param  account The account whose even-round ticket count to read.
+    function evenTicketsHeld(address account) external view returns (uint256);
+
+    /// @notice Tickets `account` purchased in its most recent odd round, as recorded by
+    ///         `lastOddRoundPurchased(account)`. Stale once two rounds have elapsed since that
+    ///         round; consult `lastOddRoundPurchased` to interpret.
+    /// @param  account The account whose odd-round ticket count to read.
+    function oddTicketsHeld(address account) external view returns (uint256);
+
+    /// @notice The most recent even-numbered round in which `account` purchased one or more
+    ///         tickets. Zero if `account` has never purchased in an even round (with round 0
+    ///         indistinguishable from "never"). Pairs with `evenTicketsHeld`.
+    /// @param  account The account whose latest even-round purchase to read.
+    function lastEvenRoundPurchased(address account) external view returns (uint256);
+
+    /// @notice The most recent odd-numbered round in which `account` purchased one or more
+    ///         tickets. Zero if `account` has never purchased in an odd round. Pairs with
+    ///         `oddTicketsHeld`.
+    /// @param  account The account whose latest odd-round purchase to read.
+    function lastOddRoundPurchased(address account) external view returns (uint256);
 
     /// @notice Account that receives ticket sale proceeds.
     function beneficiary() external view returns (address);
