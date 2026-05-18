@@ -52,6 +52,8 @@ interface ITickets {
     ///         that did not hold a ticket from the previous round.
     error NotGrandfathered();
 
+    error NotEnoughGrandfatheredTickets(uint256 grandfatheredTickets, uint256 requestedTickets);
+
     /// @notice Thrown by `roundsElapsedSinceStored` (and views that depend on it) when called
     ///         before `firstRoundStart`.
     error BeforeFirstRoundStart();
@@ -117,7 +119,7 @@ interface ITickets {
     /// @param  expectedRound Round the caller expects to be current. Reverts if it does not match.
     /// @param  expectedPrice Price the caller expects. Reverts if the current price does not equal this value.
     /// @param  apiKeyHash    The hash of the API key to associate with the ticket purchase.
-    function purchaseTicket(uint256 expectedRound, uint256 expectedPrice, bytes32 apiKeyHash) external;
+    function purchaseTickets(uint256 expectedRound, uint256 expectedPrice, uint256 numTickets, bytes32 apiKeyHash) external;
 
     /// @notice Forward sale proceeds that have been committed to `_storedProceeds` to the current
     ///         beneficiary. Permissionless. Does not trigger lazy update, so revenue from the
@@ -221,14 +223,6 @@ interface ITickets {
     ///         Reads `type(uint56).max` (the "no override queued" sentinel) when no override is queued,
     ///         so that 0 is a valid override value.
     function excessTicketsSoldOverride() external view returns (uint56);
-
-    /// @notice The round into which `user` is grandfathered based on their most recent ticket
-    ///         purchase. Concretely, if the user's latest purchase was in round `R`, this returns
-    ///         `R + 1` (the round in which they may purchase during the grandfather phase).
-    ///         Returns 0 if the user has never purchased a ticket; the +1 encoding lets us
-    ///         distinguish "never bought" from "bought in round 0".
-    /// @param  user The account to check.
-    function grandfatheredIntoRound(address user) external view returns (uint256);
 
     /// @notice Number of tickets sold in the current round.
     function ticketsSoldThisRound() external view returns (uint256);

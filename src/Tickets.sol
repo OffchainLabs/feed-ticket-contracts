@@ -29,8 +29,11 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     }
 
     struct UserData {
-        uint40 grandfatheredRound;
-        uint216 tokenBalance;
+        uint16 evenTicketsHeld;
+        uint16 oddTicketsHeld;
+        uint40 lastEvenRoundPurchased;
+        uint40 lastOddRoundPurchased;
+        uint144 tokenBalance;
     }
 
     /// @notice Role that can set the beneficiary account.
@@ -184,15 +187,19 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     }
 
     /// @inheritdoc ITickets
-    function purchaseTicket(uint256 expectedRound, uint256 expectedPrice, bytes32 apiKeyHash) external {
+    function purchaseTickets(uint256 expectedRound, uint256 expectedPrice, uint256 numTickets, bytes32 apiKeyHash) external {
         _lazyUpdateRoundState();
+
         if (expectedRound != _roundNumber) revert RoundNumberMismatch(expectedRound, _roundNumber);
         if (expectedPrice != _currentPrice) revert IncorrectTicketPrice(expectedPrice, _currentPrice);
-        if (_ticketsSoldThisRound >= _maxTicketsPerRound) revert MaxTicketsSold();
-        if (_userData[msg.sender].grandfatheredRound == uint256(_roundNumber) + 1) revert AlreadyPurchasedInRound();
-        if (_userData[msg.sender].tokenBalance < expectedPrice) {
-            revert InsufficientTokenBalance(_userData[msg.sender].tokenBalance, expectedPrice);
+        if (uint256(_ticketsSoldThisRound) + uint256(numTickets) > uint256(_maxTicketsPerRound)) revert MaxTicketsSold();
+        
+        UserData memory userDataMem = _userData[msg.sender];
+        if (userDataMem.tokenBalance < expectedPrice) {
+            revert InsufficientTokenBalance(userDataMem.tokenBalance, expectedPrice);
         }
+
+        uint16 _numTickets = numTickets.toUint16();
 
         // forge-lint: disable-start(block-timestamp)
         if (
@@ -200,21 +207,43 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
                 && block.timestamp
                     < uint256(_roundStart) + (uint256(_roundDuration) * uint256(_grandfatherPeriodFraction)) / 256
         ) {
-            if (_userData[msg.sender].grandfatheredRound != _roundNumber) revert NotGrandfathered();
+            // AI: help me with variable naming here
+            uint256 possiblyLastRound = _roundNumber % 2 == 0 ? userDataMem.lastOddRoundPurchased : userDataMem.lastEvenRoundPurchased;
+            if (possiblyLastRound != _roundNumber - 1) {
+                revert NotEnoughGrandfatheredTickets(0, _numTickets);
+            }
+
+            uint256 grandfatheredTickets = _roundNumber % 2 == 0 ? userDataMem.oddTicketsHeld : userDataMem.evenTicketsHeld;
+            if (grandfatheredTickets < _numTickets) {
+                revert NotEnoughGrandfatheredTickets(grandfatheredTickets, _numTickets);
+            }
+
+            if (_roundNumber % 2 == 0) {
+                userDataMem.oddTicketsHeld -= _numTickets;
+            } else {
+                userDataMem.evenTicketsHeld -= _numTickets;
+            }
         }
         // forge-lint: disable-end(block-timestamp)
 
+        userDataMem.tokenBalance -= (expectedPrice * _numTickets).toUint144();
+        if (_roundNumber % 2 == 0) {
+            userDataMem.evenTicketsHeld += _numTickets;
+            userDataMem.lastEvenRoundPurchased = _roundNumber;
+        } else {
+            userDataMem.oddTicketsHeld += _numTickets;
+            userDataMem.lastOddRoundPurchased = _roundNumber;
+        }
+
+        _userData[msg.sender] = userDataMem;
         _ticketsSoldThisRound++;
-        _userData[msg.sender].grandfatheredRound = _roundNumber + 1;
-        // forge-lint: disable-next-line(unsafe-typecast)
-        _userData[msg.sender].tokenBalance -= uint216(expectedPrice); // cast is safe because price cannot exceed uint72
 
         emit TicketPurchased(msg.sender, _roundNumber, apiKeyHash, expectedPrice);
     }
 
     /// @inheritdoc ITickets
     function depositToken(uint256 amount) external {
-        _userData[msg.sender].tokenBalance += amount.toUint216();
+        _userData[msg.sender].tokenBalance += amount.toUint144();
         IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
         emit TokensDeposited(msg.sender, amount);
     }
@@ -224,7 +253,7 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         if (_userData[msg.sender].tokenBalance < amount) {
             revert InsufficientTokenBalance(_userData[msg.sender].tokenBalance, amount);
         }
-        _userData[msg.sender].tokenBalance -= amount.toUint216();
+        _userData[msg.sender].tokenBalance -= amount.toUint144();
         IERC20(token).safeTransfer(msg.sender, amount);
         emit TokensWithdrawn(msg.sender, amount);
     }
@@ -242,10 +271,7 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         _lazyUpdateRoundState();
     }
 
-    /// @inheritdoc ITickets
-    function grandfatheredIntoRound(address account) external view returns (uint256) {
-        return _userData[account].grandfatheredRound;
-    }
+    // AI: add functions for getting userdata fields
 
     /// @inheritdoc ITickets
     function tokenBalance(address account) external view returns (uint256) {
