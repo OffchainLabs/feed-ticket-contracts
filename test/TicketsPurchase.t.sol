@@ -18,11 +18,11 @@ contract TicketsPurchaseTest is BaseTicketsTest {
     function _setupRealisticRound() internal {
         _deposit(buyer, MINIMUM_PRICE);
         vm.prank(buyer);
-        tickets.purchaseTicket(0, MINIMUM_PRICE, bytes32(0));
+        tickets.purchaseTickets(0, MINIMUM_PRICE, 1, bytes32(0));
 
         _deposit(otherBuyer, MINIMUM_PRICE);
         vm.prank(otherBuyer);
-        tickets.purchaseTicket(0, MINIMUM_PRICE, bytes32(0));
+        tickets.purchaseTickets(0, MINIMUM_PRICE, 1, bytes32(0));
 
         // Inflate the round-0 count so excess after round 0 is nonzero.
         tickets.exposed_setTicketsSoldThisRound(350);
@@ -36,11 +36,11 @@ contract TicketsPurchaseTest is BaseTicketsTest {
         uint256 price1 = tickets.currentPrice();
         _deposit(buyer, price1);
         vm.prank(buyer);
-        tickets.purchaseTicket(1, price1, bytes32(0));
+        tickets.purchaseTickets(1, price1, 1, bytes32(0));
 
         _deposit(otherBuyer, price1);
         vm.prank(otherBuyer);
-        tickets.purchaseTicket(1, price1, bytes32(0));
+        tickets.purchaseTickets(1, price1, 1, bytes32(0));
 
         // Inflate the round-1 count so excess stays nonzero after the next lazy update.
         tickets.exposed_setTicketsSoldThisRound(50);
@@ -51,7 +51,7 @@ contract TicketsPurchaseTest is BaseTicketsTest {
     function test_purchaseTicket_revertsOnExpectedRoundMismatch() public {
         vm.prank(buyer);
         vm.expectRevert(abi.encodeWithSelector(ITickets.RoundNumberMismatch.selector, 1, 0));
-        tickets.purchaseTicket(1, MINIMUM_PRICE, bytes32(0));
+        tickets.purchaseTickets(1, MINIMUM_PRICE, 1, bytes32(0));
     }
 
     function test_purchaseTicket_revertsOnIncorrectPrice() public {
@@ -59,11 +59,11 @@ contract TicketsPurchaseTest is BaseTicketsTest {
         vm.expectRevert(
             abi.encodeWithSelector(ITickets.IncorrectTicketPrice.selector, MINIMUM_PRICE - 1, MINIMUM_PRICE)
         );
-        tickets.purchaseTicket(0, MINIMUM_PRICE - 1, bytes32(0));
+        tickets.purchaseTickets(0, MINIMUM_PRICE - 1, 1, bytes32(0));
         vm.expectRevert(
             abi.encodeWithSelector(ITickets.IncorrectTicketPrice.selector, MINIMUM_PRICE + 1, MINIMUM_PRICE)
         );
-        tickets.purchaseTicket(0, MINIMUM_PRICE + 1, bytes32(0));
+        tickets.purchaseTickets(0, MINIMUM_PRICE + 1, 1, bytes32(0));
         vm.stopPrank();
     }
 
@@ -72,22 +72,24 @@ contract TicketsPurchaseTest is BaseTicketsTest {
 
         vm.prank(buyer);
         vm.expectRevert(ITickets.MaxTicketsSold.selector);
-        tickets.purchaseTicket(0, MINIMUM_PRICE, bytes32(0));
+        tickets.purchaseTickets(0, MINIMUM_PRICE, 1, bytes32(0));
     }
 
     function test_purchaseTicket_revertsOnDoublePurchaseInSameRound() public {
         _deposit(buyer, 2 * MINIMUM_PRICE);
         vm.startPrank(buyer);
-        tickets.purchaseTicket(0, MINIMUM_PRICE, bytes32(0));
-        vm.expectRevert(ITickets.AlreadyPurchasedInRound.selector);
-        tickets.purchaseTicket(0, MINIMUM_PRICE, bytes32(0));
+        tickets.purchaseTickets(0, MINIMUM_PRICE, 1, bytes32(0));
+        tickets.purchaseTickets(0, MINIMUM_PRICE, 1, bytes32(0));
         vm.stopPrank();
+        assertEq(tickets.ticketsSoldThisRound(), 2);
+        assertEq(tickets.evenTicketsHeld(buyer), 2);
+        assertEq(tickets.lastEvenRoundPurchased(buyer), 0);
     }
 
     function test_purchaseTicket_revertsOnInsufficientTokenBalance() public {
         vm.prank(buyer);
         vm.expectRevert(abi.encodeWithSelector(ITickets.InsufficientTokenBalance.selector, 0, MINIMUM_PRICE));
-        tickets.purchaseTicket(0, MINIMUM_PRICE, bytes32(0));
+        tickets.purchaseTickets(0, MINIMUM_PRICE, 1, bytes32(0));
     }
 
     /// @dev Boundary - 1: balance one wei short of `expectedPrice` reverts with the buyer's
@@ -98,14 +100,14 @@ contract TicketsPurchaseTest is BaseTicketsTest {
         vm.expectRevert(
             abi.encodeWithSelector(ITickets.InsufficientTokenBalance.selector, MINIMUM_PRICE - 1, MINIMUM_PRICE)
         );
-        tickets.purchaseTicket(0, MINIMUM_PRICE, bytes32(0));
+        tickets.purchaseTickets(0, MINIMUM_PRICE, 1, bytes32(0));
     }
 
     /// @dev Boundary: balance exactly equal to `expectedPrice` succeeds and is debited to zero.
     function test_purchaseTicket_succeedsAtBalanceEqualPriceAndDebitsToZero() public {
         _deposit(buyer, MINIMUM_PRICE);
         vm.prank(buyer);
-        tickets.purchaseTicket(0, MINIMUM_PRICE, bytes32(0));
+        tickets.purchaseTickets(0, MINIMUM_PRICE, 1, bytes32(0));
 
         assertEq(tickets.tokenBalance(buyer), 0);
     }
@@ -115,20 +117,21 @@ contract TicketsPurchaseTest is BaseTicketsTest {
 
         _deposit(buyer, MINIMUM_PRICE);
         vm.prank(buyer);
-        vm.expectRevert(ITickets.NotGrandfathered.selector);
-        tickets.purchaseTicket(1, MINIMUM_PRICE, bytes32(0));
+        vm.expectRevert(abi.encodeWithSelector(ITickets.NotEnoughGrandfatheredTickets.selector, 0, 1));
+        tickets.purchaseTickets(1, MINIMUM_PRICE, 1, bytes32(0));
     }
 
     function test_purchaseTicket_firstBuyerInRoundZero() public {
         _deposit(buyer, MINIMUM_PRICE);
 
         vm.expectEmit(true, true, false, true, address(tickets));
-        emit ITickets.TicketPurchased(buyer, 0, bytes32(0), MINIMUM_PRICE);
+        emit ITickets.TicketPurchased(buyer, 0, bytes32(0), MINIMUM_PRICE, 1);
 
         vm.prank(buyer);
-        tickets.purchaseTicket(0, MINIMUM_PRICE, bytes32(0));
+        tickets.purchaseTickets(0, MINIMUM_PRICE, 1, bytes32(0));
 
-        assertEq(tickets.grandfatheredIntoRound(buyer), 1);
+        assertEq(tickets.evenTicketsHeld(buyer), 1);
+        assertEq(tickets.lastEvenRoundPurchased(buyer), 0);
         assertEq(tickets.ticketsSoldThisRound(), 1);
         assertEq(tickets.tokenBalance(buyer), 0);
         assertEq(token.balanceOf(address(tickets)), MINIMUM_PRICE);
@@ -137,16 +140,17 @@ contract TicketsPurchaseTest is BaseTicketsTest {
     function test_purchaseTicket_grandfatheredBuyerInRoundOne() public {
         _deposit(buyer, MINIMUM_PRICE);
         vm.prank(buyer);
-        tickets.purchaseTicket(0, MINIMUM_PRICE, bytes32(0));
+        tickets.purchaseTickets(0, MINIMUM_PRICE, 1, bytes32(0));
 
         vm.warp(FIRST_ROUND_START + ROUND_DURATION);
 
         uint256 price = tickets.currentPrice();
         _deposit(buyer, price);
         vm.prank(buyer);
-        tickets.purchaseTicket(1, price, bytes32(0));
+        tickets.purchaseTickets(1, price, 1, bytes32(0));
 
-        assertEq(tickets.grandfatheredIntoRound(buyer), 2);
+        assertEq(tickets.oddTicketsHeld(buyer), 1);
+        assertEq(tickets.lastOddRoundPurchased(buyer), 1);
         assertEq(tickets.ticketsSoldThisRound(), 1);
     }
 
@@ -163,14 +167,15 @@ contract TicketsPurchaseTest is BaseTicketsTest {
         vm.cool(address(tickets));
         vm.cool(address(impl));
         vm.record();
-        tickets.purchaseTicket(2, price, bytes32(0));
+        tickets.purchaseTickets(2, price, 1, bytes32(0));
         vm.snapshotGasLastCall("first-purchase");
         _logAccesses("first-purchase");
 
         assertEq(tickets.exposed_storedRoundNumber(), 2);
         assertEq(tickets.exposed_storedRoundStart(), FIRST_ROUND_START + 2 * ROUND_DURATION);
         assertEq(tickets.exposed_storedExcessTicketsSold(), 200);
-        assertEq(tickets.grandfatheredIntoRound(buyer), 3);
+        assertEq(tickets.evenTicketsHeld(buyer), 1);
+        assertEq(tickets.lastEvenRoundPurchased(buyer), 2);
         assertEq(tickets.ticketsSoldThisRound(), 1);
     }
 
@@ -181,19 +186,21 @@ contract TicketsPurchaseTest is BaseTicketsTest {
 
         _deposit(buyer, price);
         vm.prank(buyer);
-        tickets.purchaseTicket(2, price, bytes32(0));
+        tickets.purchaseTickets(2, price, 1, bytes32(0));
 
         _deposit(otherBuyer, price);
         vm.prank(otherBuyer);
         vm.cool(address(tickets));
         vm.cool(address(impl));
         vm.record();
-        tickets.purchaseTicket(2, price, bytes32(0));
+        tickets.purchaseTickets(2, price, 1, bytes32(0));
         vm.snapshotGasLastCall("second-purchase");
         _logAccesses("second-purchase");
 
-        assertEq(tickets.grandfatheredIntoRound(buyer), 3);
-        assertEq(tickets.grandfatheredIntoRound(otherBuyer), 3);
+        assertEq(tickets.evenTicketsHeld(buyer), 1);
+        assertEq(tickets.lastEvenRoundPurchased(buyer), 2);
+        assertEq(tickets.evenTicketsHeld(otherBuyer), 1);
+        assertEq(tickets.lastEvenRoundPurchased(otherBuyer), 2);
         assertEq(tickets.ticketsSoldThisRound(), 2);
     }
 

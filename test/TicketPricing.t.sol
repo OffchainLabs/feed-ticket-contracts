@@ -18,7 +18,7 @@ contract TicketPricingTest is BaseTicketsTest {
         assertEq(tickets.currentPrice(), tickets.exposed_fakeExponential(MINIMUM_PRICE, excess, PRICE_UPDATE_FRACTION));
     }
 
-    /// @dev `purchaseTicket` enforces `expectedPrice == _currentPrice`, while quoters read
+    /// @dev `purchaseTickets` enforces `expectedPrice == _currentPrice`, while quoters read
     ///      `currentPrice()`. After a lazy update they must agree, otherwise a buyer who
     ///      quotes off the view and passes that value as `expectedPrice` will revert.
     function test_currentPrice_equalsStoredAfterLazyUpdate() public {

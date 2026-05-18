@@ -12,7 +12,7 @@ contract TicketsStoredProceedsTest is BaseTicketsTest {
     function _buyInRoundZero() internal {
         _deposit(buyer, MINIMUM_PRICE);
         vm.prank(buyer);
-        tickets.purchaseTicket(0, MINIMUM_PRICE, bytes32(0));
+        tickets.purchaseTickets(0, MINIMUM_PRICE, 1, bytes32(0));
     }
 
     /// @dev The accumulator must use the price of the round being closed, not the new round's
@@ -48,7 +48,7 @@ contract TicketsStoredProceedsTest is BaseTicketsTest {
         uint256 r1Price = tickets.currentPrice();
         _deposit(buyer, r1Price);
         vm.prank(buyer);
-        tickets.purchaseTicket(1, r1Price, bytes32(0));
+        tickets.purchaseTickets(1, r1Price, 1, bytes32(0));
 
         // Close round 1: credits another 1 * r1Price on top of the running total.
         vm.warp(FIRST_ROUND_START + 2 * ROUND_DURATION);

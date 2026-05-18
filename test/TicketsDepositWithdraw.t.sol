@@ -82,10 +82,10 @@ contract TicketsDepositWithdrawTest is BaseTicketsTest {
         assertEq(tickets.exposed_storedRoundNumber(), 0);
     }
 
-    /// @dev Pins the additive-overflow revert path: each deposit fits in uint216 on its own,
+    /// @dev Pins the additive-overflow revert path: each deposit fits in uint144 on its own,
     ///      but the running sum overflows the field.
-    function test_depositToken_revertsOnAdditiveOverflowAboveUint216Max() public {
-        uint256 nearMax = uint256(type(uint216).max) - 5;
+    function test_depositToken_revertsOnAdditiveOverflowAboveUint144Max() public {
+        uint256 nearMax = uint256(type(uint144).max) - 5;
         token.mint(user, nearMax);
         vm.startPrank(user);
         token.approve(address(tickets), nearMax);
