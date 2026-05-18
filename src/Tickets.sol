@@ -204,6 +204,7 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
 
         _ticketsSoldThisRound++;
         _userData[msg.sender].grandfatheredRound = _roundNumber + 1;
+        // forge-lint: disable-next-line(unsafe-typecast)
         _userData[msg.sender].tokenBalance -= uint216(expectedPrice); // cast is safe because price cannot exceed uint72
 
         emit TicketPurchased(msg.sender, _roundNumber, apiKeyHash, expectedPrice);
@@ -221,7 +222,7 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         if (_userData[msg.sender].tokenBalance < amount) {
             revert InsufficientTokenBalance(_userData[msg.sender].tokenBalance, amount);
         }
-        _userData[msg.sender].tokenBalance -= uint216(amount);
+        _userData[msg.sender].tokenBalance -= amount.toUint216();
         IERC20(token).safeTransfer(msg.sender, amount);
         emit TokensWithdrawn(msg.sender, amount);
     }
