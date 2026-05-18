@@ -46,6 +46,8 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     uint56 constant EXCESS_TICKETS_SOLD_SENTINEL = type(uint56).max;
 
     /// @inheritdoc ITickets
+    /// @dev Assumed to be a standard ERC-20: no fee-on-transfer, no rebasing, no transfer hooks.
+    ///      `depositToken` credits the requested amount without measuring the actual balance delta.
     address public immutable token;
 
     // ----- Begin Slot 0 ----- //
