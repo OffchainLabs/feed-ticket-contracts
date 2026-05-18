@@ -9,6 +9,8 @@ The basic mechanism is as follows:
 - Once the round ends the newly purchased tickets become "active", while tickets from prior rounds become "inactive" (i.e. the sequencer no longer respects the old tickets and starts respecting the new ones)
 - Once the round ends, the next one begins immediately with a new price which is set by an EIP-4844 like mechanism. 
 
+Tickets are paid for in a specific ERC-20 token, chosen at deployment time and immutable thereafter. Users first call `depositToken` to fund an internal balance held by the contract; each `purchaseTicket` debits the caller's internal balance, and any unused balance can be returned to the caller via `withdrawToken`.
+
 # Actors & Trust Model
 
 - Sequencer
@@ -18,7 +20,7 @@ The basic mechanism is as follows:
 - Beneficiary
     - The beneficiary is trusted to not sybil the auction. The beneficiary can purchase tickets for free, thereby reducing the real supply and pushing the price up arbitrarily (even to the point of DoS).
 - Proxy Admin
-    - Can upgrade the `Tickets` contract arbitrarily. Can steal any sale proceeds that haven't yet been flushed to the beneficiary.
+    - Can upgrade the `Tickets` contract arbitrarily. Can steal any sale proceeds that haven't yet been flushed to the beneficiary, as well as any user-deposited token balances that have not yet been spent on a ticket or withdrawn.
 - Users
     - Have no special privileges. Are allowed and expected to sybil for multiple tickets.
 
@@ -32,10 +34,11 @@ Admin setters queue their new values rather than applying them immediately. Queu
 
 The view functions for the queued admin params surface the queued value as soon as one round has elapsed (even before a mutative call has committed it to storage). However, if there is no mutative call in the current round, the contract's own arithmetic still uses the previous stored value, so the view's "as-if-rolled-forward" answer can diverge from the value actually in effect until a mutative call reconciles them.
 
-The only mutative calls that _do not_ trigger lazy update are setting the beneficiary and distributing funds. This keeps a fund-rescue path live even if a bug in the lazy update would otherwise cause it to revert.
+The mutative calls that _do not_ trigger lazy update are setting the beneficiary, distributing funds, and depositing/withdrawing payment tokens. For beneficiary/distribute this keeps a fund-rescue path live even if a bug in the lazy update would otherwise cause it to revert; for deposit/withdraw the round state is irrelevant to the operation, so we skip the work.
 
 `Tickets` has the following public state:
 - `beneficiary` - account that receives sale proceeds
+- `token` - the ERC-20 used as payment. Immutable, set at construction.
 - `isAdminUpdateQueued` - true if any of the `next*` fields (or `excessTicketsSoldOverride`) below holds a queued update that has not yet been committed by lazy update.
 - `nextRoundDuration` - if set, upcoming rounds will use this duration
 - `nextTargetTicketsPerRound` - if set, upcoming rounds will use it
@@ -44,7 +47,8 @@ The only mutative calls that _do not_ trigger lazy update are setting the benefi
 - `nextPriceUpdateFraction` - if set, upcoming rounds will use it
 - `nextGrandfatherPeriodFraction` - if set, upcoming rounds will use it
 - `excessTicketsSoldOverride` - queued override for `excessTicketsSold()`
-- `grandfatheredIntoRound` - maps user => the round into which they are grandfathered (i.e. the round in which they may purchase during the grandfather phase). Concretely, after a user purchases a ticket in round `R`, this is set to `R + 1`. Returns 0 if the user has never purchased; the +1 encoding lets us distinguish "never bought" from "bought in round 0".
+- `grandfatheredIntoRound(user)` - the round into which `user` is grandfathered (i.e. the round in which they may purchase during the grandfather phase). Concretely, after a user purchases a ticket in round `R`, this is set to `R + 1`. Returns 0 if the user has never purchased; the +1 encoding lets us distinguish "never bought" from "bought in round 0".
+- `tokenBalance(account)` - `account`'s internal payment-token balance, available to be spent on ticket purchases or returned via `withdrawToken`. Credited by `depositToken`, debited by `purchaseTicket`/`withdrawToken`. Packed alongside `grandfatheredIntoRound` in a per-account `UserData` struct.
 
 Private state (committed lazily on the first mutative call in a new round):
 - `_roundNumber` - the recorded current round number
@@ -58,6 +62,7 @@ Private state (committed lazily on the first mutative call in a new round):
 - `_minimumPrice` - the stored minimum price; replaced by `nextMinimumPrice` when committed
 - `_priceUpdateFraction` - the stored pricing fraction; replaced by `nextPriceUpdateFraction` when committed
 - `_grandfatherPeriodFraction` - the stored grandfather phase length, as a numerator over 256 of the round duration (e.g. `128` = half-round). Replaced by `nextGrandfatherPeriodFraction` when committed
+- `_storedProceeds` - accumulated payment-token proceeds from rounds prior to the last lazy update, minus distributions already made. Incremented by `_ticketsSoldThisRound * _currentPrice` during lazy update at round rollover, drained to zero by `distributeSaleProceeds`
 
 In addition to the public state, `Tickets` has the following view functions:
 - `roundDuration()` - the duration of a round
@@ -102,31 +107,53 @@ In addition to the public state, `Tickets` has the following view functions:
 `Tickets` has the following mutative functions:
 
 ```solidity
-function purchaseTicket(uint256 expectedRound, bytes32 apiKeyHash) external payable {
+function purchaseTicket(uint256 expectedRound, uint256 expectedPrice, bytes32 apiKeyHash) external {
     _lazyUpdateRoundState();
     if (expectedRound != _roundNumber) revert RoundNumberMismatch(expectedRound, _roundNumber);
-    if (msg.value != _currentPrice) revert IncorrectTicketPrice(msg.value, _currentPrice);
+    if (expectedPrice != _currentPrice) revert IncorrectTicketPrice(expectedPrice, _currentPrice);
     if (_ticketsSoldThisRound >= _maxTicketsPerRound) revert MaxTicketsSold();
-    if (grandfatheredIntoRound[msg.sender] == _roundNumber + 1) revert AlreadyPurchasedInRound();
+    if (_userData[msg.sender].grandfatheredRound == _roundNumber + 1) revert AlreadyPurchasedInRound();
+    if (_userData[msg.sender].tokenBalance < expectedPrice) revert InsufficientTokenBalance(...);
 
     if (_roundNumber > 0 && block.timestamp < _roundStart + (_roundDuration * _grandfatherPeriodFraction) / 256) {
-        if (grandfatheredIntoRound[msg.sender] != _roundNumber) revert NotGrandfathered();
+        if (_userData[msg.sender].grandfatheredRound != _roundNumber) revert NotGrandfathered();
     }
 
     _ticketsSoldThisRound++;
-    grandfatheredIntoRound[msg.sender] = _roundNumber + 1;
+    _userData[msg.sender].grandfatheredRound = _roundNumber + 1;
+    _userData[msg.sender].tokenBalance -= uint216(expectedPrice);
 
-    emit TicketPurchased(msg.sender, _roundNumber, apiKeyHash, msg.value);
+    emit TicketPurchased(msg.sender, _roundNumber, apiKeyHash, expectedPrice);
+}
+```
+
+The caller declares the price they expect via `expectedPrice`; the contract verifies it equals `currentPrice()` and debits that amount from the caller's deposited token balance.
+
+```solidity
+function depositToken(uint256 amount) external {
+    _userData[msg.sender].tokenBalance += uint216(amount);
+    IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
+    emit TokensDeposited(msg.sender, amount);
+}
+
+function withdrawToken(uint256 amount) external {
+    if (_userData[msg.sender].tokenBalance < amount) revert InsufficientTokenBalance(...);
+    _userData[msg.sender].tokenBalance -= uint216(amount);
+    IERC20(token).safeTransfer(msg.sender, amount);
+    emit TokensWithdrawn(msg.sender, amount);
 }
 ```
 
 ```solidity
 function distributeSaleProceeds() external {
-    (bool success,) = beneficiary.call{value: address(this).balance}("");
-    if (!success) revert PaymentFailed();
-    emit ProceedsDistributed(...);
+    uint256 amount = _storedProceeds;
+    _storedProceeds = 0;
+    IERC20(token).safeTransfer(beneficiary, amount);
+    emit ProceedsDistributed(beneficiary, amount);
 }
 ```
+
+`distributeSaleProceeds` only forwards proceeds that lazy update has already credited to `_storedProceeds`. Revenue from the current round is included once the round ends and the next mutative call (which triggers lazy update) commits it. `distributeSaleProceeds` itself does not trigger lazy update — keeping it minimal preserves the fund-rescue path even if the rollover logic were to revert.
 
 ```solidity
 // Takes effect immediately
@@ -190,20 +217,21 @@ Slot 1:
 - `_targetTicketsPerRound` (uint16): matches `_maxTicketsPerRound`'s range
 - `_excessTicketsSold` (uint56): worst case is uint16 cap per round * uint40 rounds = 2^56
 - `isAdminUpdateQueued` (bool)
-- `nextRoundDuration` (uint24): matches `_roundDuration`
-- `nextTargetTicketsPerRound` (uint16): matches `_targetTicketsPerRound`
-- `nextMaxTicketsPerRound` (uint16): matches `_maxTicketsPerRound`
-- `nextPriceUpdateFraction` (uint40): matches `_priceUpdateFraction`
-- `nextGrandfatherPeriodFraction` (uint8): matches `_grandfatherPeriodFraction`
+- `_storedProceeds` (uint112): accumulated proceeds awaiting distribution; sized to fill the remainder of slot 1
 
 Slots 2+:
+- `nextRoundDuration` (uint24), `nextTargetTicketsPerRound` (uint16), `nextMaxTicketsPerRound` (uint16), `nextPriceUpdateFraction` (uint40), `nextGrandfatherPeriodFraction` (uint8): all the small queued admin values pack into one slot
+- `nextMinimumPrice` (uint64), `excessTicketsSoldOverride` (uint56): pack into the next slot
 - `beneficiary` (address): account that receives sale proceeds
-- `nextMinimumPrice` (uint64): matches `_minimumPrice`
-- `excessTicketsSoldOverride` (uint56): matches `_excessTicketsSold`.
+- `_userData` mapping of `address => UserData`, where `UserData` packs `grandfatheredRound` (uint40) and `tokenBalance` (uint216) into a single 32-byte slot per account. `uint216` is far above any realistic deposit, so we can't over- or underflow it in practice.
+
+`token` is held as an immutable, so it lives in code rather than storage.
 
 # How Buyers Use the System
 
-Each round, purchase tickets through the `Tickets` contract, passing in the hash of an API key they've generated. 
+Before a purchase, the buyer ERC-20-approves the `Tickets` contract for the desired amount of the payment token and calls `depositToken(amount)` to move those tokens into an internal balance held by the contract.
+
+Each round, buyers then call `purchaseTicket(expectedRound, expectedPrice, apiKeyHash)`. The contract verifies `expectedRound` and `expectedPrice` against current state (so a buyer never accidentally pays a new round's higher price) and debits `expectedPrice` from the caller's deposited balance. Any unused balance can be returned to the caller at any time via `withdrawToken`.
 
 Users can use the same API key for multiple purchases. Using the same key to purchase two tickets in the same round is permitted.
 
@@ -234,9 +262,5 @@ E' = F' · ln(M/M') + E · F'/F
 ```
 
 At the moment, we've deemed discontinuous jumps acceptable.
-
-## ERC-20 as Currency
-
-Currently we use ETH, we might want to use ERC-20.
 
 ## Multiple tickets per address
