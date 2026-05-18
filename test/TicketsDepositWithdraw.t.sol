@@ -164,9 +164,7 @@ contract TicketsDepositWithdrawTest is BaseTicketsTest {
         _deposit(user, 5 ether);
 
         vm.prank(user);
-        vm.expectRevert(
-            abi.encodeWithSelector(ITickets.InsufficientTokenBalance.selector, 5 ether, 5 ether + 1)
-        );
+        vm.expectRevert(abi.encodeWithSelector(ITickets.InsufficientTokenBalance.selector, 5 ether, 5 ether + 1));
         tickets.withdrawToken(5 ether + 1);
     }
 

@@ -190,7 +190,9 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         if (expectedPrice != _currentPrice) revert IncorrectTicketPrice(expectedPrice, _currentPrice);
         if (_ticketsSoldThisRound >= _maxTicketsPerRound) revert MaxTicketsSold();
         if (_userData[msg.sender].grandfatheredRound == uint256(_roundNumber) + 1) revert AlreadyPurchasedInRound();
-        if (_userData[msg.sender].tokenBalance < expectedPrice) revert InsufficientTokenBalance(_userData[msg.sender].tokenBalance, expectedPrice);
+        if (_userData[msg.sender].tokenBalance < expectedPrice) {
+            revert InsufficientTokenBalance(_userData[msg.sender].tokenBalance, expectedPrice);
+        }
 
         // forge-lint: disable-start(block-timestamp)
         if (
