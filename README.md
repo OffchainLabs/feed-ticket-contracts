@@ -213,7 +213,7 @@ The sequencer subscribes to `TicketPurchased` to reconstruct the list of ticket 
 
 When a round ends/advances, the sequencer compares the new list of api keys to the old list of api keys. Any overlap between the previously active keys and currently active keys should not have their websocket connections closed. Keys that were included in the previous set and not in the new set have their connection closed. When a new connection comes in, the provided API key is hashed and checked against the list of currently active key hashes.
 
-The sequencer cannot allow more than one open connection per key. If more than one connection is allowed then people will share keys.
+The sequencer cannot allow more open connections per key than the number of active tickets bound to that key. If more connections are allowed, then people will share keys.
 
 # Potential Improvements
 
