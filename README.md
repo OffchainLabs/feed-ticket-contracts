@@ -28,7 +28,7 @@ Tickets are paid for in a specific ERC-20 token, chosen at deployment time and i
 
 1 ticket per address per round. 1 connection per ticket. 1 API key per ticket. Multiple tickets may have the same API key.
 
-We update round information lazily on the first mutative call during the round. We keep this state private since it can be stale. We expose view functions that will apply appropriate changes to stored round information before returning it.
+We update round information lazily on the first mutative call that lands in a round later than the stored round. We keep this state private since it can be stale. We expose view functions that will apply appropriate changes to stored round information before returning it.
 
 Admin setters queue their new values rather than applying them immediately. Queued values are applied by the round's lazy-update. Concretely, a value queued in round `R` is committed to storage at the start of the first round strictly after `R` that sees a mutative call. Rounds with no mutative calls are skipped. The queued value keeps waiting in `next*` storage until activity resumes.
 
@@ -133,14 +133,14 @@ The caller declares the price they expect via `expectedPrice`; the contract veri
 
 ```solidity
 function depositToken(uint256 amount) external {
-    _userData[msg.sender].tokenBalance += uint216(amount);
+    _userData[msg.sender].tokenBalance += amount.toUint216();
     IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
     emit TokensDeposited(msg.sender, amount);
 }
 
 function withdrawToken(uint256 amount) external {
     if (_userData[msg.sender].tokenBalance < amount) revert InsufficientTokenBalance(...);
-    _userData[msg.sender].tokenBalance -= uint216(amount);
+    _userData[msg.sender].tokenBalance -= amount.toUint216();
     IERC20(token).safeTransfer(msg.sender, amount);
     emit TokensWithdrawn(msg.sender, amount);
 }
@@ -268,5 +268,3 @@ E' = F' * ln(M/M') + E * F'/F
 ```
 
 At the moment, we've deemed discontinuous jumps acceptable.
-
-## Multiple tickets per address

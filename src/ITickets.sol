@@ -27,6 +27,8 @@ interface ITickets {
 
     /// @notice Thrown when `purchaseTicket` is called with an `expectedRound` that does not
     ///         match the current round.
+    /// @param  expected The round the caller passed as `expectedRound`.
+    /// @param  actual   The contract's current round.
     error RoundNumberMismatch(uint256 expected, uint256 actual);
 
     /// @notice Thrown when `purchaseTicket` is called with an `expectedPrice` that does not equal
@@ -107,7 +109,7 @@ interface ITickets {
     /// @param  newFraction The new grandfather phase length as a fraction of 256 of the round.
     event GrandfatherPeriodFractionQueued(uint256 newFraction);
 
-    /// @notice Emitted when stored round state is rolled forward by the lazy update modifier.
+    /// @notice Emitted when stored round state is rolled forward by the lazy-update path.
     event RoundStateUpdated();
 
     /// @notice Purchase one ticket for the current round. `expectedPrice` is debited from the
@@ -119,13 +121,15 @@ interface ITickets {
     /// @param  apiKeyHash    The hash of the API key to associate with the ticket purchase.
     function purchaseTicket(uint256 expectedRound, uint256 expectedPrice, bytes32 apiKeyHash) external;
 
-    /// @notice Forward sale proceeds that have been committed to `_storedProceeds` to the current
-    ///         beneficiary. Permissionless. Does not trigger lazy update, so revenue from the
-    ///         in-flight round is not included until the next mutative call rolls the round over.
+    /// @notice Forward accumulated sale proceeds (those already rolled over by a prior lazy
+    ///         update) to the current beneficiary. Permissionless. Does not trigger lazy update,
+    ///         so revenue from the in-flight round is not included until the next mutative call
+    ///         (or an explicit `commitRoundState`) rolls the round over.
     function distributeSaleProceeds() external;
 
     /// @notice Roll stored round state forward and commit any queued admin updates. Permissionless.
-    ///         No-op within the same round.
+    ///         No-op once the stored round matches the wall-clock round. Reverts with
+    ///         `BeforeFirstRoundStart` if called before `firstRoundStart`.
     function commitRoundState() external;
 
     /// @notice Deposit payment tokens to the caller's internal balance to fund future ticket
@@ -231,6 +235,8 @@ interface ITickets {
     function grandfatheredIntoRound(address user) external view returns (uint256);
 
     /// @notice Number of tickets sold in the current round.
+    /// @dev    Returns 0 once a round has advanced past the stored round, because the next
+    ///         mutative call resets `_ticketsSoldThisRound` before recording any new purchase.
     function ticketsSoldThisRound() external view returns (uint256);
 
     /// @notice Number of full rounds that have elapsed since the stored round start.
@@ -259,10 +265,11 @@ interface ITickets {
     function grandfatherPeriodEnd() external view returns (uint256);
 
     /// @notice Total tickets sold in excess of the cumulative target as of the end of last round.
-    /// @dev    Once a round has elapsed, this view returns either:
+    /// @dev    Within the active stored round (no rounds elapsed), returns the stored value directly.
+    ///         Once a round has elapsed, this view returns either:
     ///         (a) `excessTicketsSoldOverride` if a pricing update is queued - lets the admin
     ///             avoid a price jump across the param change; or
-    ///         (b) the stored value plus `ticketsSoldThisRound`, minus elapsed
+    ///         (b) the stored value plus `_ticketsSoldThisRound`, minus elapsed
     ///             rounds' worth of target (saturated at zero).
     ///         The contract's arithmetic keeps using the stored value until a mutative call commits.
     function excessTicketsSold() external view returns (uint256);
@@ -308,7 +315,8 @@ interface ITickets {
     ///                                      Must be greater than zero, which is reserved as the
     ///                                      "no update queued" sentinel and is an invalid value.
     /// @param  newPriceUpdateFraction       The new price update fraction.
-    ///                                      Must be greater than zero, which is an invalid value.
+    ///                                      Must be greater than zero, which is reserved as the
+    ///                                      "no update queued" sentinel and is an invalid value.
     /// @param  newExcessTicketsSoldOverride The value to install as `excessTicketsSold` when the
     ///                                      queued pricing params are committed.
     ///                                      Must not equal `type(uint56).max`, which is reserved as
