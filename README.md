@@ -98,10 +98,10 @@ In addition to the public state, `Tickets` has the following view functions:
     - `else if (isAdminUpdateQueued && excessTicketsSoldOverride != type(uint56).max) return excessTicketsSoldOverride;`
     - `else return max(0, _excessTicketsSold + _ticketsSoldThisRound - roundsElapsedSinceStored() * _targetTicketsPerRound)`
     - max(0, ...) underflows in solidity. code's for illustration
-- `currentPrice()` - the ticket price (in base units of the payment token) for the current round
+- `currentPrice()` - the ticket price (in wei) for the current round
     - see `fake_exponential` in https://eips.ethereum.org/EIPS/eip-4844
     - `return min(fake_exponential(minimumPrice(), excessTicketsSold(), priceUpdateFraction()), type(uint72).max)`
-        - the price is stored as `uint72` and clamped at `type(uint72).max` (~4.72e21 base units). If the formula would exceed that cap, tickets are sold at the cap rather than at the higher formula price.
+        - the price is stored as `uint72` and clamped at `type(uint72).max` (~4722e18). If the formula would exceed that cap, tickets are sold at the cap rather than at the higher formula price.
         - to get an idea of how to set `priceUpdateFraction`, see the "Base fee per blob gas update rule" in EIP-4844
 
 `Tickets` has the following mutative functions:
@@ -205,7 +205,7 @@ Hot path state lives in slot 0 and a common-case purchase only loads that slot. 
 Slot 0:
 - `_roundDuration` (uint24 seconds): up to ~194 days per round
 - `_maxTicketsPerRound` (uint16): up to 65,535 tickets per round
-- `_currentPrice` (uint72): cached so we don't recompute the Taylor series on each purchase; capped at ~4.72e21 base units of the payment token
+- `_currentPrice` (uint72): cached so we don't recompute the Taylor series on each purchase; capped at ~4722e18
 - `_roundNumber` (uint40): at 1-second rounds, well past uint32's ~136-year limit
 - `_roundStart` (uint40 seconds): Unix timestamps past year 36800
 - `_grandfatherPeriodFraction` (uint8): numerator over 256 of the round duration
@@ -213,7 +213,7 @@ Slot 0:
 - `_priceUpdateFraction` (uint40): 23 bits cover a 1% max change at target=1, max=65535; widened to uint40 to fill slot 0
 
 Slot 1:
-- `_minimumPrice` (uint64): up to ~1.84e19 base units of the payment token
+- `_minimumPrice` (uint64): up to ~18.4e18
 - `_targetTicketsPerRound` (uint16): matches `_maxTicketsPerRound`'s range
 - `_excessTicketsSold` (uint56): worst case is uint16 cap per round * uint40 rounds = 2^56
 - `isAdminUpdateQueued` (bool)

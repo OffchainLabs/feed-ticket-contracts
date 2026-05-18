@@ -261,11 +261,11 @@ interface ITickets {
     ///         The contract's arithmetic keeps using the stored value until a mutative call commits.
     function excessTicketsSold() external view returns (uint256);
 
-    /// @notice Ticket price for the current round, denominated in base units of the payment token.
+    /// @notice Ticket price for the current round, in wei.
     /// @dev    The price is `fake_exponential(minimumPrice(), excessTicketsSold(), priceUpdateFraction())`
-    ///         (EIP-4844 style), clamped at `type(uint72).max`. If the formula would exceed that cap,
-    ///         this returns `type(uint72).max` and tickets are sold at the cap rather than at the
-    ///         higher formula price.
+    ///         (EIP-4844 style), clamped at `type(uint72).max` (~4722e18). If the formula would
+    ///         exceed that cap, this returns `type(uint72).max` and tickets are sold at the cap
+    ///         rather than at the higher formula price.
     ///
     ///         Composed from queued-update-aware views, so it reflects queued updates once a round
     ///         has elapsed. The contract's arithmetic keeps using stored values until a mutative
