@@ -35,6 +35,8 @@ interface ITickets {
     /// @param  actual   The contract's current price.
     error IncorrectTicketPrice(uint256 expected, uint256 actual);
 
+    error ZeroTicketsRequested();
+
     /// @notice Thrown when `purchaseTicket` would exceed `maxTicketsPerRound` for the current round.
     error MaxTicketsSold();
 

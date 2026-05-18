@@ -190,16 +190,18 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     function purchaseTickets(uint256 expectedRound, uint256 expectedPrice, uint256 numTickets, bytes32 apiKeyHash) external {
         _lazyUpdateRoundState();
 
+        if (numTickets == 0) revert ZeroTicketsRequested();
         if (expectedRound != _roundNumber) revert RoundNumberMismatch(expectedRound, _roundNumber);
         if (expectedPrice != _currentPrice) revert IncorrectTicketPrice(expectedPrice, _currentPrice);
         if (uint256(_ticketsSoldThisRound) + uint256(numTickets) > uint256(_maxTicketsPerRound)) revert MaxTicketsSold();
-        
-        UserData memory userDataMem = _userData[msg.sender];
-        if (userDataMem.tokenBalance < expectedPrice) {
-            revert InsufficientTokenBalance(userDataMem.tokenBalance, expectedPrice);
-        }
 
         uint16 _numTickets = numTickets.toUint16();
+        uint256 cost = expectedPrice * numTickets;
+        
+        UserData memory userDataMem = _userData[msg.sender];
+        if (userDataMem.tokenBalance < cost) {
+            revert InsufficientTokenBalance(userDataMem.tokenBalance, cost);
+        }
 
         // forge-lint: disable-start(block-timestamp)
         if (
@@ -226,17 +228,24 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         }
         // forge-lint: disable-end(block-timestamp)
 
-        userDataMem.tokenBalance -= (expectedPrice * _numTickets).toUint144();
+        userDataMem.tokenBalance -= cost.toUint144();
+        uint16 prevHeld = 0;
         if (_roundNumber % 2 == 0) {
-            userDataMem.evenTicketsHeld += _numTickets;
+            if (userDataMem.lastEvenRoundPurchased == _roundNumber) {
+                prevHeld = userDataMem.evenTicketsHeld;
+            }
+            userDataMem.evenTicketsHeld = prevHeld + _numTickets;
             userDataMem.lastEvenRoundPurchased = _roundNumber;
         } else {
-            userDataMem.oddTicketsHeld += _numTickets;
+            if (userDataMem.lastOddRoundPurchased == _roundNumber) {
+                prevHeld = userDataMem.oddTicketsHeld;
+            }
+            userDataMem.oddTicketsHeld = prevHeld + _numTickets;
             userDataMem.lastOddRoundPurchased = _roundNumber;
         }
 
         _userData[msg.sender] = userDataMem;
-        _ticketsSoldThisRound++;
+        _ticketsSoldThisRound += _numTickets;
 
         emit TicketPurchased(msg.sender, _roundNumber, apiKeyHash, expectedPrice);
     }
