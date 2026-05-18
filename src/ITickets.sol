@@ -124,6 +124,12 @@ interface ITickets {
     ///         in-flight round is not included until the next mutative call rolls the round over.
     function distributeSaleProceeds() external;
 
+    /// @notice Roll stored round state forward and commit any queued admin updates. Permissionless.
+    ///         No-op within the same round. Useful to credit a finished round's revenue to
+    ///         `_storedProceeds` so it can be drained via `distributeSaleProceeds` without waiting
+    ///         for the next buyer or admin call.
+    function commitRoundState() external;
+
     /// @notice Deposit payment tokens to the caller's internal balance to fund future ticket
     ///         purchases. The caller must have first approved this contract for at least `amount`.
     /// @param  amount Number of payment tokens to pull from the caller.

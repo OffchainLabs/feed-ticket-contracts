@@ -235,6 +235,11 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     }
 
     /// @inheritdoc ITickets
+    function commitRoundState() external {
+        _lazyUpdateRoundState();
+    }
+
+    /// @inheritdoc ITickets
     function grandfatheredIntoRound(address account) external view returns (uint256) {
         return _userData[account].grandfatheredRound;
     }

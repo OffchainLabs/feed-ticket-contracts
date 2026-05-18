@@ -36,6 +36,8 @@ The view functions for the queued admin params surface the queued value as soon 
 
 The mutative calls that _do not_ trigger lazy update are setting the beneficiary, distributing funds, and depositing/withdrawing payment tokens. For beneficiary/distribute this keeps a fund-rescue path live even if a bug in the lazy update would otherwise cause it to revert; for deposit/withdraw the round state is irrelevant to the operation, so we skip the work.
 
+A dedicated permissionless entry point, `commitRoundState`, calls the lazy-update path directly. Anyone can use it to force a finished round's revenue to be credited to `_storedProceeds` so it is then drainable via `distributeSaleProceeds` without waiting for the next buyer or admin call.
+
 `Tickets` has the following public state:
 - `beneficiary` - account that receives sale proceeds
 - `token` - the ERC-20 used as payment. Immutable, set at construction.
@@ -153,7 +155,13 @@ function distributeSaleProceeds() external {
 }
 ```
 
-`distributeSaleProceeds` only forwards proceeds that lazy update has already credited to `_storedProceeds`. Revenue from the current round is included once the round ends and the next lazy update commits it.
+`distributeSaleProceeds` only forwards proceeds that lazy update has already credited to `_storedProceeds`. Revenue from a finished but uncommitted round can be flushed first by calling `commitRoundState` (permissionless).
+
+```solidity
+function commitRoundState() external {
+    _lazyUpdateRoundState();
+}
+```
 
 ```solidity
 // Takes effect immediately
