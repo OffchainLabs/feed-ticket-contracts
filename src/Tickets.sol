@@ -187,17 +187,21 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     }
 
     /// @inheritdoc ITickets
-    function purchaseTickets(uint256 expectedRound, uint256 expectedPrice, uint256 numTickets, bytes32 apiKeyHash) external {
+    function purchaseTickets(uint256 expectedRound, uint256 expectedPrice, uint256 numTickets, bytes32 apiKeyHash)
+        external
+    {
         _lazyUpdateRoundState();
 
         if (numTickets == 0) revert ZeroTicketsRequested();
         if (expectedRound != _roundNumber) revert RoundNumberMismatch(expectedRound, _roundNumber);
         if (expectedPrice != _currentPrice) revert IncorrectTicketPrice(expectedPrice, _currentPrice);
-        if (uint256(_ticketsSoldThisRound) + uint256(numTickets) > uint256(_maxTicketsPerRound)) revert MaxTicketsSold();
+        if (uint256(_ticketsSoldThisRound) + uint256(numTickets) > uint256(_maxTicketsPerRound)) {
+            revert MaxTicketsSold();
+        }
 
         uint16 _numTickets = numTickets.toUint16();
         uint256 cost = expectedPrice * numTickets;
-        
+
         UserData memory userDataMem = _userData[msg.sender];
         if (userDataMem.tokenBalance < cost) {
             revert InsufficientTokenBalance(userDataMem.tokenBalance, cost);

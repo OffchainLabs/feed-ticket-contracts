@@ -123,7 +123,8 @@ interface ITickets {
     /// @param  expectedRound Round the caller expects to be current. Reverts if it does not match.
     /// @param  expectedPrice Price the caller expects. Reverts if the current price does not equal this value.
     /// @param  apiKeyHash    The hash of the API key to associate with the ticket purchase.
-    function purchaseTickets(uint256 expectedRound, uint256 expectedPrice, uint256 numTickets, bytes32 apiKeyHash) external;
+    function purchaseTickets(uint256 expectedRound, uint256 expectedPrice, uint256 numTickets, bytes32 apiKeyHash)
+        external;
 
     /// @notice Forward accumulated sale proceeds (those already rolled over by a prior lazy
     ///         update) to the current beneficiary. Permissionless. Does not trigger lazy update,
