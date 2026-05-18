@@ -209,22 +209,19 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
                 && block.timestamp
                     < uint256(_roundStart) + (uint256(_roundDuration) * uint256(_grandfatherPeriodFraction)) / 256
         ) {
-            // AI: help me with variable naming here
-            uint256 possiblyLastRound = _roundNumber % 2 == 0 ? userDataMem.lastOddRoundPurchased : userDataMem.lastEvenRoundPurchased;
-            if (possiblyLastRound != _roundNumber - 1) {
+            bool isEven = _roundNumber % 2 == 0;
+            uint40 grandfatherRound = isEven ? userDataMem.lastOddRoundPurchased : userDataMem.lastEvenRoundPurchased;
+            uint16 grandfatherTickets = isEven ? userDataMem.oddTicketsHeld : userDataMem.evenTicketsHeld;
+
+            if (grandfatherRound != _roundNumber - 1) {
                 revert NotEnoughGrandfatheredTickets(0, _numTickets);
             }
-
-            uint256 grandfatheredTickets = _roundNumber % 2 == 0 ? userDataMem.oddTicketsHeld : userDataMem.evenTicketsHeld;
-            if (grandfatheredTickets < _numTickets) {
-                revert NotEnoughGrandfatheredTickets(grandfatheredTickets, _numTickets);
+            if (grandfatherTickets < _numTickets) {
+                revert NotEnoughGrandfatheredTickets(grandfatherTickets, _numTickets);
             }
 
-            if (_roundNumber % 2 == 0) {
-                userDataMem.oddTicketsHeld -= _numTickets;
-            } else {
-                userDataMem.evenTicketsHeld -= _numTickets;
-            }
+            if (isEven) userDataMem.oddTicketsHeld = grandfatherTickets - _numTickets;
+            else userDataMem.evenTicketsHeld = grandfatherTickets - _numTickets;
         }
         // forge-lint: disable-end(block-timestamp)
 
