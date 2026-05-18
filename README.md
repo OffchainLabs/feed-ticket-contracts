@@ -9,7 +9,7 @@ The basic mechanism is as follows:
 - Once the round ends the newly purchased tickets become "active", while tickets from prior rounds become "inactive" (i.e. the sequencer no longer respects the old tickets and starts respecting the new ones)
 - Once the round ends, the next one begins immediately with a new price which is set by an EIP-4844 like mechanism. 
 
-Tickets are paid for in a specific ERC-20 token, chosen at deployment time and immutable thereafter. Users first call `depositToken` to fund an internal balance held by the contract; each `purchaseTicket` debits the caller's internal balance, and any unused balance can be returned to the caller via `withdrawToken`.
+Tickets are paid for in a specific ERC-20 token, chosen at deployment time and immutable thereafter. Users first deposit tokens to fund an internal balance held by the contract; each ticket purchase debits the caller's internal balance.
 
 # Actors & Trust Model
 
@@ -153,7 +153,7 @@ function distributeSaleProceeds() external {
 }
 ```
 
-`distributeSaleProceeds` only forwards proceeds that lazy update has already credited to `_storedProceeds`. Revenue from the current round is included once the round ends and the next mutative call (which triggers lazy update) commits it. `distributeSaleProceeds` itself does not trigger lazy update — keeping it minimal preserves the fund-rescue path even if the rollover logic were to revert.
+`distributeSaleProceeds` only forwards proceeds that lazy update has already credited to `_storedProceeds`. Revenue from the current round is included once the round ends and the next lazy update commits it.
 
 ```solidity
 // Takes effect immediately
@@ -220,12 +220,10 @@ Slot 1:
 - `_storedProceeds` (uint112): accumulated proceeds awaiting distribution; sized to fill the remainder of slot 1
 
 Slots 2+:
-- `nextRoundDuration` (uint24), `nextTargetTicketsPerRound` (uint16), `nextMaxTicketsPerRound` (uint16), `nextPriceUpdateFraction` (uint40), `nextGrandfatherPeriodFraction` (uint8): all the small queued admin values pack into one slot
-- `nextMinimumPrice` (uint64), `excessTicketsSoldOverride` (uint56): pack into the next slot
+- `nextRoundDuration` (uint24), `nextTargetTicketsPerRound` (uint16), `nextMaxTicketsPerRound` (uint16), `nextPriceUpdateFraction` (uint40), `nextGrandfatherPeriodFraction` (uint8)
+- `nextMinimumPrice` (uint64), `excessTicketsSoldOverride` (uint56)
 - `beneficiary` (address): account that receives sale proceeds
-- `_userData` mapping of `address => UserData`, where `UserData` packs `grandfatheredRound` (uint40) and `tokenBalance` (uint216) into a single 32-byte slot per account. `uint216` is far above any realistic deposit, so we can't over- or underflow it in practice.
-
-`token` is held as an immutable, so it lives in code rather than storage.
+- `_userData` mapping of `address => UserData`, where `UserData` packs `grandfatheredRound` (uint40) and `tokenBalance` (uint216) into a single 32-byte slot per account.
 
 # How Buyers Use the System
 
