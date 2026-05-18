@@ -299,10 +299,10 @@ interface ITickets {
     /// @notice Queue new pricing parameters. Takes effect next active round.
     ///         May cause a discontinuous jump in the current price.
     ///         The resulting price after the update takes effect will be
-    ///         `fake_exponential(newMinimumPrice, excessTicketsSoldOverride, newPriceUpdateFraction)`
+    ///         `min(fake_exponential(newMinimumPrice, excessTicketsSoldOverride, newPriceUpdateFraction), type(uint72).max)`.
     /// @param  newMinimumPrice              The new minimum ticket price.
     ///                                      Must be greater than zero, which is reserved as the
-    ///                                      "no update queued" sentinel.
+    ///                                      "no update queued" sentinel and is an invalid value.
     /// @param  newPriceUpdateFraction       The new price update fraction.
     ///                                      Must be greater than zero, which is an invalid value.
     /// @param  newExcessTicketsSoldOverride The value to install as `excessTicketsSold` when the
