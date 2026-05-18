@@ -217,4 +217,104 @@ contract TicketsE2ETest is Test {
         assertEq(token.balanceOf(address(tickets)), 0);
         assertEq(token.balanceOf(beneficiary) - beneBefore, totalSpent);
     }
+
+    function test_depositWithdrawWithoutPurchasing() public {
+        address user = buyers[0];
+        uint256 amount = 5 ether;
+
+        token.mint(user, amount);
+        vm.startPrank(user);
+        token.approve(address(tickets), amount);
+        tickets.depositToken(amount);
+        assertEq(tickets.tokenBalance(user), amount);
+        assertEq(token.balanceOf(user), 0);
+        assertEq(token.balanceOf(address(tickets)), amount);
+
+        tickets.withdrawToken(amount);
+        vm.stopPrank();
+
+        assertEq(tickets.tokenBalance(user), 0);
+        assertEq(token.balanceOf(user), amount);
+        assertEq(token.balanceOf(address(tickets)), 0);
+    }
+
+    function test_overDepositPurchaseAndWithdrawRemainder() public {
+        address user = buyers[0];
+        uint256 deposit = 5 ether;
+        uint256 price = tickets.currentPrice();
+        assertEq(price, MIN_PRICE);
+        assertGt(deposit, price);
+
+        token.mint(user, deposit);
+        vm.startPrank(user);
+        token.approve(address(tickets), deposit);
+        tickets.depositToken(deposit);
+
+        tickets.purchaseTicket(0, price, bytes32(0));
+        uint256 remainder = deposit - price;
+        assertEq(tickets.tokenBalance(user), remainder);
+
+        tickets.withdrawToken(remainder);
+        vm.stopPrank();
+
+        assertEq(tickets.tokenBalance(user), 0);
+        assertEq(token.balanceOf(user), remainder);
+        // only the purchase amount stays in the contract
+        assertEq(token.balanceOf(address(tickets)), price);
+    }
+
+    function test_depositorBalanceSafeAcrossOtherBuyersDistribute() public {
+        address depositor = buyers[0];
+        address buyer = buyers[1];
+        uint256 depositAmount = 10 ether;
+
+        token.mint(depositor, depositAmount);
+        vm.startPrank(depositor);
+        token.approve(address(tickets), depositAmount);
+        tickets.depositToken(depositAmount);
+        vm.stopPrank();
+
+        uint256 price = _buy(buyer, 0);
+
+        // Close round 0 so the purchase's revenue is committed to _storedProceeds.
+        vm.warp(FIRST_ROUND_START + ROUND_DURATION);
+        vm.prank(marketParamsSetter);
+        tickets.setRoundDuration(ROUND_DURATION + 1);
+
+        // Anyone can distribute; depositor's balance must not be swept.
+        tickets.distributeSaleProceeds();
+        assertEq(token.balanceOf(beneficiary), price);
+
+        // Depositor's balance is intact and fully withdrawable.
+        assertEq(tickets.tokenBalance(depositor), depositAmount);
+        vm.prank(depositor);
+        tickets.withdrawToken(depositAmount);
+        assertEq(token.balanceOf(depositor), depositAmount);
+        assertEq(token.balanceOf(address(tickets)), 0);
+    }
+
+    function test_beneficiaryChangeBetweenAccumulationAndDistribute() public {
+        address newBeneficiary = makeAddr("newBeneficiary");
+        address buyer = buyers[0];
+
+        uint256 price = _buy(buyer, 0);
+
+        // Close round 0 under the original beneficiary so proceeds are committed.
+        vm.warp(FIRST_ROUND_START + ROUND_DURATION);
+        vm.prank(marketParamsSetter);
+        tickets.setRoundDuration(ROUND_DURATION + 1);
+
+        // Swap beneficiary. setBeneficiary takes effect immediately.
+        vm.prank(beneficiarySetter);
+        tickets.setBeneficiary(newBeneficiary);
+
+        // Distribute must forward to the beneficiary at call time, not the one in place when
+        // the round was closed.
+        vm.expectEmit(true, false, false, true, address(tickets));
+        emit ITickets.ProceedsDistributed(newBeneficiary, price);
+        tickets.distributeSaleProceeds();
+
+        assertEq(token.balanceOf(beneficiary), 0);
+        assertEq(token.balanceOf(newBeneficiary), price);
+    }
 }
