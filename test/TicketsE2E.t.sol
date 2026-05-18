@@ -85,11 +85,6 @@ contract TicketsE2ETest is Test {
             assertEq(tickets.currentPrice(), MIN_PRICE);
         }
 
-        // Zero-tickets request reverts.
-        vm.expectRevert(ITickets.ZeroTicketsRequested.selector);
-        vm.prank(buyers[0]);
-        tickets.purchaseTickets(0, MIN_PRICE, 0, bytes32(0));
-
         // Wrong price reverts.
         vm.expectRevert(abi.encodeWithSelector(ITickets.IncorrectTicketPrice.selector, MIN_PRICE + 1, MIN_PRICE));
         vm.prank(buyers[7]);

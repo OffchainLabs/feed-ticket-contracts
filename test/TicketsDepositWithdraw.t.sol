@@ -100,6 +100,29 @@ contract TicketsDepositWithdrawTest is BaseTicketsTest {
         vm.stopPrank();
     }
 
+    /// @dev Boundary: a single deposit exactly at `type(uint144).max` succeeds.
+    function test_depositToken_succeedsAtSingleDepositOfUint144Max() public {
+        uint256 amount = uint256(type(uint144).max);
+        token.mint(user, amount);
+        vm.startPrank(user);
+        token.approve(address(tickets), amount);
+        tickets.depositToken(amount);
+        vm.stopPrank();
+
+        assertEq(tickets.tokenBalance(user), amount);
+    }
+
+    /// @dev Boundary + 1: a single deposit one wei above `type(uint144).max` reverts.
+    function test_depositToken_revertsOnSingleDepositAboveUint144Max() public {
+        uint256 amount = uint256(type(uint144).max) + 1;
+        token.mint(user, amount);
+        vm.startPrank(user);
+        token.approve(address(tickets), amount);
+        vm.expectRevert();
+        tickets.depositToken(amount);
+        vm.stopPrank();
+    }
+
     /* ====================== withdrawToken ====================== */
 
     function test_withdrawToken_debitsBalanceAndTransfers() public {
