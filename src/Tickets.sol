@@ -30,7 +30,7 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
 
     /// @dev Per-account state, packed into one slot. Ticket holdings are tracked in
     ///      parity-keyed variables so that during the grandfather phase we can read
-    ///      the previous round's count from the opposite-parity vars and record this 
+    ///      the previous round's count from the opposite-parity vars and record this
     ///      round's count in the current-parity vars.
     struct UserData {
         uint16 evenTicketsHeld;
