@@ -63,7 +63,7 @@ contract TicketsE2ETest is Test {
         vm.startPrank(buyer);
         token.approve(address(tickets), price);
         tickets.depositToken(price);
-        tickets.purchaseTicket(round, price, bytes32(0));
+        tickets.purchaseTickets(round, price, 1, bytes32(0));
         vm.stopPrank();
     }
 
@@ -79,25 +79,19 @@ contract TicketsE2ETest is Test {
         // double-buy / wrong-price / wrong-round checks aren't shadowed by the cap check.
         for (uint256 i = 0; i < MAX - 1; i++) {
             totalSpent += _buy(buyers[i], 0);
-            assertEq(tickets.grandfatheredIntoRound(buyers[i]), 1);
             assertEq(tickets.ticketsSoldThisRound(), i + 1);
             assertEq(tickets.currentPrice(), MIN_PRICE);
         }
 
-        // Cannot buy twice in the same round.
-        vm.expectRevert(ITickets.AlreadyPurchasedInRound.selector);
-        vm.prank(buyers[0]);
-        tickets.purchaseTicket(0, MIN_PRICE, bytes32(0));
-
         // Wrong price reverts.
         vm.expectRevert(abi.encodeWithSelector(ITickets.IncorrectTicketPrice.selector, MIN_PRICE + 1, MIN_PRICE));
         vm.prank(buyers[7]);
-        tickets.purchaseTicket(0, MIN_PRICE + 1, bytes32(0));
+        tickets.purchaseTickets(0, MIN_PRICE + 1, 1, bytes32(0));
 
         // Wrong expectedRound reverts.
         vm.expectRevert(abi.encodeWithSelector(ITickets.RoundNumberMismatch.selector, 1, 0));
         vm.prank(buyers[7]);
-        tickets.purchaseTicket(1, MIN_PRICE, bytes32(0));
+        tickets.purchaseTickets(1, MIN_PRICE, 1, bytes32(0));
 
         // Fill the final slot so the round closes at the cap.
         totalSpent += _buy(buyers[MAX - 1], 0);
@@ -106,7 +100,7 @@ contract TicketsE2ETest is Test {
         // 9th buy hits the cap.
         vm.expectRevert(ITickets.MaxTicketsSold.selector);
         vm.prank(buyers[8]);
-        tickets.purchaseTicket(0, MIN_PRICE, bytes32(0));
+        tickets.purchaseTickets(0, MIN_PRICE, 1, bytes32(0));
 
         // ===== Round 1 — grandfather phase restricts to round-0 holders =====
         vm.warp(FIRST_ROUND_START + ROUND_DURATION);
@@ -126,8 +120,8 @@ contract TicketsE2ETest is Test {
         vm.startPrank(buyers[8]);
         token.approve(address(tickets), r1Price);
         tickets.depositToken(r1Price);
-        vm.expectRevert(ITickets.NotGrandfathered.selector);
-        tickets.purchaseTicket(1, r1Price, bytes32(0));
+        vm.expectRevert(abi.encodeWithSelector(ITickets.NotEnoughGrandfatheredTickets.selector, 0, 1));
+        tickets.purchaseTickets(1, r1Price, 1, bytes32(0));
         vm.stopPrank();
         // A grandfathered buyer succeeds at the same instant.
         totalSpent += _buy(buyers[0], 1);
@@ -135,17 +129,13 @@ contract TicketsE2ETest is Test {
         vm.warp(r1GrandfatherEnd);
         // Same non-grandfathered buyer now succeeds at the boundary, spending the prior deposit.
         vm.prank(buyers[8]);
-        tickets.purchaseTicket(1, r1Price, bytes32(0));
+        tickets.purchaseTickets(1, r1Price, 1, bytes32(0));
         totalSpent += r1Price;
         // Two more post-grandfather buys, mixing grandfathered and not.
         totalSpent += _buy(buyers[1], 1);
         totalSpent += _buy(buyers[9], 1);
 
         assertEq(tickets.ticketsSoldThisRound(), 4);
-        assertEq(tickets.grandfatheredIntoRound(buyers[0]), 2);
-        assertEq(tickets.grandfatheredIntoRound(buyers[1]), 2);
-        assertEq(tickets.grandfatheredIntoRound(buyers[8]), 2);
-        assertEq(tickets.grandfatheredIntoRound(buyers[9]), 2);
 
         // ===== Round 2 — round-1 holders are the new grandfathered set =====
         vm.warp(FIRST_ROUND_START + 2 * ROUND_DURATION);
@@ -166,16 +156,16 @@ contract TicketsE2ETest is Test {
         vm.startPrank(buyers[2]);
         token.approve(address(tickets), r1Price);
         tickets.depositToken(r1Price);
-        vm.expectRevert(ITickets.NotGrandfathered.selector);
-        tickets.purchaseTicket(2, r1Price, bytes32(0));
+        vm.expectRevert(abi.encodeWithSelector(ITickets.NotEnoughGrandfatheredTickets.selector, 0, 1));
+        tickets.purchaseTickets(2, r1Price, 1, bytes32(0));
         vm.stopPrank();
 
         // After grandfather phase: anyone may buy.
         vm.warp(tickets.grandfatherPeriodEnd());
-        // buyers[2] spends the deposit made before the NotGrandfathered revert above. Price is
-        // still r1Price (excess unchanged from round 1), so the pre-deposit suffices.
+        // buyers[2] spends the deposit made before the NotEnoughGrandfatheredTickets revert above.
+        // Price is still r1Price (excess unchanged from round 1), so the pre-deposit suffices.
         vm.prank(buyers[2]);
-        tickets.purchaseTicket(2, r1Price, bytes32(0));
+        tickets.purchaseTickets(2, r1Price, 1, bytes32(0));
         totalSpent += r1Price;
         totalSpent += _buy(buyers[3], 2);
         totalSpent += _buy(buyers[4], 2);
@@ -200,7 +190,7 @@ contract TicketsE2ETest is Test {
         // 9th buy hits the cap.
         vm.expectRevert(ITickets.MaxTicketsSold.selector);
         vm.prank(buyers[8]);
-        tickets.purchaseTicket(3, r3Price, bytes32(0));
+        tickets.purchaseTickets(3, r3Price, 1, bytes32(0));
 
         // ===== Distribute proceeds =====
         // Contract balance equals total deposited, which equals total spent (every _buy deposits
@@ -250,7 +240,7 @@ contract TicketsE2ETest is Test {
         token.approve(address(tickets), deposit);
         tickets.depositToken(deposit);
 
-        tickets.purchaseTicket(0, price, bytes32(0));
+        tickets.purchaseTickets(0, price, 1, bytes32(0));
         uint256 remainder = deposit - price;
         assertEq(tickets.tokenBalance(user), remainder);
 

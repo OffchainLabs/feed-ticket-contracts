@@ -28,9 +28,16 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         uint40 firstRoundStart;
     }
 
+    /// @dev Per-account state, packed into one slot. Ticket holdings are tracked in
+    ///      parity-keyed variables so that during the grandfather phase we can read
+    ///      the previous round's count from the opposite-parity vars and record this
+    ///      round's count in the current-parity vars.
     struct UserData {
-        uint40 grandfatheredRound;
-        uint216 tokenBalance;
+        uint16 evenTicketsHeld;
+        uint16 oddTicketsHeld;
+        uint40 lastEvenRoundPurchased;
+        uint40 lastOddRoundPurchased;
+        uint144 tokenBalance;
     }
 
     /// @notice Role that can set the beneficiary account.
@@ -184,15 +191,27 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     }
 
     /// @inheritdoc ITickets
-    function purchaseTicket(uint256 expectedRound, uint256 expectedPrice, bytes32 apiKeyHash) external {
+    function purchaseTickets(uint256 expectedRound, uint256 expectedPrice, uint256 numTickets, bytes32 apiKeyHash)
+        external
+    {
         _lazyUpdateRoundState();
+
+        if (numTickets == 0) revert ZeroTicketsRequested();
         if (expectedRound != _roundNumber) revert RoundNumberMismatch(expectedRound, _roundNumber);
         if (expectedPrice != _currentPrice) revert IncorrectTicketPrice(expectedPrice, _currentPrice);
-        if (_ticketsSoldThisRound >= _maxTicketsPerRound) revert MaxTicketsSold();
-        if (_userData[msg.sender].grandfatheredRound == uint256(_roundNumber) + 1) revert AlreadyPurchasedInRound();
-        if (_userData[msg.sender].tokenBalance < expectedPrice) {
-            revert InsufficientTokenBalance(_userData[msg.sender].tokenBalance, expectedPrice);
+        if (uint256(_ticketsSoldThisRound) + uint256(numTickets) > uint256(_maxTicketsPerRound)) {
+            revert MaxTicketsSold();
         }
+
+        uint16 _numTickets = numTickets.toUint16();
+        uint256 cost = expectedPrice * numTickets;
+
+        UserData memory userDataMem = _userData[msg.sender];
+        if (userDataMem.tokenBalance < cost) {
+            revert InsufficientTokenBalance(userDataMem.tokenBalance, cost);
+        }
+
+        bool roundIsEven = _roundNumber % 2 == 0;
 
         // forge-lint: disable-start(block-timestamp)
         if (
@@ -200,21 +219,35 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
                 && block.timestamp
                     < uint256(_roundStart) + (uint256(_roundDuration) * uint256(_grandfatherPeriodFraction)) / 256
         ) {
-            if (_userData[msg.sender].grandfatheredRound != _roundNumber) revert NotGrandfathered();
+            uint16 grandfatherTickets = _ticketCount(userDataMem, _roundNumber - 1);
+            if (grandfatherTickets < _numTickets) {
+                revert NotEnoughGrandfatheredTickets(grandfatherTickets, _numTickets);
+            }
+
+            if (roundIsEven) userDataMem.oddTicketsHeld = grandfatherTickets - _numTickets;
+            else userDataMem.evenTicketsHeld = grandfatherTickets - _numTickets;
         }
         // forge-lint: disable-end(block-timestamp)
 
-        _ticketsSoldThisRound++;
-        _userData[msg.sender].grandfatheredRound = _roundNumber + 1;
-        // forge-lint: disable-next-line(unsafe-typecast)
-        _userData[msg.sender].tokenBalance -= uint216(expectedPrice); // cast is safe because price cannot exceed uint72
+        userDataMem.tokenBalance -= cost.toUint144();
+        uint16 prevHeld = _ticketCount(userDataMem, _roundNumber);
+        if (roundIsEven) {
+            userDataMem.evenTicketsHeld = prevHeld + _numTickets;
+            userDataMem.lastEvenRoundPurchased = _roundNumber;
+        } else {
+            userDataMem.oddTicketsHeld = prevHeld + _numTickets;
+            userDataMem.lastOddRoundPurchased = _roundNumber;
+        }
 
-        emit TicketPurchased(msg.sender, _roundNumber, apiKeyHash, expectedPrice);
+        _userData[msg.sender] = userDataMem;
+        _ticketsSoldThisRound += _numTickets;
+
+        emit TicketPurchased(msg.sender, _roundNumber, apiKeyHash, expectedPrice, _numTickets);
     }
 
     /// @inheritdoc ITickets
     function depositToken(uint256 amount) external {
-        _userData[msg.sender].tokenBalance += amount.toUint216();
+        _userData[msg.sender].tokenBalance += amount.toUint144();
         IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
         emit TokensDeposited(msg.sender, amount);
     }
@@ -224,7 +257,7 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         if (_userData[msg.sender].tokenBalance < amount) {
             revert InsufficientTokenBalance(_userData[msg.sender].tokenBalance, amount);
         }
-        _userData[msg.sender].tokenBalance -= amount.toUint216();
+        _userData[msg.sender].tokenBalance -= amount.toUint144();
         IERC20(token).safeTransfer(msg.sender, amount);
         emit TokensWithdrawn(msg.sender, amount);
     }
@@ -243,13 +276,20 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     }
 
     /// @inheritdoc ITickets
-    function grandfatheredIntoRound(address account) external view returns (uint256) {
-        return _userData[account].grandfatheredRound;
+    function tokenBalance(address account) external view returns (uint256) {
+        return _userData[account].tokenBalance;
     }
 
     /// @inheritdoc ITickets
-    function tokenBalance(address account) external view returns (uint256) {
-        return _userData[account].tokenBalance;
+    function grandfatherCount(address account) external view returns (uint256) {
+        uint256 __roundNumber = roundNumber();
+        if (__roundNumber == 0) return 0;
+        return _ticketCount(_userData[account], __roundNumber - 1);
+    }
+
+    /// @inheritdoc ITickets
+    function thisRoundTicketCount(address account) external view returns (uint256) {
+        return _ticketCount(_userData[account], roundNumber());
     }
 
     /// @inheritdoc ITickets
@@ -393,6 +433,15 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         isAdminUpdateQueued = true;
         nextGrandfatherPeriodFraction = newFraction;
         emit GrandfatherPeriodFractionQueued(newFraction);
+    }
+
+    function _ticketCount(UserData memory userDataMem, uint256 __roundNumber) internal pure returns (uint16) {
+        bool isEvenRound = __roundNumber % 2 == 0;
+        if (isEvenRound) {
+            return userDataMem.lastEvenRoundPurchased == __roundNumber ? userDataMem.evenTicketsHeld : 0;
+        } else {
+            return userDataMem.lastOddRoundPurchased == __roundNumber ? userDataMem.oddTicketsHeld : 0;
+        }
     }
 
     /// @dev On the first mutative call of a new round, rolls stored round state forward and

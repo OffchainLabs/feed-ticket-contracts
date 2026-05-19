@@ -4,7 +4,7 @@ These contracts sell "feed tickets." Feed tickets grant holders access to a prem
 
 The basic mechanism is as follows:
 - Each round, up to some number of tickets are sold all with an equal price. Each round is an hour/day/week/etc.
-- The start of each round is a "grandfather phase" of admin-configured length, during which only those who bought tickets in the _previous_ round can purchase tickets.
+- The start of each round is a "grandfather phase" of admin-configured length, during which a previous-round ticket holder may purchase up to the number of tickets they held in the previous round; no one else may purchase.
 - After the grandfather phase, _anyone_ can purchase a ticket for the rest of the round.
 - Once the round ends the newly purchased tickets become "active", while tickets from prior rounds become "inactive" (i.e. the sequencer no longer respects the old tickets and starts respecting the new ones)
 - Once the round ends, the next one begins immediately with a new price which is set by an EIP-4844 like mechanism. 
@@ -26,7 +26,7 @@ Tickets are paid for in a specific ERC-20 token, chosen at deployment time and i
 
 # Specification
 
-1 ticket per address per round. 1 connection per ticket. 1 API key per ticket. Multiple tickets may have the same API key.
+A single address may buy multiple tickets per round. 1 connection per ticket. 1 API key per ticket. Multiple tickets may have the same API key.
 
 We update round information lazily on the first mutative call that lands in a round later than the stored round. We keep this state private since it can be stale. We expose view functions that will apply appropriate changes to stored round information before returning it.
 
@@ -49,8 +49,8 @@ A dedicated permissionless entry point, `commitRoundState`, calls the lazy-updat
 - `nextPriceUpdateFraction` - if set, upcoming rounds will use it
 - `nextGrandfatherPeriodFraction` - if set, upcoming rounds will use it
 - `excessTicketsSoldOverride` - queued override for `excessTicketsSold()`
-- `grandfatheredIntoRound(user)` - the round into which `user` is grandfathered (i.e. the round in which they may purchase during the grandfather phase). Concretely, after a user purchases a ticket in round `R`, this is set to `R + 1`. Returns 0 if the user has never purchased; the +1 encoding lets us distinguish "never bought" from "bought in round 0".
-- `tokenBalance(account)` - `account`'s internal payment-token balance, available to be spent on ticket purchases or returned via `withdrawToken`. Credited by `depositToken`, debited by `purchaseTicket`/`withdrawToken`. Packed alongside `grandfatheredIntoRound` in a per-account `UserData` struct.
+- `grandfatherCount(account)` - tickets `account` can still claim under grandfather rules in the current round: tickets purchased in the prior round that have not already been exercised this round. Returns 0 in round 0, when `account` did not purchase in the prior round, or once all such tickets have been grandfathered this round. Does not gate on whether the grandfather phase window is still open in the current round; purely counter-based.
+- `tokenBalance(account)` - `account`'s internal payment-token balance, available to be spent on ticket purchases or returned via `withdrawToken`. Credited by `depositToken`, debited by `purchaseTickets`/`withdrawToken`. Packed alongside the parity ticket counters in a per-account `UserData` struct.
 
 Private state (committed lazily on the first mutative call in a new round):
 - `_roundNumber` - the recorded current round number
@@ -90,7 +90,7 @@ In addition to the public state, `Tickets` has the following view functions:
     - `return _roundStart + roundsElapsedSinceStored() * _roundDuration`
 - `roundEnd()` - end timestamp of the current round (exclusive)
     - `return roundStart() + roundDuration()`
-- `grandfatherPeriodEnd()` - end timestamp of the current round's grandfather phase (exclusive). Before this time, only previous-round ticket holders may purchase.
+- `grandfatherPeriodEnd()` - end timestamp of the current round's grandfather phase (exclusive). Before this time, a previous-round ticket holder may purchase up to the number of tickets they held in the previous round.
     - `return roundStart() + (roundDuration() * grandfatherPeriodFraction()) / 256`
 - `ticketsSoldThisRound()` - the number of tickets sold in the current round.
     - `return roundsElapsedSinceStored() == 0 ? _ticketsSoldThisRound : 0`
@@ -109,38 +109,73 @@ In addition to the public state, `Tickets` has the following view functions:
 `Tickets` has the following mutative functions:
 
 ```solidity
-function purchaseTicket(uint256 expectedRound, uint256 expectedPrice, bytes32 apiKeyHash) external {
+function purchaseTickets(uint256 expectedRound, uint256 expectedPrice, uint256 numTickets, bytes32 apiKeyHash)
+    external
+{
     _lazyUpdateRoundState();
+
+    if (numTickets == 0) revert ZeroTicketsRequested();
     if (expectedRound != _roundNumber) revert RoundNumberMismatch(expectedRound, _roundNumber);
     if (expectedPrice != _currentPrice) revert IncorrectTicketPrice(expectedPrice, _currentPrice);
-    if (_ticketsSoldThisRound >= _maxTicketsPerRound) revert MaxTicketsSold();
-    if (_userData[msg.sender].grandfatheredRound == _roundNumber + 1) revert AlreadyPurchasedInRound();
-    if (_userData[msg.sender].tokenBalance < expectedPrice) revert InsufficientTokenBalance(...);
-
-    if (_roundNumber > 0 && block.timestamp < _roundStart + (_roundDuration * _grandfatherPeriodFraction) / 256) {
-        if (_userData[msg.sender].grandfatheredRound != _roundNumber) revert NotGrandfathered();
+    if (uint256(_ticketsSoldThisRound) + uint256(numTickets) > uint256(_maxTicketsPerRound)) {
+        revert MaxTicketsSold();
     }
 
-    _ticketsSoldThisRound++;
-    _userData[msg.sender].grandfatheredRound = _roundNumber + 1;
-    _userData[msg.sender].tokenBalance -= uint216(expectedPrice);
+    uint16 _numTickets = numTickets.toUint16();
+    uint256 cost = expectedPrice * numTickets;
 
-    emit TicketPurchased(msg.sender, _roundNumber, apiKeyHash, expectedPrice);
+    UserData memory userDataMem = _userData[msg.sender];
+    if (userDataMem.tokenBalance < cost) {
+        revert InsufficientTokenBalance(userDataMem.tokenBalance, cost);
+    }
+
+    bool roundIsEven = _roundNumber % 2 == 0;
+
+    // forge-lint: disable-start(block-timestamp)
+    if (
+        _roundNumber > 0
+            && block.timestamp
+                < uint256(_roundStart) + (uint256(_roundDuration) * uint256(_grandfatherPeriodFraction)) / 256
+    ) {
+        uint16 grandfatherTickets = _ticketCount(userDataMem, _roundNumber - 1);
+        if (grandfatherTickets < _numTickets) {
+            revert NotEnoughGrandfatheredTickets(grandfatherTickets, _numTickets);
+        }
+
+        if (roundIsEven) userDataMem.oddTicketsHeld = grandfatherTickets - _numTickets;
+        else userDataMem.evenTicketsHeld = grandfatherTickets - _numTickets;
+    }
+    // forge-lint: disable-end(block-timestamp)
+
+    userDataMem.tokenBalance -= cost.toUint144();
+    uint16 prevHeld = _ticketCount(userDataMem, _roundNumber);
+    if (roundIsEven) {
+        userDataMem.evenTicketsHeld = prevHeld + _numTickets;
+        userDataMem.lastEvenRoundPurchased = _roundNumber;
+    } else {
+        userDataMem.oddTicketsHeld = prevHeld + _numTickets;
+        userDataMem.lastOddRoundPurchased = _roundNumber;
+    }
+
+    _userData[msg.sender] = userDataMem;
+    _ticketsSoldThisRound += _numTickets;
+
+    emit TicketPurchased(msg.sender, _roundNumber, apiKeyHash, expectedPrice, _numTickets);
 }
 ```
 
-The caller declares the price they expect via `expectedPrice`; the contract verifies it equals `currentPrice()` and debits that amount from the caller's deposited token balance.
+The caller declares the price they expect via `expectedPrice`; the contract verifies it equals `currentPrice()` and debits `expectedPrice * numTickets` from the caller's deposited token balance.
 
 ```solidity
 function depositToken(uint256 amount) external {
-    _userData[msg.sender].tokenBalance += amount.toUint216();
+    _userData[msg.sender].tokenBalance += amount.toUint144();
     IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
     emit TokensDeposited(msg.sender, amount);
 }
 
 function withdrawToken(uint256 amount) external {
     if (_userData[msg.sender].tokenBalance < amount) revert InsufficientTokenBalance(...);
-    _userData[msg.sender].tokenBalance -= amount.toUint216();
+    _userData[msg.sender].tokenBalance -= amount.toUint144();
     IERC20(token).safeTransfer(msg.sender, amount);
     emit TokensWithdrawn(msg.sender, amount);
 }
@@ -231,15 +266,15 @@ Slots 2+:
 - `nextRoundDuration` (uint24), `nextTargetTicketsPerRound` (uint16), `nextMaxTicketsPerRound` (uint16), `nextPriceUpdateFraction` (uint40), `nextGrandfatherPeriodFraction` (uint8)
 - `nextMinimumPrice` (uint64), `excessTicketsSoldOverride` (uint56)
 - `beneficiary` (address): account that receives sale proceeds
-- `_userData` mapping of `address => UserData`, where `UserData` packs `grandfatheredRound` (uint40) and `tokenBalance` (uint216) into a single 32-byte slot per account.
+- `_userData` mapping of `address => UserData`, where `UserData` packs `evenTicketsHeld` (uint16), `oddTicketsHeld` (uint16), `lastEvenRoundPurchased` (uint40), `lastOddRoundPurchased` (uint40), and `tokenBalance` (uint144) into a single 32-byte slot per account.
 
 # How Buyers Use the System
 
 Before a purchase, the buyer ERC-20-approves the `Tickets` contract for the desired amount of the payment token and calls `depositToken(amount)` to move those tokens into an internal balance held by the contract.
 
-Each round, buyers then call `purchaseTicket(expectedRound, expectedPrice, apiKeyHash)`. The contract verifies `expectedRound` and `expectedPrice` against current state (so a buyer never accidentally pays a new round's higher price) and debits `expectedPrice` from the caller's deposited balance. Any unused balance can be returned to the caller at any time via `withdrawToken`.
+Each round, buyers then call `purchaseTickets(expectedRound, expectedPrice, numTickets, apiKeyHash)`. The contract verifies `expectedRound` and `expectedPrice` against current state (so a buyer never accidentally pays a new round's higher price) and debits `expectedPrice * numTickets` from the caller's deposited balance. Any unused balance can be returned to the caller at any time via `withdrawToken`.
 
-Users can use the same API key for multiple purchases. Using the same key to purchase two tickets in the same round is permitted.
+Users can use the same API key for multiple purchases. Using the same key for multiple tickets in the same round is permitted.
 
 # How the Sequencer Uses the System
 

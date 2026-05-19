@@ -15,7 +15,7 @@ contract TicketsDistributeTest is BaseTicketsTest {
     function _buyInRoundZero() internal {
         _deposit(buyer, MINIMUM_PRICE);
         vm.prank(buyer);
-        tickets.purchaseTicket(0, MINIMUM_PRICE, bytes32(0));
+        tickets.purchaseTickets(0, MINIMUM_PRICE, 1, bytes32(0));
     }
 
     function test_distribute_zeroProceeds_transfersZero() public {

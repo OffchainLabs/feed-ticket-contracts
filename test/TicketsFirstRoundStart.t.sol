@@ -7,7 +7,7 @@ import {BaseTicketsTest} from "./BaseTicketsTest.t.sol";
 import {ITickets} from "../src/ITickets.sol";
 
 /// @dev Exercises the pre-start window where `block.timestamp < firstRoundStart`. Every view
-///      that derives state from elapsed time, plus `purchaseTicket`, must revert. At exactly
+///      that derives state from elapsed time, plus `purchaseTickets`, must revert. At exactly
 ///      `firstRoundStart` the same calls must succeed.
 contract TicketsFirstRoundStartTest is BaseTicketsTest {
     address buyer = makeAddr("buyer");
@@ -102,14 +102,14 @@ contract TicketsFirstRoundStartTest is BaseTicketsTest {
         vm.warp(FIRST_ROUND_START - 1);
         vm.prank(buyer);
         vm.expectRevert(PRE_START_REVERT);
-        tickets.purchaseTicket(0, MINIMUM_PRICE, bytes32(0));
+        tickets.purchaseTickets(0, MINIMUM_PRICE, 1, bytes32(0));
     }
 
     function test_purchaseTicket_succeedsAtStart() public {
         vm.warp(FIRST_ROUND_START);
         _deposit(buyer, MINIMUM_PRICE);
         vm.prank(buyer);
-        tickets.purchaseTicket(0, MINIMUM_PRICE, bytes32(0));
-        assertEq(tickets.grandfatheredIntoRound(buyer), 1);
+        tickets.purchaseTickets(0, MINIMUM_PRICE, 1, bytes32(0));
+        assertEq(tickets.ticketsSoldThisRound(), 1);
     }
 }

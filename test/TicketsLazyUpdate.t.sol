@@ -190,7 +190,7 @@ contract TicketsLazyUpdateTest is BaseTicketsTest {
         // Buyer needs a round 0 ticket to be grandfathered for round 1's grandfather phase.
         _deposit(buyer, MINIMUM_PRICE);
         vm.prank(buyer);
-        tickets.purchaseTicket(0, MINIMUM_PRICE, bytes32(0));
+        tickets.purchaseTickets(0, MINIMUM_PRICE, 1, bytes32(0));
 
         vm.startPrank(marketParamsSetter);
         tickets.setRoundDuration(2 hours);
@@ -214,7 +214,7 @@ contract TicketsLazyUpdateTest is BaseTicketsTest {
 
         _deposit(buyer, priceBefore);
         vm.prank(buyer);
-        tickets.purchaseTicket(1, priceBefore, bytes32(0));
+        tickets.purchaseTickets(1, priceBefore, 1, bytes32(0));
 
         assertEq(tickets.roundDuration(), roundDurBefore);
         assertEq(tickets.targetTicketsPerRound(), targetBefore);
@@ -353,7 +353,7 @@ contract TicketsLazyUpdateTest is BaseTicketsTest {
         address buyer = makeAddr("buyer");
         _deposit(buyer, MINIMUM_PRICE);
         vm.prank(buyer);
-        tickets.purchaseTicket(0, MINIMUM_PRICE, bytes32(0));
+        tickets.purchaseTickets(0, MINIMUM_PRICE, 1, bytes32(0));
 
         assertEq(tickets.exposed_storedProceeds(), 0);
 
@@ -370,7 +370,7 @@ contract TicketsLazyUpdateTest is BaseTicketsTest {
         address buyer = makeAddr("buyer");
         _deposit(buyer, MINIMUM_PRICE);
         vm.prank(buyer);
-        tickets.purchaseTicket(0, MINIMUM_PRICE, bytes32(0));
+        tickets.purchaseTickets(0, MINIMUM_PRICE, 1, bytes32(0));
 
         vm.warp(FIRST_ROUND_START + ROUND_DURATION - 1);
         tickets.commitRoundState();

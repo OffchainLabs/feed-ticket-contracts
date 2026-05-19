@@ -82,10 +82,10 @@ contract TicketsDepositWithdrawTest is BaseTicketsTest {
         assertEq(tickets.exposed_storedRoundNumber(), 0);
     }
 
-    /// @dev Pins the additive-overflow revert path: each deposit fits in uint216 on its own,
+    /// @dev Pins the additive-overflow revert path: each deposit fits in uint144 on its own,
     ///      but the running sum overflows the field.
-    function test_depositToken_revertsOnAdditiveOverflowAboveUint216Max() public {
-        uint256 nearMax = uint256(type(uint216).max) - 5;
+    function test_depositToken_revertsOnAdditiveOverflowAboveUint144Max() public {
+        uint256 nearMax = uint256(type(uint144).max) - 5;
         token.mint(user, nearMax);
         vm.startPrank(user);
         token.approve(address(tickets), nearMax);
@@ -97,6 +97,29 @@ contract TicketsDepositWithdrawTest is BaseTicketsTest {
         token.approve(address(tickets), 10);
         vm.expectRevert();
         tickets.depositToken(10);
+        vm.stopPrank();
+    }
+
+    /// @dev Boundary: a single deposit exactly at `type(uint144).max` succeeds.
+    function test_depositToken_succeedsAtSingleDepositOfUint144Max() public {
+        uint256 amount = uint256(type(uint144).max);
+        token.mint(user, amount);
+        vm.startPrank(user);
+        token.approve(address(tickets), amount);
+        tickets.depositToken(amount);
+        vm.stopPrank();
+
+        assertEq(tickets.tokenBalance(user), amount);
+    }
+
+    /// @dev Boundary + 1: a single deposit one wei above `type(uint144).max` reverts.
+    function test_depositToken_revertsOnSingleDepositAboveUint144Max() public {
+        uint256 amount = uint256(type(uint144).max) + 1;
+        token.mint(user, amount);
+        vm.startPrank(user);
+        token.approve(address(tickets), amount);
+        vm.expectRevert();
+        tickets.depositToken(amount);
         vm.stopPrank();
     }
 
