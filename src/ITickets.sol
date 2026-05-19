@@ -162,9 +162,6 @@ interface ITickets {
     ///         tickets purchased in the prior round that have not already been exercised this
     ///         round. Returns 0 in round 0, when `account` did not purchase in the prior round,
     ///         or once all such tickets have been grandfathered this round.
-    /// @dev    Counter-based only; does not check whether the grandfather phase window is still
-    ///         open. Uses `roundNumber()`, so it reflects rounds that have elapsed since the
-    ///         stored round even before a mutative call commits them.
     /// @param  account The account whose grandfather count to read.
     function grandfatherCount(address account) external view returns (uint256);
 
