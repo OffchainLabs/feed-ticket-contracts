@@ -290,6 +290,7 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         return _userData[account].tokenBalance;
     }
 
+    /// @inheritdoc ITickets
     function grandfatherCount(address account) external view returns (uint256) {
         UserData memory userDataMem = _userData[account];
         if (roundNumber() == 0) return 0;
