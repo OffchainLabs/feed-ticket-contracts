@@ -266,7 +266,7 @@ Users can use the same API key for multiple purchases. Using the same key for mu
 
 # How the Sequencer Uses the System
 
-The sequencer subscribes to `TicketPurchased` to reconstruct the list of ticket holders and their key hashes for each round in real time.
+The sequencer subscribes to `TicketPurchased` to reconstruct the list of ticket holders and their key hashes for each round in real time. Each event carries a `numTickets` field; one event may represent more than one ticket, and a buyer may emit several events in a round, so per-key active ticket counts must be aggregated as `sum(numTickets)` across all events with the same `apiKeyHash` in the round.
 
 When a round ends/advances, the sequencer compares the new list of api keys to the old list of api keys. Any overlap between the previously active keys and currently active keys should not have their websocket connections closed. Keys that were included in the previous set and not in the new set have their connection closed. When a new connection comes in, the provided API key is hashed and checked against the list of currently active key hashes.
 
