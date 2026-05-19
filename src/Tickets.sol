@@ -291,18 +291,22 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         return _userData[account].tokenBalance;
     }
 
+    /// @inheritdoc ITickets
     function evenTicketsHeld(address account) external view returns (uint256) {
         return _userData[account].evenTicketsHeld;
     }
 
+    /// @inheritdoc ITickets
     function oddTicketsHeld(address account) external view returns (uint256) {
         return _userData[account].oddTicketsHeld;
     }
 
+    /// @inheritdoc ITickets
     function lastEvenRoundPurchased(address account) external view returns (uint256) {
         return _userData[account].lastEvenRoundPurchased;
     }
 
+    /// @inheritdoc ITickets
     function lastOddRoundPurchased(address account) external view returns (uint256) {
         return _userData[account].lastOddRoundPurchased;
     }
