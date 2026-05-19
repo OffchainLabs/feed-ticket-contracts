@@ -117,38 +117,50 @@ function purchaseTickets(uint256 expectedRound, uint256 expectedPrice, uint256 n
     if (numTickets == 0) revert ZeroTicketsRequested();
     if (expectedRound != _roundNumber) revert RoundNumberMismatch(expectedRound, _roundNumber);
     if (expectedPrice != _currentPrice) revert IncorrectTicketPrice(expectedPrice, _currentPrice);
-    if (_ticketsSoldThisRound + numTickets > _maxTicketsPerRound) revert MaxTicketsSold();
+    if (uint256(_ticketsSoldThisRound) + uint256(numTickets) > uint256(_maxTicketsPerRound)) {
+        revert MaxTicketsSold();
+    }
+
+    uint16 _numTickets = numTickets.toUint16();
     uint256 cost = expectedPrice * numTickets;
-    if (_userData[msg.sender].tokenBalance < cost) revert InsufficientTokenBalance(...);
 
-    // Grandfather phase: caller may consume up to the count they held in the previous round.
-    // We track two parity-keyed counters in `_userData[msg.sender]` so the prior-round count is
-    // always readable from the opposite-parity slot without first clearing it.
-    UserData storage u = _userData[msg.sender];
-    if (_roundNumber > 0 && block.timestamp < _roundStart + (_roundDuration * _grandfatherPeriodFraction) / 256) {
-        bool isEven = _roundNumber % 2 == 0;
-        uint40 priorRound  = isEven ? u.lastOddRoundPurchased : u.lastEvenRoundPurchased;
-        uint16 priorHeld   = isEven ? u.oddTicketsHeld        : u.evenTicketsHeld;
-        if (priorRound != _roundNumber - 1 || priorHeld < numTickets) {
-            revert NotEnoughGrandfatheredTickets(priorRound == _roundNumber - 1 ? priorHeld : 0, numTickets);
+    UserData memory userDataMem = _userData[msg.sender];
+    if (userDataMem.tokenBalance < cost) {
+        revert InsufficientTokenBalance(userDataMem.tokenBalance, cost);
+    }
+
+    bool roundIsEven = _roundNumber % 2 == 0;
+
+    // forge-lint: disable-start(block-timestamp)
+    if (
+        _roundNumber > 0
+            && block.timestamp
+                < uint256(_roundStart) + (uint256(_roundDuration) * uint256(_grandfatherPeriodFraction)) / 256
+    ) {
+        uint16 grandfatherTickets = _ticketCount(userDataMem, _roundNumber - 1);
+        if (grandfatherTickets < _numTickets) {
+            revert NotEnoughGrandfatheredTickets(grandfatherTickets, _numTickets);
         }
-        // Decrement the opposite-parity counter by the consumed amount.
-        if (isEven) u.oddTicketsHeld  = priorHeld - numTickets;
-        else        u.evenTicketsHeld = priorHeld - numTickets;
-    }
 
-    u.tokenBalance -= uint144(cost);
-    // Accumulate into the current parity's counter: repeat purchases in the same round add up.
-    if (_roundNumber % 2 == 0) {
-        u.evenTicketsHeld = (u.lastEvenRoundPurchased == _roundNumber ? u.evenTicketsHeld : 0) + numTickets;
-        u.lastEvenRoundPurchased = _roundNumber;
+        if (roundIsEven) userDataMem.oddTicketsHeld = grandfatherTickets - _numTickets;
+        else userDataMem.evenTicketsHeld = grandfatherTickets - _numTickets;
+    }
+    // forge-lint: disable-end(block-timestamp)
+
+    userDataMem.tokenBalance -= cost.toUint144();
+    uint16 prevHeld = _ticketCount(userDataMem, _roundNumber);
+    if (roundIsEven) {
+        userDataMem.evenTicketsHeld = prevHeld + _numTickets;
+        userDataMem.lastEvenRoundPurchased = _roundNumber;
     } else {
-        u.oddTicketsHeld = (u.lastOddRoundPurchased == _roundNumber ? u.oddTicketsHeld : 0) + numTickets;
-        u.lastOddRoundPurchased = _roundNumber;
+        userDataMem.oddTicketsHeld = prevHeld + _numTickets;
+        userDataMem.lastOddRoundPurchased = _roundNumber;
     }
-    _ticketsSoldThisRound += numTickets;
 
-    emit TicketPurchased(msg.sender, _roundNumber, apiKeyHash, expectedPrice, numTickets);
+    _userData[msg.sender] = userDataMem;
+    _ticketsSoldThisRound += _numTickets;
+
+    emit TicketPurchased(msg.sender, _roundNumber, apiKeyHash, expectedPrice, _numTickets);
 }
 ```
 

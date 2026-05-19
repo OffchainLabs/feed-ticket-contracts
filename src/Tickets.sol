@@ -219,7 +219,7 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
                 && block.timestamp
                     < uint256(_roundStart) + (uint256(_roundDuration) * uint256(_grandfatherPeriodFraction)) / 256
         ) {
-            uint16 grandfatherTickets = _grandfatherCount(userDataMem, _roundNumber);
+            uint16 grandfatherTickets = _ticketCount(userDataMem, _roundNumber - 1);
             if (grandfatherTickets < _numTickets) {
                 revert NotEnoughGrandfatheredTickets(grandfatherTickets, _numTickets);
             }
@@ -230,17 +230,11 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         // forge-lint: disable-end(block-timestamp)
 
         userDataMem.tokenBalance -= cost.toUint144();
-        uint16 prevHeld = 0;
+        uint16 prevHeld = _ticketCount(userDataMem, _roundNumber);
         if (roundIsEven) {
-            if (userDataMem.lastEvenRoundPurchased == _roundNumber) {
-                prevHeld = userDataMem.evenTicketsHeld;
-            }
             userDataMem.evenTicketsHeld = prevHeld + _numTickets;
             userDataMem.lastEvenRoundPurchased = _roundNumber;
         } else {
-            if (userDataMem.lastOddRoundPurchased == _roundNumber) {
-                prevHeld = userDataMem.oddTicketsHeld;
-            }
             userDataMem.oddTicketsHeld = prevHeld + _numTickets;
             userDataMem.lastOddRoundPurchased = _roundNumber;
         }
@@ -288,7 +282,14 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
 
     /// @inheritdoc ITickets
     function grandfatherCount(address account) external view returns (uint256) {
-        return _grandfatherCount(_userData[account], roundNumber());
+        uint256 __roundNumber = roundNumber();
+        if (__roundNumber == 0) return 0;
+        return _ticketCount(_userData[account], __roundNumber - 1);
+    }
+
+    /// @inheritdoc ITickets
+    function thisRoundTicketCount(address account) external view returns (uint256) {
+        return _ticketCount(_userData[account], roundNumber());
     }
 
     /// @inheritdoc ITickets
@@ -434,14 +435,13 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         emit GrandfatherPeriodFractionQueued(newFraction);
     }
 
-    function _grandfatherCount(UserData memory userDataMem, uint256 __roundNumber) internal pure returns (uint16) {
-        if (__roundNumber == 0) return 0;
+    function _ticketCount(UserData memory userDataMem, uint256 __roundNumber) internal pure returns (uint16) {
         bool isEvenRound = __roundNumber % 2 == 0;
-        uint40 grandfatherRound = isEvenRound ? userDataMem.lastOddRoundPurchased : userDataMem.lastEvenRoundPurchased;
-        if (grandfatherRound != __roundNumber - 1) {
-            return 0;
+        if (isEvenRound) {
+            return userDataMem.lastEvenRoundPurchased == __roundNumber ? userDataMem.evenTicketsHeld : 0;
+        } else {
+            return userDataMem.lastOddRoundPurchased == __roundNumber ? userDataMem.oddTicketsHeld : 0;
         }
-        return isEvenRound ? userDataMem.oddTicketsHeld : userDataMem.evenTicketsHeld;
     }
 
     /// @dev On the first mutative call of a new round, rolls stored round state forward and

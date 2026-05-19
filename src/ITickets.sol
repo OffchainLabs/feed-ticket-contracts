@@ -165,6 +165,9 @@ interface ITickets {
     /// @param  account The account whose grandfather count to read.
     function grandfatherCount(address account) external view returns (uint256);
 
+    /// @notice Tickets `account` has purchased so far in the current round
+    function thisRoundTicketCount(address account) external view returns (uint256);
+
     /// @notice Account that receives ticket sale proceeds.
     function beneficiary() external view returns (address);
 
