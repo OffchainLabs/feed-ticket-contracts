@@ -5,9 +5,12 @@ pragma solidity ^0.8.20;
 
 import {Test} from "forge-std/Test.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+import {ERC20Mock} from "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
 import {Tickets} from "../src/Tickets.sol";
 
 contract TicketsHarness is Tickets {
+    constructor(address _token) Tickets(_token) {}
+
     function exposed_storedRoundNumber() external view returns (uint256) {
         return _roundNumber;
     }
@@ -24,8 +27,16 @@ contract TicketsHarness is Tickets {
         return _currentPrice;
     }
 
+    function exposed_storedProceeds() external view returns (uint256) {
+        return _storedProceeds;
+    }
+
     function exposed_setTicketsSoldThisRound(uint256 amount) external {
         _ticketsSoldThisRound = uint16(amount);
+    }
+
+    function exposed_setCurrentPrice(uint256 price) external {
+        _currentPrice = uint72(price);
     }
 
     function exposed_lazyUpdateRoundState() external {
@@ -44,6 +55,7 @@ contract TicketsHarness is Tickets {
 abstract contract BaseTicketsTest is Test {
     TicketsHarness impl;
     TicketsHarness tickets;
+    ERC20Mock token;
 
     address proxyAdmin = makeAddr("proxyAdmin");
     address defaultAdmin = makeAddr("defaultAdmin");
@@ -62,9 +74,18 @@ abstract contract BaseTicketsTest is Test {
 
     function setUp() public virtual {
         vm.warp(FIRST_ROUND_START - 1);
-        impl = new TicketsHarness();
+        token = new ERC20Mock();
+        impl = new TicketsHarness(address(token));
         tickets = TicketsHarness(address(new TransparentUpgradeableProxy(address(impl), proxyAdmin, _initData())));
         vm.warp(FIRST_ROUND_START);
+    }
+
+    function _deposit(address user, uint256 amount) internal {
+        token.mint(user, amount);
+        vm.startPrank(user);
+        token.approve(address(tickets), amount);
+        tickets.depositToken(amount);
+        vm.stopPrank();
     }
 
     function _initData() internal view returns (bytes memory) {

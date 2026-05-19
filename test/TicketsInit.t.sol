@@ -24,6 +24,11 @@ contract TicketsInitTest is BaseTicketsTest {
         assertEq(tickets.exposed_storedRoundStart(), FIRST_ROUND_START);
     }
 
+    function test_token_returnsConstructorAddress() public view {
+        assertEq(tickets.token(), address(token));
+        assertEq(impl.token(), address(token));
+    }
+
     function test_initialize_grantsRoles() public view {
         assertTrue(tickets.hasRole(tickets.DEFAULT_ADMIN_ROLE(), defaultAdmin));
         assertTrue(tickets.hasRole(tickets.BENEFICIARY_SETTER(), beneficiarySetter));

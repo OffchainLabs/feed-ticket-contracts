@@ -9,6 +9,8 @@ The basic mechanism is as follows:
 - Once the round ends the newly purchased tickets become "active", while tickets from prior rounds become "inactive" (i.e. the sequencer no longer respects the old tickets and starts respecting the new ones)
 - Once the round ends, the next one begins immediately with a new price which is set by an EIP-4844 like mechanism. 
 
+Tickets are paid for in a specific ERC-20 token, chosen at deployment time and immutable thereafter. Users first deposit tokens to fund an internal balance held by the contract; each ticket purchase debits the caller's internal balance.
+
 # Actors & Trust Model
 
 - Sequencer
@@ -18,7 +20,7 @@ The basic mechanism is as follows:
 - Beneficiary
     - The beneficiary is trusted to not sybil the auction. The beneficiary can purchase tickets for free, thereby reducing the real supply and pushing the price up arbitrarily (even to the point of DoS).
 - Proxy Admin
-    - Can upgrade the `Tickets` contract arbitrarily. Can steal any sale proceeds that haven't yet been flushed to the beneficiary.
+    - Can upgrade the `Tickets` contract arbitrarily. Can steal any sale proceeds that haven't yet been flushed to the beneficiary, as well as any user-deposited token balances that have not yet been spent on a ticket or withdrawn.
 - Users
     - Have no special privileges. Are allowed and expected to sybil for multiple tickets.
 
@@ -26,16 +28,19 @@ The basic mechanism is as follows:
 
 1 ticket per address per round. 1 connection per ticket. 1 API key per ticket. Multiple tickets may have the same API key.
 
-We update round information lazily on the first mutative call during the round. We keep this state private since it can be stale. We expose view functions that will apply appropriate changes to stored round information before returning it.
+We update round information lazily on the first mutative call that lands in a round later than the stored round. We keep this state private since it can be stale. We expose view functions that will apply appropriate changes to stored round information before returning it.
 
 Admin setters queue their new values rather than applying them immediately. Queued values are applied by the round's lazy-update. Concretely, a value queued in round `R` is committed to storage at the start of the first round strictly after `R` that sees a mutative call. Rounds with no mutative calls are skipped. The queued value keeps waiting in `next*` storage until activity resumes.
 
 The view functions for the queued admin params surface the queued value as soon as one round has elapsed (even before a mutative call has committed it to storage). However, if there is no mutative call in the current round, the contract's own arithmetic still uses the previous stored value, so the view's "as-if-rolled-forward" answer can diverge from the value actually in effect until a mutative call reconciles them.
 
-The only mutative calls that _do not_ trigger lazy update are setting the beneficiary and distributing funds. This keeps a fund-rescue path live even if a bug in the lazy update would otherwise cause it to revert.
+The mutative calls that _do not_ trigger lazy update are setting the beneficiary, distributing funds, and depositing/withdrawing payment tokens. For beneficiary/distribute this keeps a fund-rescue path live even if a bug in the lazy update would otherwise cause it to revert; for deposit/withdraw the round state is irrelevant to the operation, so we skip the work.
+
+A dedicated permissionless entry point, `commitRoundState`, calls the lazy-update path directly.
 
 `Tickets` has the following public state:
 - `beneficiary` - account that receives sale proceeds
+- `token` - the ERC-20 used as payment. Immutable, set at construction.
 - `isAdminUpdateQueued` - true if any of the `next*` fields (or `excessTicketsSoldOverride`) below holds a queued update that has not yet been committed by lazy update.
 - `nextRoundDuration` - if set, upcoming rounds will use this duration
 - `nextTargetTicketsPerRound` - if set, upcoming rounds will use it
@@ -44,7 +49,8 @@ The only mutative calls that _do not_ trigger lazy update are setting the benefi
 - `nextPriceUpdateFraction` - if set, upcoming rounds will use it
 - `nextGrandfatherPeriodFraction` - if set, upcoming rounds will use it
 - `excessTicketsSoldOverride` - queued override for `excessTicketsSold()`
-- `grandfatheredIntoRound` - maps user => the round into which they are grandfathered (i.e. the round in which they may purchase during the grandfather phase). Concretely, after a user purchases a ticket in round `R`, this is set to `R + 1`. Returns 0 if the user has never purchased; the +1 encoding lets us distinguish "never bought" from "bought in round 0".
+- `grandfatheredIntoRound(user)` - the round into which `user` is grandfathered (i.e. the round in which they may purchase during the grandfather phase). Concretely, after a user purchases a ticket in round `R`, this is set to `R + 1`. Returns 0 if the user has never purchased; the +1 encoding lets us distinguish "never bought" from "bought in round 0".
+- `tokenBalance(account)` - `account`'s internal payment-token balance, available to be spent on ticket purchases or returned via `withdrawToken`. Credited by `depositToken`, debited by `purchaseTicket`/`withdrawToken`. Packed alongside `grandfatheredIntoRound` in a per-account `UserData` struct.
 
 Private state (committed lazily on the first mutative call in a new round):
 - `_roundNumber` - the recorded current round number
@@ -58,6 +64,7 @@ Private state (committed lazily on the first mutative call in a new round):
 - `_minimumPrice` - the stored minimum price; replaced by `nextMinimumPrice` when committed
 - `_priceUpdateFraction` - the stored pricing fraction; replaced by `nextPriceUpdateFraction` when committed
 - `_grandfatherPeriodFraction` - the stored grandfather phase length, as a numerator over 256 of the round duration (e.g. `128` = half-round). Replaced by `nextGrandfatherPeriodFraction` when committed
+- `_storedProceeds` - accumulated payment-token proceeds from rounds prior to the last lazy update, minus distributions already made. Incremented by `_ticketsSoldThisRound * _currentPrice` during lazy update at round rollover, drained to zero by `distributeSaleProceeds`
 
 In addition to the public state, `Tickets` has the following view functions:
 - `roundDuration()` - the duration of a round
@@ -96,35 +103,63 @@ In addition to the public state, `Tickets` has the following view functions:
 - `currentPrice()` - the ticket price (in wei) for the current round
     - see `fake_exponential` in https://eips.ethereum.org/EIPS/eip-4844
     - `return min(fake_exponential(minimumPrice(), excessTicketsSold(), priceUpdateFraction()), type(uint72).max)`
-        - the price is stored as `uint72` and clamped at `type(uint72).max` (~4722 ether). If the formula would exceed that cap, tickets are sold at the cap rather than at the higher formula price.
+        - the price is stored as `uint72` and clamped at `type(uint72).max` (~4722e18). If the formula would exceed that cap, tickets are sold at the cap rather than at the higher formula price.
         - to get an idea of how to set `priceUpdateFraction`, see the "Base fee per blob gas update rule" in EIP-4844
 
 `Tickets` has the following mutative functions:
 
 ```solidity
-function purchaseTicket(uint256 expectedRound, bytes32 apiKeyHash) external payable {
+function purchaseTicket(uint256 expectedRound, uint256 expectedPrice, bytes32 apiKeyHash) external {
     _lazyUpdateRoundState();
     if (expectedRound != _roundNumber) revert RoundNumberMismatch(expectedRound, _roundNumber);
-    if (msg.value != _currentPrice) revert IncorrectTicketPrice(msg.value, _currentPrice);
+    if (expectedPrice != _currentPrice) revert IncorrectTicketPrice(expectedPrice, _currentPrice);
     if (_ticketsSoldThisRound >= _maxTicketsPerRound) revert MaxTicketsSold();
-    if (grandfatheredIntoRound[msg.sender] == _roundNumber + 1) revert AlreadyPurchasedInRound();
+    if (_userData[msg.sender].grandfatheredRound == _roundNumber + 1) revert AlreadyPurchasedInRound();
+    if (_userData[msg.sender].tokenBalance < expectedPrice) revert InsufficientTokenBalance(...);
 
     if (_roundNumber > 0 && block.timestamp < _roundStart + (_roundDuration * _grandfatherPeriodFraction) / 256) {
-        if (grandfatheredIntoRound[msg.sender] != _roundNumber) revert NotGrandfathered();
+        if (_userData[msg.sender].grandfatheredRound != _roundNumber) revert NotGrandfathered();
     }
 
     _ticketsSoldThisRound++;
-    grandfatheredIntoRound[msg.sender] = _roundNumber + 1;
+    _userData[msg.sender].grandfatheredRound = _roundNumber + 1;
+    _userData[msg.sender].tokenBalance -= uint216(expectedPrice);
 
-    emit TicketPurchased(msg.sender, _roundNumber, apiKeyHash, msg.value);
+    emit TicketPurchased(msg.sender, _roundNumber, apiKeyHash, expectedPrice);
+}
+```
+
+The caller declares the price they expect via `expectedPrice`; the contract verifies it equals `currentPrice()` and debits that amount from the caller's deposited token balance.
+
+```solidity
+function depositToken(uint256 amount) external {
+    _userData[msg.sender].tokenBalance += amount.toUint216();
+    IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
+    emit TokensDeposited(msg.sender, amount);
+}
+
+function withdrawToken(uint256 amount) external {
+    if (_userData[msg.sender].tokenBalance < amount) revert InsufficientTokenBalance(...);
+    _userData[msg.sender].tokenBalance -= amount.toUint216();
+    IERC20(token).safeTransfer(msg.sender, amount);
+    emit TokensWithdrawn(msg.sender, amount);
 }
 ```
 
 ```solidity
 function distributeSaleProceeds() external {
-    (bool success,) = beneficiary.call{value: address(this).balance}("");
-    if (!success) revert PaymentFailed();
-    emit ProceedsDistributed(...);
+    uint256 amount = _storedProceeds;
+    _storedProceeds = 0;
+    IERC20(token).safeTransfer(beneficiary, amount);
+    emit ProceedsDistributed(beneficiary, amount);
+}
+```
+
+`distributeSaleProceeds` only forwards proceeds that lazy update has already credited to `_storedProceeds`. Revenue from a finished but uncommitted round can be flushed first by calling `commitRoundState` (permissionless).
+
+```solidity
+function commitRoundState() external {
+    _lazyUpdateRoundState();
 }
 ```
 
@@ -178,7 +213,7 @@ Hot path state lives in slot 0 and a common-case purchase only loads that slot. 
 Slot 0:
 - `_roundDuration` (uint24 seconds): up to ~194 days per round
 - `_maxTicketsPerRound` (uint16): up to 65,535 tickets per round
-- `_currentPrice` (uint72): cached so we don't recompute the Taylor series on each purchase; capped at ~4722 ether
+- `_currentPrice` (uint72): cached so we don't recompute the Taylor series on each purchase; capped at ~4722e18
 - `_roundNumber` (uint40): at 1-second rounds, well past uint32's ~136-year limit
 - `_roundStart` (uint40 seconds): Unix timestamps past year 36800
 - `_grandfatherPeriodFraction` (uint8): numerator over 256 of the round duration
@@ -186,24 +221,23 @@ Slot 0:
 - `_priceUpdateFraction` (uint40): 23 bits cover a 1% max change at target=1, max=65535; widened to uint40 to fill slot 0
 
 Slot 1:
-- `_minimumPrice` (uint64): up to ~18.4 ether
+- `_minimumPrice` (uint64): up to ~18.4e18
 - `_targetTicketsPerRound` (uint16): matches `_maxTicketsPerRound`'s range
 - `_excessTicketsSold` (uint56): worst case is uint16 cap per round * uint40 rounds = 2^56
 - `isAdminUpdateQueued` (bool)
-- `nextRoundDuration` (uint24): matches `_roundDuration`
-- `nextTargetTicketsPerRound` (uint16): matches `_targetTicketsPerRound`
-- `nextMaxTicketsPerRound` (uint16): matches `_maxTicketsPerRound`
-- `nextPriceUpdateFraction` (uint40): matches `_priceUpdateFraction`
-- `nextGrandfatherPeriodFraction` (uint8): matches `_grandfatherPeriodFraction`
+- `_storedProceeds` (uint112): accumulated proceeds awaiting distribution; sized to fill the remainder of slot 1
 
 Slots 2+:
+- `nextRoundDuration` (uint24), `nextTargetTicketsPerRound` (uint16), `nextMaxTicketsPerRound` (uint16), `nextPriceUpdateFraction` (uint40), `nextGrandfatherPeriodFraction` (uint8)
+- `nextMinimumPrice` (uint64), `excessTicketsSoldOverride` (uint56)
 - `beneficiary` (address): account that receives sale proceeds
-- `nextMinimumPrice` (uint64): matches `_minimumPrice`
-- `excessTicketsSoldOverride` (uint56): matches `_excessTicketsSold`.
+- `_userData` mapping of `address => UserData`, where `UserData` packs `grandfatheredRound` (uint40) and `tokenBalance` (uint216) into a single 32-byte slot per account.
 
 # How Buyers Use the System
 
-Each round, purchase tickets through the `Tickets` contract, passing in the hash of an API key they've generated. 
+Before a purchase, the buyer ERC-20-approves the `Tickets` contract for the desired amount of the payment token and calls `depositToken(amount)` to move those tokens into an internal balance held by the contract.
+
+Each round, buyers then call `purchaseTicket(expectedRound, expectedPrice, apiKeyHash)`. The contract verifies `expectedRound` and `expectedPrice` against current state (so a buyer never accidentally pays a new round's higher price) and debits `expectedPrice` from the caller's deposited balance. Any unused balance can be returned to the caller at any time via `withdrawToken`.
 
 Users can use the same API key for multiple purchases. Using the same key to purchase two tickets in the same round is permitted.
 
@@ -219,24 +253,18 @@ The sequencer cannot allow more open connections per key than the number of acti
 
 ## Continuous Pricing Across Param Updates
 
-The price is `currentPrice = fake_exponential(M, E, F) ≈ M · e^(E/F)` where `M = minimumPrice`, `E = excessTicketsSold`, `F = priceUpdateFraction`. By default, changing `nextMinimumPrice` / `nextPriceUpdateFraction` causes the price to jump discontinuously.
+The price is `currentPrice = fake_exponential(M, E, F) ~= M * e^(E/F)` where `M = minimumPrice`, `E = excessTicketsSold`, `F = priceUpdateFraction`. By default, changing `nextMinimumPrice` / `nextPriceUpdateFraction` causes the price to jump discontinuously.
 
 To make the price continuous across a pricing-param update, recompute `E` during lazy update (at the moment the new params are applied) so that
 
 ```
-M' · e^(E'/F') = M · e^(E/F)
+M' * e^(E'/F') = M * e^(E/F)
 ```
 
 Solving for `E'`:
 
 ```
-E' = F' · ln(M/M') + E · F'/F
+E' = F' * ln(M/M') + E * F'/F
 ```
 
 At the moment, we've deemed discontinuous jumps acceptable.
-
-## ERC-20 as Currency
-
-Currently we use ETH, we might want to use ERC-20.
-
-## Multiple tickets per address

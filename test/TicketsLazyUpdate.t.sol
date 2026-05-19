@@ -188,9 +188,9 @@ contract TicketsLazyUpdateTest is BaseTicketsTest {
         address buyer = makeAddr("buyer");
 
         // Buyer needs a round 0 ticket to be grandfathered for round 1's grandfather phase.
-        vm.deal(buyer, MINIMUM_PRICE);
+        _deposit(buyer, MINIMUM_PRICE);
         vm.prank(buyer);
-        tickets.purchaseTicket{value: MINIMUM_PRICE}(0, bytes32(0));
+        tickets.purchaseTicket(0, MINIMUM_PRICE, bytes32(0));
 
         vm.startPrank(marketParamsSetter);
         tickets.setRoundDuration(2 hours);
@@ -212,9 +212,9 @@ contract TicketsLazyUpdateTest is BaseTicketsTest {
         uint256 excessBefore = tickets.excessTicketsSold();
         uint256 priceBefore = tickets.currentPrice();
 
-        vm.deal(buyer, priceBefore);
+        _deposit(buyer, priceBefore);
         vm.prank(buyer);
-        tickets.purchaseTicket{value: priceBefore}(1, bytes32(0));
+        tickets.purchaseTicket(1, priceBefore, bytes32(0));
 
         assertEq(tickets.roundDuration(), roundDurBefore);
         assertEq(tickets.targetTicketsPerRound(), targetBefore);
@@ -345,5 +345,37 @@ contract TicketsLazyUpdateTest is BaseTicketsTest {
         assertEq(tickets.roundNumber(), 2);
 
         assertEq(tickets.grandfatherPeriodFraction(), newFraction);
+    }
+
+    /// @dev Boundary: one round has fully elapsed. commitRoundState credits the closing round's
+    ///      revenue to `_storedProceeds` and advances stored round number.
+    function test_commitRoundState_creditsRevenueAfterRoundEnd() public {
+        address buyer = makeAddr("buyer");
+        _deposit(buyer, MINIMUM_PRICE);
+        vm.prank(buyer);
+        tickets.purchaseTicket(0, MINIMUM_PRICE, bytes32(0));
+
+        assertEq(tickets.exposed_storedProceeds(), 0);
+
+        vm.warp(FIRST_ROUND_START + ROUND_DURATION);
+        vm.prank(makeAddr("watcher"));
+        tickets.commitRoundState();
+
+        assertEq(tickets.exposed_storedProceeds(), MINIMUM_PRICE);
+        assertEq(tickets.exposed_storedRoundNumber(), 1);
+    }
+
+    /// @dev Boundary - 1: one second before the round ends. commitRoundState is a no-op.
+    function test_commitRoundState_noOpBeforeRoundEnd() public {
+        address buyer = makeAddr("buyer");
+        _deposit(buyer, MINIMUM_PRICE);
+        vm.prank(buyer);
+        tickets.purchaseTicket(0, MINIMUM_PRICE, bytes32(0));
+
+        vm.warp(FIRST_ROUND_START + ROUND_DURATION - 1);
+        tickets.commitRoundState();
+
+        assertEq(tickets.exposed_storedProceeds(), 0);
+        assertEq(tickets.exposed_storedRoundNumber(), 0);
     }
 }
