@@ -158,31 +158,15 @@ interface ITickets {
     /// @param  account The account whose balance to read.
     function tokenBalance(address account) external view returns (uint256);
 
-    /// @notice Tickets `account` is recorded as holding from `lastEvenRoundPurchased(account)`.
-    ///         Decremented as the account exercises grandfather rights in the following odd round.
-    ///         Stale once two rounds have elapsed past `lastEvenRoundPurchased(account)`; consult
-    ///         that view to interpret.
-    /// @param  account The account whose even-round ticket count to read.
-    function evenTicketsHeld(address account) external view returns (uint256);
-
-    /// @notice Tickets `account` is recorded as holding from `lastOddRoundPurchased(account)`.
-    ///         Decremented as the account exercises grandfather rights in the following even round.
-    ///         Stale once two rounds have elapsed past `lastOddRoundPurchased(account)`; consult
-    ///         that view to interpret.
-    /// @param  account The account whose odd-round ticket count to read.
-    function oddTicketsHeld(address account) external view returns (uint256);
-
-    /// @notice The most recent even-numbered round in which `account` purchased one or more
-    ///         tickets. Zero if `account` has never purchased in an even round (with round 0
-    ///         indistinguishable from "never"). Pairs with `evenTicketsHeld`.
-    /// @param  account The account whose latest even-round purchase to read.
-    function lastEvenRoundPurchased(address account) external view returns (uint256);
-
-    /// @notice The most recent odd-numbered round in which `account` purchased one or more
-    ///         tickets. Zero if `account` has never purchased in an odd round. Pairs with
-    ///         `oddTicketsHeld`.
-    /// @param  account The account whose latest odd-round purchase to read.
-    function lastOddRoundPurchased(address account) external view returns (uint256);
+    /// @notice Tickets `account` can still claim under grandfather rules in the current round:
+    ///         tickets purchased in the prior round that have not already been exercised this
+    ///         round. Returns 0 in round 0, when `account` did not purchase in the prior round,
+    ///         or once all such tickets have been grandfathered this round.
+    /// @dev    Counter-based only; does not check whether the grandfather phase window is still
+    ///         open. Uses `roundNumber()`, so it reflects rounds that have elapsed since the
+    ///         stored round even before a mutative call commits them.
+    /// @param  account The account whose grandfather count to read.
+    function grandfatherCount(address account) external view returns (uint256);
 
     /// @notice Account that receives ticket sale proceeds.
     function beneficiary() external view returns (address);
