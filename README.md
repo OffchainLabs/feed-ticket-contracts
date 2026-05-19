@@ -49,8 +49,7 @@ A dedicated permissionless entry point, `commitRoundState`, calls the lazy-updat
 - `nextPriceUpdateFraction` - if set, upcoming rounds will use it
 - `nextGrandfatherPeriodFraction` - if set, upcoming rounds will use it
 - `excessTicketsSoldOverride` - queued override for `excessTicketsSold()`
-- `evenTicketsHeld(user)` / `oddTicketsHeld(user)` - tickets `user` is recorded as holding from their most recent purchase in an even / odd round. Decremented when `user` exercises grandfather rights in the following opposite-parity round. Stale once two rounds have elapsed past the corresponding `last*RoundPurchased`; pair the two views to interpret.
-- `lastEvenRoundPurchased(user)` / `lastOddRoundPurchased(user)` - the most recent even / odd round in which `user` purchased tickets. Returns 0 if the user has never purchased in that parity (with round 0 indistinguishable from "never" for the even getter).
+- `grandfatherCount(account)` - tickets `account` can still claim under grandfather rules in the current round: tickets purchased in the prior round that have not already been exercised this round. Returns 0 in round 0, when `account` did not purchase in the prior round, or once all such tickets have been grandfathered this round. Does not gate on whether the grandfather phase window is still open in the current round; purely counter-based.
 - `tokenBalance(account)` - `account`'s internal payment-token balance, available to be spent on ticket purchases or returned via `withdrawToken`. Credited by `depositToken`, debited by `purchaseTickets`/`withdrawToken`. Packed alongside the parity ticket counters in a per-account `UserData` struct.
 
 Private state (committed lazily on the first mutative call in a new round):
@@ -123,28 +122,29 @@ function purchaseTickets(uint256 expectedRound, uint256 expectedPrice, uint256 n
     if (_userData[msg.sender].tokenBalance < cost) revert InsufficientTokenBalance(...);
 
     // Grandfather phase: caller may consume up to the count they held in the previous round.
-    // We track two parity-keyed counters so the prior-round count is always readable from the
-    // opposite-parity slot without first clearing it.
+    // We track two parity-keyed counters in `_userData[msg.sender]` so the prior-round count is
+    // always readable from the opposite-parity slot without first clearing it.
+    UserData storage u = _userData[msg.sender];
     if (_roundNumber > 0 && block.timestamp < _roundStart + (_roundDuration * _grandfatherPeriodFraction) / 256) {
         bool isEven = _roundNumber % 2 == 0;
-        uint40 priorRound  = isEven ? lastOddRoundPurchased : lastEvenRoundPurchased;
-        uint16 priorHeld   = isEven ? oddTicketsHeld        : evenTicketsHeld;
+        uint40 priorRound  = isEven ? u.lastOddRoundPurchased : u.lastEvenRoundPurchased;
+        uint16 priorHeld   = isEven ? u.oddTicketsHeld        : u.evenTicketsHeld;
         if (priorRound != _roundNumber - 1 || priorHeld < numTickets) {
             revert NotEnoughGrandfatheredTickets(priorRound == _roundNumber - 1 ? priorHeld : 0, numTickets);
         }
         // Decrement the opposite-parity counter by the consumed amount.
-        if (isEven) oddTicketsHeld  = priorHeld - numTickets;
-        else        evenTicketsHeld = priorHeld - numTickets;
+        if (isEven) u.oddTicketsHeld  = priorHeld - numTickets;
+        else        u.evenTicketsHeld = priorHeld - numTickets;
     }
 
-    _userData[msg.sender].tokenBalance -= uint144(cost);
+    u.tokenBalance -= uint144(cost);
     // Accumulate into the current parity's counter: repeat purchases in the same round add up.
     if (_roundNumber % 2 == 0) {
-        evenTicketsHeld = (lastEvenRoundPurchased == _roundNumber ? evenTicketsHeld : 0) + numTickets;
-        lastEvenRoundPurchased = _roundNumber;
+        u.evenTicketsHeld = (u.lastEvenRoundPurchased == _roundNumber ? u.evenTicketsHeld : 0) + numTickets;
+        u.lastEvenRoundPurchased = _roundNumber;
     } else {
-        oddTicketsHeld = (lastOddRoundPurchased == _roundNumber ? oddTicketsHeld : 0) + numTickets;
-        lastOddRoundPurchased = _roundNumber;
+        u.oddTicketsHeld = (u.lastOddRoundPurchased == _roundNumber ? u.oddTicketsHeld : 0) + numTickets;
+        u.lastOddRoundPurchased = _roundNumber;
     }
     _ticketsSoldThisRound += numTickets;
 
