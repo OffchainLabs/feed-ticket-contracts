@@ -110,7 +110,6 @@ contract TicketsFirstRoundStartTest is BaseTicketsTest {
         _deposit(buyer, MINIMUM_PRICE);
         vm.prank(buyer);
         tickets.purchaseTickets(0, MINIMUM_PRICE, 1, bytes32(0));
-        assertEq(tickets.evenTicketsHeld(buyer), 1);
-        assertEq(tickets.lastEvenRoundPurchased(buyer), 0);
+        assertEq(tickets.ticketsSoldThisRound(), 1);
     }
 }

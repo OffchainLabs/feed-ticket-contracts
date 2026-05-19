@@ -110,8 +110,6 @@ contract TicketsPurchaseTest is BaseTicketsTest {
         vm.prank(buyer);
         tickets.purchaseTickets(0, MINIMUM_PRICE, 1, bytes32(0));
 
-        assertEq(tickets.evenTicketsHeld(buyer), 1);
-        assertEq(tickets.lastEvenRoundPurchased(buyer), 0);
         assertEq(tickets.ticketsSoldThisRound(), 1);
         assertEq(tickets.tokenBalance(buyer), 0);
         assertEq(token.balanceOf(address(tickets)), MINIMUM_PRICE);
@@ -129,8 +127,7 @@ contract TicketsPurchaseTest is BaseTicketsTest {
         vm.prank(buyer);
         tickets.purchaseTickets(1, price, 1, bytes32(0));
 
-        assertEq(tickets.oddTicketsHeld(buyer), 1);
-        assertEq(tickets.lastOddRoundPurchased(buyer), 1);
+        assertEq(tickets.grandfatherCount(buyer), 0);
         assertEq(tickets.ticketsSoldThisRound(), 1);
     }
 
@@ -154,8 +151,7 @@ contract TicketsPurchaseTest is BaseTicketsTest {
         assertEq(tickets.exposed_storedRoundNumber(), 2);
         assertEq(tickets.exposed_storedRoundStart(), FIRST_ROUND_START + 2 * ROUND_DURATION);
         assertEq(tickets.exposed_storedExcessTicketsSold(), 200);
-        assertEq(tickets.evenTicketsHeld(buyer), 1);
-        assertEq(tickets.lastEvenRoundPurchased(buyer), 2);
+        assertEq(tickets.grandfatherCount(buyer), 0);
         assertEq(tickets.ticketsSoldThisRound(), 1);
     }
 
@@ -177,10 +173,8 @@ contract TicketsPurchaseTest is BaseTicketsTest {
         vm.snapshotGasLastCall("second-purchase");
         _logAccesses("second-purchase");
 
-        assertEq(tickets.evenTicketsHeld(buyer), 1);
-        assertEq(tickets.lastEvenRoundPurchased(buyer), 2);
-        assertEq(tickets.evenTicketsHeld(otherBuyer), 1);
-        assertEq(tickets.lastEvenRoundPurchased(otherBuyer), 2);
+        assertEq(tickets.grandfatherCount(buyer), 0);
+        assertEq(tickets.grandfatherCount(otherBuyer), 0);
         assertEq(tickets.ticketsSoldThisRound(), 2);
     }
 
@@ -201,8 +195,6 @@ contract TicketsPurchaseTest is BaseTicketsTest {
         tickets.purchaseTickets(0, MINIMUM_PRICE, n, bytes32(0));
 
         assertEq(tickets.tokenBalance(buyer), 0);
-        assertEq(tickets.evenTicketsHeld(buyer), n);
-        assertEq(tickets.lastEvenRoundPurchased(buyer), 0);
         assertEq(tickets.ticketsSoldThisRound(), n);
     }
 
@@ -216,8 +208,6 @@ contract TicketsPurchaseTest is BaseTicketsTest {
         tickets.purchaseTickets(0, MINIMUM_PRICE, n2, bytes32(0));
         vm.stopPrank();
 
-        assertEq(tickets.evenTicketsHeld(buyer), n1 + n2);
-        assertEq(tickets.lastEvenRoundPurchased(buyer), 0);
         assertEq(tickets.ticketsSoldThisRound(), n1 + n2);
         assertEq(tickets.tokenBalance(buyer), 0);
     }
@@ -259,10 +249,7 @@ contract TicketsPurchaseTest is BaseTicketsTest {
         vm.prank(buyer);
         tickets.purchaseTickets(1, price, k, bytes32(0));
 
-        assertEq(tickets.evenTicketsHeld(buyer), 0);
-        assertEq(tickets.oddTicketsHeld(buyer), k);
-        assertEq(tickets.lastEvenRoundPurchased(buyer), 0);
-        assertEq(tickets.lastOddRoundPurchased(buyer), 1);
+        assertEq(tickets.grandfatherCount(buyer), 0);
     }
 
     /// @dev Boundary + 1: in round 1's grandfather phase a buyer with K tickets in round 0
@@ -302,20 +289,12 @@ contract TicketsPurchaseTest is BaseTicketsTest {
         tickets.purchaseTickets(1, price, 2, bytes32(0));
         vm.stopPrank();
 
-        assertEq(tickets.evenTicketsHeld(buyer), k - 4);
-        assertEq(tickets.oddTicketsHeld(buyer), 4);
-        assertEq(tickets.lastEvenRoundPurchased(buyer), 0);
-        assertEq(tickets.lastOddRoundPurchased(buyer), 1);
+        assertEq(tickets.grandfatherCount(buyer), k - 4);
         assertEq(tickets.ticketsSoldThisRound(), 4);
     }
 
-    function test_parityGetters_returnZeroForNeverPurchasedAccount() public {
-        address fresh = makeAddr("fresh");
-        assertEq(tickets.evenTicketsHeld(fresh), 0);
-        assertEq(tickets.oddTicketsHeld(fresh), 0);
-        assertEq(tickets.lastEvenRoundPurchased(fresh), 0);
-        assertEq(tickets.lastOddRoundPurchased(fresh), 0);
-    }
+    // TODO(step 5): remove. Tests removed parity getters; flagged in cascade(tests-adapt).
+    function test_parityGetters_returnZeroForNeverPurchasedAccount() public {}
 
     function _logAccesses(string memory label) internal {
         (bytes32[] memory reads, bytes32[] memory writes) = vm.accesses(address(tickets));
