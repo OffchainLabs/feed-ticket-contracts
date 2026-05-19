@@ -26,7 +26,7 @@ Tickets are paid for in a specific ERC-20 token, chosen at deployment time and i
 
 # Specification
 
-Up to `maxTicketsPerRound` tickets may be sold per round in total. A single address may buy multiple tickets per round (subject to the grandfather-phase cap below) and may split those purchases across multiple calls. 1 connection per ticket. 1 API key per ticket. Multiple tickets may have the same API key.
+A single address may buy multiple tickets per round. 1 connection per ticket. 1 API key per ticket. Multiple tickets may have the same API key.
 
 We update round information lazily on the first mutative call that lands in a round later than the stored round. We keep this state private since it can be stale. We expose view functions that will apply appropriate changes to stored round information before returning it.
 
@@ -152,7 +152,7 @@ function purchaseTickets(uint256 expectedRound, uint256 expectedPrice, uint256 n
 }
 ```
 
-The caller declares the price they expect via `expectedPrice`; the contract verifies it equals `currentPrice()` and debits `expectedPrice * numTickets` from the caller's deposited token balance. Repeat calls in the same round accumulate into the same parity counter, so a buyer can split a multi-ticket purchase across multiple calls.
+The caller declares the price they expect via `expectedPrice`; the contract verifies it equals `currentPrice()` and debits `expectedPrice * numTickets` from the caller's deposited token balance.
 
 ```solidity
 function depositToken(uint256 amount) external {
@@ -254,19 +254,19 @@ Slots 2+:
 - `nextRoundDuration` (uint24), `nextTargetTicketsPerRound` (uint16), `nextMaxTicketsPerRound` (uint16), `nextPriceUpdateFraction` (uint40), `nextGrandfatherPeriodFraction` (uint8)
 - `nextMinimumPrice` (uint64), `excessTicketsSoldOverride` (uint56)
 - `beneficiary` (address): account that receives sale proceeds
-- `_userData` mapping of `address => UserData`, where `UserData` packs `evenTicketsHeld` (uint16), `oddTicketsHeld` (uint16), `lastEvenRoundPurchased` (uint40), `lastOddRoundPurchased` (uint40), and `tokenBalance` (uint144) into a single 32-byte slot per account. `tokenBalance` covers up to ~2.23e43 wei, far above any plausible deposit; the parity-keyed ticket counters let the grandfather-phase check read the previous round's count without first clearing it.
+- `_userData` mapping of `address => UserData`, where `UserData` packs `evenTicketsHeld` (uint16), `oddTicketsHeld` (uint16), `lastEvenRoundPurchased` (uint40), `lastOddRoundPurchased` (uint40), and `tokenBalance` (uint144) into a single 32-byte slot per account.
 
 # How Buyers Use the System
 
 Before a purchase, the buyer ERC-20-approves the `Tickets` contract for the desired amount of the payment token and calls `depositToken(amount)` to move those tokens into an internal balance held by the contract.
 
-Each round, buyers then call `purchaseTickets(expectedRound, expectedPrice, numTickets, apiKeyHash)`. The contract verifies `expectedRound` and `expectedPrice` against current state (so a buyer never accidentally pays a new round's higher price) and debits `expectedPrice * numTickets` from the caller's deposited balance. `numTickets` must be at least 1; the contract also bounds it by `maxTicketsPerRound - ticketsSoldThisRound()` (and, during the grandfather phase, by the number of tickets the caller held in the previous round). A buyer may split a multi-ticket purchase across multiple calls in the same round - repeat calls accumulate. Any unused balance can be returned to the caller at any time via `withdrawToken`.
+Each round, buyers then call `purchaseTickets(expectedRound, expectedPrice, numTickets, apiKeyHash)`. The contract verifies `expectedRound` and `expectedPrice` against current state (so a buyer never accidentally pays a new round's higher price) and debits `expectedPrice * numTickets` from the caller's deposited balance. Any unused balance can be returned to the caller at any time via `withdrawToken`.
 
-Users can use the same API key for multiple purchases. Using the same key for multiple tickets in the same round (whether in one call or split across several) is permitted.
+Users can use the same API key for multiple purchases. Using the same key for multiple tickets in the same round is permitted.
 
 # How the Sequencer Uses the System
 
-The sequencer subscribes to `TicketPurchased` to reconstruct the list of ticket holders and their key hashes for each round in real time. Each event carries a `numTickets` field; one event may represent more than one ticket, and a buyer may emit several events in a round, so per-key active ticket counts must be aggregated as `sum(numTickets)` across all events with the same `apiKeyHash` in the round.
+The sequencer subscribes to `TicketPurchased` to reconstruct the list of ticket holders and their key hashes for each round in real time.
 
 When a round ends/advances, the sequencer compares the new list of api keys to the old list of api keys. Any overlap between the previously active keys and currently active keys should not have their websocket connections closed. Keys that were included in the previous set and not in the new set have their connection closed. When a new connection comes in, the provided API key is hashed and checked against the list of currently active key hashes.
 
