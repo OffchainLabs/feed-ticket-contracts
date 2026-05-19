@@ -293,8 +293,86 @@ contract TicketsPurchaseTest is BaseTicketsTest {
         assertEq(tickets.ticketsSoldThisRound(), 4);
     }
 
-    // TODO(step 5): remove. Tests removed parity getters; flagged in cascade(tests-adapt).
-    function test_parityGetters_returnZeroForNeverPurchasedAccount() public {}
+    /// @dev Boundary: round 0 is the short-circuit return - even an account that just purchased in
+    ///      round 0 has no grandfathered tickets yet.
+    function test_grandfatherCount_returnsZeroInRoundZeroAfterPurchase() public {
+        _deposit(buyer, MINIMUM_PRICE);
+        vm.prank(buyer);
+        tickets.purchaseTickets(0, MINIMUM_PRICE, 1, bytes32(0));
+
+        assertEq(tickets.grandfatherCount(buyer), 0);
+    }
+
+    /// @dev Boundary partner: in round 0 a never-purchased account also returns 0.
+    function test_grandfatherCount_returnsZeroInRoundZeroForNeverPurchased() public view {
+        assertEq(tickets.grandfatherCount(buyer), 0);
+    }
+
+    /// @dev Boundary + 1 (round-wise): one round after a round-0 purchase, the view returns K
+    ///      before any round-1 purchase consumes the grandfather allowance.
+    function test_grandfatherCount_returnsKInRoundOneBeforeConsumption() public {
+        uint16 k = 5;
+        _deposit(buyer, k * MINIMUM_PRICE);
+        vm.prank(buyer);
+        tickets.purchaseTickets(0, MINIMUM_PRICE, k, bytes32(0));
+
+        vm.warp(FIRST_ROUND_START + ROUND_DURATION);
+
+        assertEq(tickets.grandfatherCount(buyer), k);
+    }
+
+    /// @dev Boundary partner: in round 1 a never-purchased account still returns 0.
+    function test_grandfatherCount_returnsZeroInRoundOneForNeverPurchased() public {
+        vm.warp(FIRST_ROUND_START + ROUND_DURATION);
+        assertEq(tickets.grandfatherCount(buyer), 0);
+    }
+
+    /// @dev Stale parity: a round-0 purchase does not grandfather into round 2. In round 2 the
+    ///      function reads `lastOddRoundPurchased` (= 0) and compares against `roundNumber() - 1`
+    ///      (= 1), so it returns 0.
+    function test_grandfatherCount_returnsZeroInRoundTwoWhenOnlyPurchasedInRoundZero() public {
+        _deposit(buyer, MINIMUM_PRICE);
+        vm.prank(buyer);
+        tickets.purchaseTickets(0, MINIMUM_PRICE, 1, bytes32(0));
+
+        vm.warp(FIRST_ROUND_START + 2 * ROUND_DURATION);
+
+        assertEq(tickets.grandfatherCount(buyer), 0);
+    }
+
+    /// @dev Parity toggling: a round-0 purchase grandfathers into round 1 (opposite parity), is
+    ///      stale by round 2, and remains 0 in round 3.
+    function test_grandfatherCount_parityTogglesAcrossRounds() public {
+        uint16 k = 3;
+        _deposit(buyer, k * MINIMUM_PRICE);
+        vm.prank(buyer);
+        tickets.purchaseTickets(0, MINIMUM_PRICE, k, bytes32(0));
+
+        vm.warp(FIRST_ROUND_START + ROUND_DURATION);
+        assertEq(tickets.grandfatherCount(buyer), k);
+
+        vm.warp(FIRST_ROUND_START + 2 * ROUND_DURATION);
+        assertEq(tickets.grandfatherCount(buyer), 0);
+
+        vm.warp(FIRST_ROUND_START + 3 * ROUND_DURATION);
+        assertEq(tickets.grandfatherCount(buyer), 0);
+    }
+
+    /// @dev Window-agnostic: the view does not gate on whether the grandfather phase is still open.
+    ///      After warping past `grandfatherPeriodEnd()` in round 1, the count is still K.
+    function test_grandfatherCount_returnsKAfterGrandfatherPhaseEnds() public {
+        uint16 k = 4;
+        _deposit(buyer, k * MINIMUM_PRICE);
+        vm.prank(buyer);
+        tickets.purchaseTickets(0, MINIMUM_PRICE, k, bytes32(0));
+
+        vm.warp(FIRST_ROUND_START + ROUND_DURATION);
+        uint256 phaseEnd = tickets.grandfatherPeriodEnd();
+        vm.warp(phaseEnd + 1);
+
+        assertEq(tickets.roundNumber(), 1);
+        assertEq(tickets.grandfatherCount(buyer), k);
+    }
 
     function _logAccesses(string memory label) internal {
         (bytes32[] memory reads, bytes32[] memory writes) = vm.accesses(address(tickets));
