@@ -18,7 +18,7 @@ Tickets are paid for in a specific ERC-20 token, chosen at deployment time and i
 - Market Parameter Setter
     - Can set various market parameters such as max tickets per round, round timing, etc. Changing certain parameters can cause sudden price changes or affect the true value of tickets that have already been purchased.
 - Beneficiary
-    - The beneficiary is trusted to not sybil the auction. The beneficiary can purchase tickets for free, thereby reducing the real supply and pushing the price up arbitrarily (even to the point of DoS).
+    - The beneficiary is trusted to not sybil the auction. The beneficiary can essentially purchase tickets for free, thereby reducing the real supply and pushing the price up arbitrarily. Funds used to buy tickets can only be reclaimed by the beneficiary after the round ends, so atomically recycling the same money to buy tickets is not possible.
 - Proxy Admin
     - Can upgrade the `Tickets` contract arbitrarily. Can steal any sale proceeds that haven't yet been flushed to the beneficiary, as well as any user-deposited token balances that have not yet been spent on a ticket or withdrawn.
 - Users
