@@ -22,7 +22,7 @@ Tickets are paid for in a specific ERC-20 token, chosen at deployment time and i
 - Proxy Admin
     - Can upgrade the `Tickets` contract arbitrarily. Can steal any sale proceeds that haven't yet been flushed to the beneficiary, as well as any user-deposited token balances that have not yet been spent on a ticket or withdrawn.
 - Users
-    - Have no special privileges. Are allowed and expected to sybil for multiple tickets.
+    - Have no special privileges.
 
 # Specification
 
