@@ -39,6 +39,10 @@ contract TicketsHarness is Tickets {
         _currentPrice = uint72(price);
     }
 
+    function exposed_setNextRoundDuration(uint24 v) external {
+        nextRoundDuration = v;
+    }
+
     function exposed_lazyUpdateRoundState() external {
         _lazyUpdateRoundState();
     }

@@ -67,4 +67,52 @@ contract TicketsInitTest is BaseTicketsTest {
         vm.expectRevert(ITickets.FirstRoundStartNotInFuture.selector);
         new TransparentUpgradeableProxy(address(impl), proxyAdmin, abi.encodeCall(Tickets.initialize, (p)));
     }
+
+    // KILLS MUTANT #4 in src/Tickets.sol
+    function test_initialize_revertsOnZeroRoundDuration() public {
+        Tickets.InitParams memory p = _params();
+        p.roundDuration = 0;
+        vm.expectRevert(ITickets.RoundDurationZero.selector);
+        new TransparentUpgradeableProxy(address(impl), proxyAdmin, abi.encodeCall(Tickets.initialize, (p)));
+    }
+
+    // KILLS MUTANT #6 in src/Tickets.sol
+    function test_initialize_revertsOnZeroTargetTicketsPerRound() public {
+        Tickets.InitParams memory p = _params();
+        p.targetTicketsPerRound = 0;
+        vm.expectRevert(ITickets.TargetTicketsPerRoundZero.selector);
+        new TransparentUpgradeableProxy(address(impl), proxyAdmin, abi.encodeCall(Tickets.initialize, (p)));
+    }
+
+    // KILLS MUTANT #8 in src/Tickets.sol
+    function test_initialize_revertsOnZeroMaxTicketsPerRound() public {
+        Tickets.InitParams memory p = _params();
+        p.maxTicketsPerRound = 0;
+        vm.expectRevert(ITickets.MaxTicketsPerRoundZero.selector);
+        new TransparentUpgradeableProxy(address(impl), proxyAdmin, abi.encodeCall(Tickets.initialize, (p)));
+    }
+
+    // KILLS MUTANT #10 in src/Tickets.sol
+    function test_initialize_revertsOnZeroMinimumPrice() public {
+        Tickets.InitParams memory p = _params();
+        p.minimumPrice = 0;
+        vm.expectRevert(ITickets.MinimumPriceZero.selector);
+        new TransparentUpgradeableProxy(address(impl), proxyAdmin, abi.encodeCall(Tickets.initialize, (p)));
+    }
+
+    // KILLS MUTANT #12 in src/Tickets.sol
+    function test_initialize_revertsOnZeroPriceUpdateFraction() public {
+        Tickets.InitParams memory p = _params();
+        p.priceUpdateFraction = 0;
+        vm.expectRevert(ITickets.PriceUpdateFractionZero.selector);
+        new TransparentUpgradeableProxy(address(impl), proxyAdmin, abi.encodeCall(Tickets.initialize, (p)));
+    }
+
+    // KILLS MUTANT #14 in src/Tickets.sol
+    function test_initialize_revertsOnReservedGrandfatherPeriodFraction() public {
+        Tickets.InitParams memory p = _params();
+        p.grandfatherPeriodFraction = type(uint8).max;
+        vm.expectRevert(ITickets.GrandfatherPeriodFractionReserved.selector);
+        new TransparentUpgradeableProxy(address(impl), proxyAdmin, abi.encodeCall(Tickets.initialize, (p)));
+    }
 }

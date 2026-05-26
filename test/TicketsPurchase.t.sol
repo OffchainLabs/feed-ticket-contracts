@@ -374,6 +374,78 @@ contract TicketsPurchaseTest is BaseTicketsTest {
         assertEq(tickets.grandfatherCount(buyer), k);
     }
 
+    // KILLS MUTANTS #79, #81, #153, #154, #310, #312 in src/Tickets.sol
+    /// @dev Pins that a round-2 purchase writes to the even-parity slots and is then visible via
+    ///      thisRoundTicketCount. Round 2 is the smallest even round where `n % 2` differs from
+    ///      `n * 2` and `n ** 2` (both nonzero for n=2), so parity-mutation paths are exposed here.
+    function test_purchaseTickets_roundTwoEvenParityTrackedCorrectly() public {
+        _setupRealisticRound();
+
+        uint256 price = tickets.currentPrice();
+        _deposit(buyer, price);
+        vm.prank(buyer);
+        tickets.purchaseTickets(2, price, 1, bytes32(0));
+
+        assertEq(tickets.thisRoundTicketCount(buyer), 1);
+    }
+
+    // KILLS MUTANT #144 in src/Tickets.sol
+    /// @dev Pins lastOddRoundPurchased = _roundNumber by exercising an odd round > 1. In round 1 the
+    ///      mutation `_roundNumber |==> 1` is equivalent; round 3 distinguishes the two.
+    function test_purchaseTickets_roundThreeRecordsLastOddRoundPurchased() public {
+        uint256 phase = (uint256(ROUND_DURATION) * GRANDFATHER_PERIOD_FRACTION) / 256;
+        vm.warp(FIRST_ROUND_START + 3 * ROUND_DURATION + phase);
+
+        uint256 price = tickets.currentPrice();
+        _deposit(buyer, price);
+        vm.prank(buyer);
+        tickets.purchaseTickets(3, price, 1, bytes32(0));
+
+        assertEq(tickets.thisRoundTicketCount(buyer), 1);
+    }
+
+    // KILLS MUTANT #136 in src/Tickets.sol
+    /// @dev Pins that an odd-round purchase records `prevHeld + _numTickets`, not the literal `1`.
+    ///      Buy more than one ticket so the mutation `prevHeld + _numTickets |==> 1` is observable.
+    function test_purchaseTickets_oddRoundRecordsCumulativeOddTicketsHeld() public {
+        uint256 phase = (uint256(ROUND_DURATION) * GRANDFATHER_PERIOD_FRACTION) / 256;
+        vm.warp(FIRST_ROUND_START + ROUND_DURATION + phase);
+
+        uint16 n = 4;
+        uint256 price = tickets.currentPrice();
+        _deposit(buyer, n * price);
+        vm.prank(buyer);
+        tickets.purchaseTickets(1, price, n, bytes32(0));
+
+        assertEq(tickets.thisRoundTicketCount(buyer), n);
+    }
+
+    // KILLS MUTANTS #121, #126, #128 in src/Tickets.sol
+    /// @dev Pins that during a round-2 grandfather purchase that partially consumes K grandfathered
+    ///      tickets (K > _numTickets), the leftover oddTicketsHeld becomes exactly K - _numTickets.
+    ///      Distinguishes the original from `0`, `K % _numTickets`, and `_numTickets - K` (underflow).
+    function test_purchaseTickets_roundTwoGrandfatherPartialLeavesExpectedRemainder() public {
+        uint16 k = 10;
+        _deposit(buyer, k * MINIMUM_PRICE);
+        vm.prank(buyer);
+        tickets.purchaseTickets(0, MINIMUM_PRICE, k, bytes32(0));
+
+        vm.warp(FIRST_ROUND_START + ROUND_DURATION);
+        uint256 price1 = tickets.currentPrice();
+        _deposit(buyer, k * price1);
+        vm.prank(buyer);
+        tickets.purchaseTickets(1, price1, k, bytes32(0));
+
+        vm.warp(FIRST_ROUND_START + 2 * ROUND_DURATION);
+        uint16 n = 4;
+        uint256 price2 = tickets.currentPrice();
+        _deposit(buyer, n * price2);
+        vm.prank(buyer);
+        tickets.purchaseTickets(2, price2, n, bytes32(0));
+
+        assertEq(tickets.grandfatherCount(buyer), k - n);
+    }
+
     function _logAccesses(string memory label) internal {
         (bytes32[] memory reads, bytes32[] memory writes) = vm.accesses(address(tickets));
         uint256[] memory readSlots;

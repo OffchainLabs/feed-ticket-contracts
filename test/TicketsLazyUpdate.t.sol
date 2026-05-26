@@ -3,8 +3,10 @@ pragma solidity ^0.8.20;
 
 // forge-lint: disable-start
 
+import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {ITickets} from "../src/ITickets.sol";
-import {BaseTicketsTest} from "./BaseTicketsTest.t.sol";
+import {Tickets} from "../src/Tickets.sol";
+import {BaseTicketsTest, TicketsHarness} from "./BaseTicketsTest.t.sol";
 
 contract TicketsLazyUpdateTest is BaseTicketsTest {
     function test_roundsElapsedSinceStored_zeroWithinFirstRound() public view {
@@ -377,5 +379,198 @@ contract TicketsLazyUpdateTest is BaseTicketsTest {
 
         assertEq(tickets.exposed_storedProceeds(), 0);
         assertEq(tickets.exposed_storedRoundNumber(), 0);
+    }
+
+    // KILLS MUTANT #195 in src/Tickets.sol
+    /// @dev With the default config `firstRoundStart` (~1.7e9) far exceeds `roundDuration` (3600s),
+    ///      `block.timestamp % _roundStart` happens to equal `block.timestamp - _roundStart` whenever
+    ///      `block.timestamp < 2 * _roundStart`. Deploy a fresh proxy with a small `firstRoundStart`
+    ///      so the modulo and subtraction give visibly different elapsed counts.
+    function test_roundsElapsedSinceStored_subtractsRoundStartNotModulo() public {
+        vm.warp(1);
+        TicketsHarness freshImpl = new TicketsHarness(address(token));
+        Tickets.InitParams memory p = Tickets.InitParams({
+            defaultAdmin: defaultAdmin,
+            beneficiarySetter: beneficiarySetter,
+            marketParamsSetter: marketParamsSetter,
+            beneficiary: beneficiary,
+            roundDuration: 10,
+            targetTicketsPerRound: TARGET_TICKETS,
+            maxTicketsPerRound: MAX_TICKETS,
+            minimumPrice: MINIMUM_PRICE,
+            priceUpdateFraction: PRICE_UPDATE_FRACTION,
+            grandfatherPeriodFraction: GRANDFATHER_PERIOD_FRACTION,
+            firstRoundStart: 5
+        });
+        TicketsHarness fresh = TicketsHarness(
+            address(new TransparentUpgradeableProxy(address(freshImpl), proxyAdmin, abi.encodeCall(Tickets.initialize, (p))))
+        );
+
+        // t = 35: original is (35 - 5) / 10 = 3; modulo mutant is (35 % 5) / 10 = 0.
+        vm.warp(35);
+        assertEq(fresh.roundsElapsedSinceStored(), 3);
+    }
+
+    // KILLS MUTANT #258 in src/Tickets.sol
+    function test_setRoundDuration_revertsOnZero() public {
+        vm.prank(marketParamsSetter);
+        vm.expectRevert(ITickets.RoundDurationZero.selector);
+        tickets.setRoundDuration(0);
+    }
+
+    // KILLS MUTANTS #260, #261 in src/Tickets.sol
+    function test_setRoundDuration_setsAdminUpdateQueuedFlag() public {
+        assertFalse(tickets.isAdminUpdateQueued());
+        vm.prank(marketParamsSetter);
+        tickets.setRoundDuration(ROUND_DURATION + 1);
+        assertTrue(tickets.isAdminUpdateQueued());
+    }
+
+    // KILLS MUTANT #266 in src/Tickets.sol
+    function test_setMaxTicketsPerRound_revertsOnZero() public {
+        vm.prank(marketParamsSetter);
+        vm.expectRevert(ITickets.MaxTicketsPerRoundZero.selector);
+        tickets.setMaxTicketsPerRound(0);
+    }
+
+    // KILLS MUTANTS #268, #269 in src/Tickets.sol
+    function test_setMaxTicketsPerRound_setsAdminUpdateQueuedFlag() public {
+        assertFalse(tickets.isAdminUpdateQueued());
+        vm.prank(marketParamsSetter);
+        tickets.setMaxTicketsPerRound(MAX_TICKETS + 1);
+        assertTrue(tickets.isAdminUpdateQueued());
+    }
+
+    // KILLS MUTANT #274 in src/Tickets.sol
+    function test_setTargetTicketsPerRound_revertsOnZero() public {
+        vm.prank(marketParamsSetter);
+        vm.expectRevert(ITickets.TargetTicketsPerRoundZero.selector);
+        tickets.setTargetTicketsPerRound(0);
+    }
+
+    // KILLS MUTANTS #276, #277 in src/Tickets.sol
+    function test_setTargetTicketsPerRound_setsAdminUpdateQueuedFlag() public {
+        assertFalse(tickets.isAdminUpdateQueued());
+        vm.prank(marketParamsSetter);
+        tickets.setTargetTicketsPerRound(TARGET_TICKETS + 1);
+        assertTrue(tickets.isAdminUpdateQueued());
+    }
+
+    // KILLS MUTANT #282 in src/Tickets.sol
+    function test_setPricingParams_revertsOnZeroMinimumPrice() public {
+        vm.prank(marketParamsSetter);
+        vm.expectRevert(ITickets.MinimumPriceZero.selector);
+        tickets.setPricingParams(0, PRICE_UPDATE_FRACTION, 0);
+    }
+
+    // KILLS MUTANT #284 in src/Tickets.sol
+    function test_setPricingParams_revertsOnZeroPriceUpdateFraction() public {
+        vm.prank(marketParamsSetter);
+        vm.expectRevert(ITickets.PriceUpdateFractionZero.selector);
+        tickets.setPricingParams(MINIMUM_PRICE, 0, 0);
+    }
+
+    // KILLS MUTANT #286 in src/Tickets.sol
+    function test_setPricingParams_revertsOnSentinelExcessOverride() public {
+        vm.prank(marketParamsSetter);
+        vm.expectRevert(ITickets.ExcessTicketsSoldOverrideReserved.selector);
+        tickets.setPricingParams(MINIMUM_PRICE, PRICE_UPDATE_FRACTION, type(uint56).max);
+    }
+
+    // KILLS MUTANT #301 in src/Tickets.sol
+    function test_setGrandfatherPeriodFraction_revertsOnSentinel() public {
+        vm.prank(marketParamsSetter);
+        vm.expectRevert(ITickets.GrandfatherPeriodFractionReserved.selector);
+        tickets.setGrandfatherPeriodFraction(type(uint8).max);
+    }
+
+    // KILLS MUTANT #303 in src/Tickets.sol
+    function test_setGrandfatherPeriodFraction_setsAdminUpdateQueuedFlag() public {
+        assertFalse(tickets.isAdminUpdateQueued());
+        vm.prank(marketParamsSetter);
+        tickets.setGrandfatherPeriodFraction(GRANDFATHER_PERIOD_FRACTION + 1);
+        assertTrue(tickets.isAdminUpdateQueued());
+    }
+
+    // KILLS MUTANTS #391, #392 in src/Tickets.sol
+    /// @dev After a queued admin update is committed by lazy update, isAdminUpdateQueued must be
+    ///      cleared. Distinguishes the original `= false` from both `assert(true)` (leaves it true)
+    ///      and `= true` (explicitly sets it true).
+    function test_lazyUpdateRoundState_clearsAdminUpdateQueuedFlag() public {
+        vm.prank(marketParamsSetter);
+        tickets.setRoundDuration(ROUND_DURATION + 1);
+        assertTrue(tickets.isAdminUpdateQueued());
+
+        vm.warp(FIRST_ROUND_START + ROUND_DURATION);
+        tickets.exposed_lazyUpdateRoundState();
+
+        assertFalse(tickets.isAdminUpdateQueued());
+    }
+
+    // KILLS MUTANT #341 in src/Tickets.sol
+    /// @dev `if (isAdminUpdateQueued)` gates the inner per-field commits. Forge a state where the
+    ///      flag is false but a queued field is non-default - this combination is impossible via the
+    ///      public surface, so we install it directly via the harness. With the gate intact the
+    ///      stored roundDuration is unchanged; mutated to `if (true)` it gets clobbered with the
+    ///      injected next value.
+    function test_lazyUpdateRoundState_skipsInnerBlockWhenFlagFalse() public {
+        uint24 injected = ROUND_DURATION + 7;
+        tickets.exposed_setNextRoundDuration(injected);
+        assertFalse(tickets.isAdminUpdateQueued());
+
+        vm.warp(FIRST_ROUND_START + ROUND_DURATION);
+        tickets.exposed_lazyUpdateRoundState();
+
+        assertEq(tickets.roundDuration(), ROUND_DURATION);
+    }
+
+    // KILLS MUTANT #357 in src/Tickets.sol
+    /// @dev Queue a non-max admin update (so `isAdminUpdateQueued` is true) but leave
+    ///      `nextMaxTicketsPerRound` at its zero sentinel. The mutation `if (true)` would assign
+    ///      the sentinel to `_maxTicketsPerRound`, breaking subsequent purchases.
+    function test_lazyUpdateRoundState_doesNotApplyMaxWhenSentinel() public {
+        vm.prank(marketParamsSetter);
+        tickets.setRoundDuration(ROUND_DURATION + 1);
+
+        vm.warp(FIRST_ROUND_START + ROUND_DURATION);
+        tickets.exposed_lazyUpdateRoundState();
+
+        assertEq(tickets.maxTicketsPerRound(), MAX_TICKETS);
+    }
+
+    // KILLS MUTANT #364 in src/Tickets.sol
+    /// @dev Queue a non-grandfather admin update so the gate is reached with
+    ///      `nextGrandfatherPeriodFraction == GRANDFATHER_PERIOD_SENTINEL`. The mutation would
+    ///      clobber `_grandfatherPeriodFraction` with the sentinel.
+    function test_lazyUpdateRoundState_doesNotApplyGrandfatherWhenSentinel() public {
+        vm.prank(marketParamsSetter);
+        tickets.setRoundDuration(ROUND_DURATION + 1);
+
+        vm.warp(FIRST_ROUND_START + ROUND_DURATION);
+        tickets.exposed_lazyUpdateRoundState();
+
+        assertEq(tickets.grandfatherPeriodFraction(), GRANDFATHER_PERIOD_FRACTION);
+    }
+
+    // KILLS MUTANT #372 in src/Tickets.sol
+    function test_lazyUpdateRoundState_doesNotApplyPriceUpdateFractionWhenSentinel() public {
+        vm.prank(marketParamsSetter);
+        tickets.setRoundDuration(ROUND_DURATION + 1);
+
+        vm.warp(FIRST_ROUND_START + ROUND_DURATION);
+        tickets.exposed_lazyUpdateRoundState();
+
+        assertEq(tickets.priceUpdateFraction(), PRICE_UPDATE_FRACTION);
+    }
+
+    // KILLS MUTANT #379 in src/Tickets.sol
+    function test_lazyUpdateRoundState_doesNotApplyMinimumPriceWhenSentinel() public {
+        vm.prank(marketParamsSetter);
+        tickets.setRoundDuration(ROUND_DURATION + 1);
+
+        vm.warp(FIRST_ROUND_START + ROUND_DURATION);
+        tickets.exposed_lazyUpdateRoundState();
+
+        assertEq(tickets.minimumPrice(), MINIMUM_PRICE);
     }
 }
