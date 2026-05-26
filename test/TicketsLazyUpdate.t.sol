@@ -477,6 +477,13 @@ contract TicketsLazyUpdateTest is BaseTicketsTest {
         tickets.setPricingParams(MINIMUM_PRICE, PRICE_UPDATE_FRACTION, type(uint56).max);
     }
 
+    // KILLS MUTANT #287 in src/Tickets.sol
+    function test_setPricingParams_revertsWhenFakeExponentialOverflows() public {
+        vm.prank(marketParamsSetter);
+        vm.expectRevert(abi.encodeWithSignature("Panic(uint256)", 0x11));
+        tickets.setPricingParams(MINIMUM_PRICE, 1, type(uint56).max - 1);
+    }
+
     // KILLS MUTANT #301 in src/Tickets.sol
     function test_setGrandfatherPeriodFraction_revertsOnSentinel() public {
         vm.prank(marketParamsSetter);
