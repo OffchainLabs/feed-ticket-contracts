@@ -17,6 +17,7 @@ Tickets are paid for in a specific ERC-20 token, chosen at deployment time and i
     - The sequencer is trusted to actually serve the priority feed to the correct users
 - Market Parameter Setter
     - Can set various market parameters such as max tickets per round, round timing, etc. Changing certain parameters can cause sudden price changes or affect the true value of tickets that have already been purchased.
+    - Trusted to pick pricing parameters that don't overflow `_fakeExponential`; a bad choice bricks purchases and admin setters and requires a proxy upgrade. User funds are still recoverable via `depositToken` / `withdrawToken` / `distributeSaleProceeds`.
 - Beneficiary
     - The beneficiary is trusted to not sybil the auction. The beneficiary can essentially purchase tickets for free, thereby reducing the real supply and pushing the price up arbitrarily. Funds used to buy tickets can only be reclaimed by the beneficiary after the round ends, so atomically recycling the same money to buy tickets is not possible.
 - Proxy Admin
