@@ -418,6 +418,11 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         if (newMinimumPrice == 0) revert MinimumPriceZero();
         if (newPriceUpdateFraction == 0) revert PriceUpdateFractionZero();
         if (newExcessTicketsSoldOverride == EXCESS_TICKETS_SOLD_SENTINEL) revert ExcessTicketsSoldOverrideReserved();
+
+        // an overflowing _fakeExponential call will cause lazy update to revert,
+        // so we check the parameters here to prevent queuing an update that would break the contract until an admin intervenes.
+        _fakeExponential(newMinimumPrice, newExcessTicketsSoldOverride, newPriceUpdateFraction);
+
         _lazyUpdateRoundState();
         isAdminUpdateQueued = true;
         nextMinimumPrice = newMinimumPrice;

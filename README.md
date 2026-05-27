@@ -11,6 +11,8 @@ The basic mechanism is as follows:
 
 Tickets are paid for in a specific ERC-20 token, chosen at deployment time and immutable thereafter. Users first deposit tokens to fund an internal balance held by the contract; each ticket purchase debits the caller's internal balance.
 
+See [ARCHITECTURE.md](./ARCHITECTURE.md) for an overview of the contract's internal structure and the invariants future changes need to respect.
+
 # Actors & Trust Model
 
 - Sequencer
