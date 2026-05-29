@@ -1,6 +1,6 @@
 # Purchase Bot
 
-TypeScript bot for purchasing feed tickets from the `Tickets` contract.
+TypeScript bot for purchasing feed tickets from the `Tickets` contract. Implements a "buy N tickets up to some max price every round" strategy.
 
 ## Configuration
 
