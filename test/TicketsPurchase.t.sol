@@ -233,6 +233,7 @@ contract TicketsPurchaseTest is BaseTicketsTest {
         tickets.purchaseTickets(0, MINIMUM_PRICE, 6, bytes32(0));
 
         assertEq(tickets.ticketsSoldThisRound(), MAX_TICKETS);
+        assertEq(tickets.tokenBalance(buyer), MINIMUM_PRICE);
     }
 
     /// @dev Cost is charged on the filled count, not the desired count: a deposit of 10e18
