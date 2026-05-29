@@ -69,7 +69,12 @@ interface ITickets {
     /// @param  numTickets  The number of tickets purchased in this call.
     /// @param  numTicketsDesired The number of tickets the buyer attempted to purchase.
     event TicketsPurchased(
-        address indexed buyer, uint256 indexed round, bytes32 indexed apiKeyHash, uint256 price, uint256 numTickets, uint256 numTicketsDesired
+        address indexed buyer,
+        uint256 indexed round,
+        bytes32 indexed apiKeyHash,
+        uint256 price,
+        uint256 numTickets,
+        uint256 numTicketsDesired
     );
 
     /// @notice Emitted when accumulated sale proceeds are forwarded to the beneficiary.
@@ -129,8 +134,12 @@ interface ITickets {
     /// @param  expectedPrice Price the caller expects. Reverts if the current price does not equal this value.
     /// @param  numTicketsDesired Maximum number of tickets to purchase. Must be non-zero.
     /// @param  apiKeyHash    The hash of the API key to associate with the ticket purchase.
-    function purchaseTickets(uint256 expectedRound, uint256 expectedPrice, uint256 numTicketsDesired, bytes32 apiKeyHash)
-        external;
+    function purchaseTickets(
+        uint256 expectedRound,
+        uint256 expectedPrice,
+        uint256 numTicketsDesired,
+        bytes32 apiKeyHash
+    ) external;
 
     /// @notice Forward accumulated sale proceeds (those already rolled over by a prior lazy
     ///         update) to the current beneficiary. Permissionless. Does not trigger lazy update,
