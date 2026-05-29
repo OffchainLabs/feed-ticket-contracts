@@ -1,4 +1,4 @@
-import { createPublicClient, createWalletClient, getContract, http, type Address, type PublicClient } from 'viem';
+import { createPublicClient, createWalletClient, getContract, http, parseEventLogs, type Address, type PublicClient } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { Config, loadConfig } from './config.js';
 import { ticketsAbi } from './ticketsAbi.js';
@@ -29,10 +29,10 @@ export async function run(config: Config): Promise<void> {
   });
   
   const processRound = async () => {
-    const { price, maxTickets, roundEnd, roundNumber } =
+    const { price, roundEnd, roundNumber } =
       await fetchRoundState(publicClient, config.ticketsAddress);
 
-    console.log(`Processing round ${roundNumber} ending at ${new Date(Number(roundEnd) * 1000).toISOString()}`);
+    console.log(`Processing round ${roundNumber} ending at ${new Date(Number(roundEnd) * 1000).toISOString()} with current price ${price}`);
     
     while (true) {
       // check price, if it's above maxPricePerTicket, break
@@ -47,14 +47,29 @@ export async function run(config: Config): Promise<void> {
         break;
       }
 
-      // if max tickets have been purchased, break
-      if (await tickets.read.ticketsSoldThisRound() >= maxTickets) {
-        console.log(`Max tickets purchased, skipping round`);
+      // estimate transaction fee, if it's below maxTransactionFee, purchase tickets and break (even if we revert we break)
+      const { request } = await tickets.simulate.purchaseTickets([roundNumber, price, BigInt(config.ticketsPerRound), config.apiKeyHash]);
+      if (!request.gas) {
+        console.log('Failed to estimate gas, skipping round');
         break;
       }
+      if (request.gas * price <= config.maxTransactionFee) {
+        console.log('Purchasing tickets');
+        const hash = await walletClient.writeContract(request);
+        console.log(`Transaction sent: ${hash}`);
+        const receipt = await publicClient.waitForTransactionReceipt({ hash });
 
-      // estimate transaction fee, if it's below maxTransactionFee, purchase tickets and break
-      // TODO
+        const txFee = receipt.gasUsed * receipt.effectiveGasPrice;
+        const [purchase] = parseEventLogs({ abi: ticketsAbi, eventName: 'TicketsPurchased', logs: receipt.logs });
+        if (purchase) {
+          const { numTickets, price: ticketPrice } = purchase.args;
+          console.log(`Purchased ${numTickets} tickets in block ${receipt.blockNumber}, ticket fee ${ticketPrice * numTickets}, tx fee ${txFee} wei`);
+        } else {
+          console.log(`Purchase reverted in block ${receipt.blockNumber}, tx fee ${txFee} wei`);
+        }
+
+        break;
+      }
 
       await wait(LOOP_INTERVAL);
     }
@@ -67,16 +82,15 @@ export async function run(config: Config): Promise<void> {
 }
 
 async function fetchRoundState(client: PublicClient, address: Address) {
-  const [price, maxTickets, roundEnd, roundNumber] = await client.multicall({
+  const [price, roundEnd, roundNumber] = await client.multicall({
     contracts: [
       { address, abi: ticketsAbi, functionName: 'currentPrice' },
-      { address, abi: ticketsAbi, functionName: 'maxTicketsPerRound' },
       { address, abi: ticketsAbi, functionName: 'roundEnd' },
       { address, abi: ticketsAbi, functionName: 'roundNumber' },
     ],
     allowFailure: false,
   });
-  return { price, maxTickets, roundEnd, roundNumber };
+  return { price, roundEnd, roundNumber };
 }
 
 function randomDelay(): number {
