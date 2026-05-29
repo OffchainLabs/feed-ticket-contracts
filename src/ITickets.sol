@@ -38,10 +38,12 @@ interface ITickets {
     /// @param  actual   The contract's current price.
     error IncorrectTicketPrice(uint256 expected, uint256 actual);
 
-    /// @notice Thrown when `purchaseTickets` is called with `numTickets == 0`.
+    /// @notice Thrown when `purchaseTickets` is called with `numTicketsDesired == 0`.
     error ZeroTicketsRequested();
 
-    /// @notice Thrown when `purchaseTickets` would exceed `maxTicketsPerRound` for the current round.
+    /// @notice Thrown when `purchaseTickets` is called for a round that is already sold out
+    ///         (`ticketsSoldThisRound == maxTicketsPerRound` on entry). A request that merely
+    ///         exceeds the remaining room is partially filled rather than reverted.
     error MaxTicketsSold();
 
     /// @notice Thrown when `purchaseTickets` or `withdrawToken` is called by an account whose
@@ -51,9 +53,10 @@ interface ITickets {
     error InsufficientTokenBalance(uint256 balance, uint256 required);
 
     /// @notice Thrown when `purchaseTickets` is called during the grandfather phase and the caller
-    ///         does not hold enough tickets from the previous round to cover the requested amount.
+    ///         does not hold enough tickets from the previous round to cover the fill (the desired
+    ///         count clamped to the remaining room in the round).
     /// @param  grandfatheredTickets Tickets the caller is grandfathered to redeem this round.
-    /// @param  requestedTickets     Tickets the caller attempted to purchase.
+    /// @param  requestedTickets     Tickets that would be filled for the caller this round.
     error NotEnoughGrandfatheredTickets(uint256 grandfatheredTickets, uint256 requestedTickets);
 
     /// @notice Thrown by `roundsElapsedSinceStored` (and views that depend on it) when called
@@ -118,14 +121,16 @@ interface ITickets {
     /// @notice Emitted when stored round state is rolled forward by the lazy-update path.
     event RoundStateUpdated();
 
-    /// @notice Purchase one or more tickets for the current round. `expectedPrice * numTickets`
-    ///         is debited from the caller's deposited token balance; the caller must have first
-    ///         funded that balance via `depositToken`. During the grandfather phase at the start
-    ///         of a round, the caller may purchase up to the number of tickets they held in the
-    ///         previous round.
+    /// @notice Purchase tickets for the current round. Fills up to `numTicketsDesired`, clamped to
+    ///         the room remaining before `maxTicketsPerRound`, and debits `expectedPrice * filled`
+    ///         from the caller's deposited token balance; the caller must have first funded that
+    ///         balance via `depositToken`. Reverts only if the round is already sold out on entry.
+    ///         During the grandfather phase at the start of a round, the caller may purchase up to
+    ///         the number of tickets they held in the previous round.
     /// @param  expectedRound Round the caller expects to be current. Reverts if it does not match.
     /// @param  expectedPrice Price the caller expects. Reverts if the current price does not equal this value.
-    /// @param  numTicketsDesired Number of tickets to purchase. Must be non-zero.
+    /// @param  numTicketsDesired Maximum number of tickets to purchase. Must be non-zero. Fewer are
+    ///                           filled (and charged for) if the round has less room remaining.
     /// @param  apiKeyHash    The hash of the API key to associate with the ticket purchase.
     function purchaseTickets(uint256 expectedRound, uint256 expectedPrice, uint256 numTicketsDesired, bytes32 apiKeyHash)
         external;
