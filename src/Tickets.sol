@@ -191,9 +191,12 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     }
 
     /// @inheritdoc ITickets
-    function purchaseTickets(uint256 expectedRound, uint256 expectedPrice, uint256 numTicketsDesired, bytes32 apiKeyHash)
-        external
-    {
+    function purchaseTickets(
+        uint256 expectedRound,
+        uint256 expectedPrice,
+        uint256 numTicketsDesired,
+        bytes32 apiKeyHash
+    ) external {
         _lazyUpdateRoundState();
 
         if (numTicketsDesired == 0) revert ZeroTicketsRequested();
