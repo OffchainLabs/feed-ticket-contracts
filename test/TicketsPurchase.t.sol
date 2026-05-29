@@ -105,7 +105,7 @@ contract TicketsPurchaseTest is BaseTicketsTest {
         _deposit(buyer, MINIMUM_PRICE);
 
         vm.expectEmit(true, true, false, true, address(tickets));
-        emit ITickets.TicketPurchased(buyer, 0, bytes32(0), MINIMUM_PRICE, 1);
+        emit ITickets.TicketsPurchased(buyer, 0, bytes32(0), MINIMUM_PRICE, 1, 1);
 
         vm.prank(buyer);
         tickets.purchaseTickets(0, MINIMUM_PRICE, 1, bytes32(0));
@@ -189,7 +189,7 @@ contract TicketsPurchaseTest is BaseTicketsTest {
         _deposit(buyer, n * MINIMUM_PRICE);
 
         vm.expectEmit(true, true, true, true, address(tickets));
-        emit ITickets.TicketPurchased(buyer, 0, bytes32(0), MINIMUM_PRICE, n);
+        emit ITickets.TicketsPurchased(buyer, 0, bytes32(0), MINIMUM_PRICE, n, n);
 
         vm.prank(buyer);
         tickets.purchaseTickets(0, MINIMUM_PRICE, n, bytes32(0));
