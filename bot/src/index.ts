@@ -32,40 +32,40 @@ export async function run(config: Config): Promise<void> {
     const { price, roundEnd, roundNumber } =
       await fetchRoundState(publicClient, config.ticketsAddress);
 
-    console.log(`Processing round ${roundNumber} ending at ${new Date(Number(roundEnd) * 1000).toISOString()} with current price ${price}`);
+    log({ event: 'round_start', roundNumber, roundEnd: roundEnd.toString(), price: price.toString() });
     
     while (true) {
       // check price, if it's above maxPricePerTicket, break
       if (price > config.maxPricePerTicket) {
-        console.log(`Price ${price} is above maxPricePerTicket ${config.maxPricePerTicket}, skipping round`);
+        log({ event: 'skip', reason: 'price_above_max', price: price.toString(), maxPricePerTicket: config.maxPricePerTicket.toString() });
         break;
       }
 
       // if round is over, break
       if (Date.now() >= Number(roundEnd) * 1000) {
-        console.log('Round ended without purchasing tickets, skipping round');
+        log({ event: 'skip', reason: 'round_ended', roundEnd: roundEnd.toString() });
         break;
       }
 
       // estimate transaction fee, if it's below maxTransactionFee, purchase tickets and break (even if we revert we break)
       const { request } = await tickets.simulate.purchaseTickets([roundNumber, price, BigInt(config.ticketsPerRound), config.apiKeyHash]);
-      if (!request.gas) {
-        console.log('Failed to estimate gas, skipping round');
+      if (!request.gas || !request.maxFeePerGas) {
+        log({ event: 'skip', reason: 'gas_estimation_failed' });
         break;
       }
-      if (request.gas * price <= config.maxTransactionFee) {
-        console.log('Purchasing tickets');
+      if (request.gas * request.maxFeePerGas <= config.maxTransactionFee) {
+        log({ event: 'purchase_attempt', gas: request.gas.toString(), maxFeePerGas: request.maxFeePerGas.toString(), maxTransactionFee: config.maxTransactionFee.toString() });
         const hash = await walletClient.writeContract(request);
-        console.log(`Transaction sent: ${hash}`);
+        log({ event: 'transaction_sent', hash });
         const receipt = await publicClient.waitForTransactionReceipt({ hash });
 
         const txFee = receipt.gasUsed * receipt.effectiveGasPrice;
         const [purchase] = parseEventLogs({ abi: ticketsAbi, eventName: 'TicketsPurchased', logs: receipt.logs });
         if (purchase) {
           const { numTickets, price: ticketPrice } = purchase.args;
-          console.log(`Purchased ${numTickets} tickets in block ${receipt.blockNumber}, ticket fee ${ticketPrice * numTickets}, tx fee ${txFee} wei`);
+          log({ event: 'purchase_success', hash, numTickets: numTickets.toString(), ticketPrice: ticketPrice.toString(), roundNumber: roundNumber.toString(), blockNumber: receipt.blockNumber, txFee: txFee.toString() });
         } else {
-          console.log(`Purchase reverted in block ${receipt.blockNumber}, tx fee ${txFee} wei`);
+          log({ event: 'purchase_reverted', hash, roundNumber: roundNumber.toString(), blockNumber: receipt.blockNumber, txFee: txFee.toString() });
         }
 
         break;
@@ -103,6 +103,10 @@ function wait(ms: number): Promise<void> {
 
 function timeout(roundEndSeconds: bigint): number {
   return Math.max(0, Number(roundEndSeconds) * 1000 - Date.now() + randomDelay());
+}
+
+function log(obj: Record<string, unknown>): void {
+  console.log(JSON.stringify({timestamp: Date.now(), obj}));
 }
 
 main().catch((err) => {
