@@ -8,6 +8,8 @@ function required(name: string): string {
 
 export interface Config {
   rpcUrl: string;
+  ticketsPerRound: number;
+  maxPricePerTicket: bigint;
   privateKey: Hex;
   ticketsAddress: Address;
 }
@@ -19,6 +21,8 @@ export function loadConfig(): Config {
   }
   return {
     rpcUrl: required('RPC_URL'),
+    ticketsPerRound: parseInt(required('TICKETS_PER_ROUND'), 10),
+    maxPricePerTicket: BigInt(required('MAX_PRICE_PER_TICKET')),
     privateKey: privateKey as Hex,
     ticketsAddress: getAddress(required('TICKETS_ADDRESS')),
   };
