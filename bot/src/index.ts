@@ -1,4 +1,4 @@
-import { createPublicClient, createWalletClient, getContract, http } from 'viem';
+import { createPublicClient, createWalletClient, getContract, http, type Address, type PublicClient } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { Config, loadConfig } from './config.js';
 import { ticketsAbi } from './ticketsAbi.js';
@@ -29,11 +29,10 @@ export async function run(config: Config): Promise<void> {
   });
   
   const processRound = async () => {
-    const nextRoundStart = await tickets.read.roundEnd();
-    console.log(`Processing round ending at ${new Date(Number(nextRoundStart) * 1000).toISOString()}`);
+    const { price, maxTickets, roundEnd, roundNumber } =
+      await fetchRoundState(publicClient, config.ticketsAddress);
 
-    const price = await tickets.read.currentPrice();
-    const maxTickets = await tickets.read.maxTicketsPerRound();
+    console.log(`Processing round ${roundNumber} ending at ${new Date(Number(roundEnd) * 1000).toISOString()}`);
     
     while (true) {
       // check price, if it's above maxPricePerTicket, break
@@ -41,16 +40,16 @@ export async function run(config: Config): Promise<void> {
         console.log(`Price ${price} is above maxPricePerTicket ${config.maxPricePerTicket}, skipping round`);
         break;
       }
-      
-      // if max tickets have been purchased, break
-      if (await tickets.read.ticketsSoldThisRound() >= maxTickets) {
-        console.log(`Max tickets purchased, skipping round`);
+
+      // if round is over, break
+      if (Date.now() >= Number(roundEnd) * 1000) {
+        console.log('Round ended without purchasing tickets, skipping round');
         break;
       }
 
-      // if round is over, break
-      if (Date.now() >= Number(nextRoundStart) * 1000) {
-        console.log('Round ended without purchasing tickets, skipping round');
+      // if max tickets have been purchased, break
+      if (await tickets.read.ticketsSoldThisRound() >= maxTickets) {
+        console.log(`Max tickets purchased, skipping round`);
         break;
       }
 
@@ -61,10 +60,23 @@ export async function run(config: Config): Promise<void> {
     }
 
     
-    setTimeout(processRound, timeout(nextRoundStart));
+    setTimeout(processRound, timeout(roundEnd));
   }
 
   setTimeout(processRound, timeout(await tickets.read.roundEnd()));
+}
+
+async function fetchRoundState(client: PublicClient, address: Address) {
+  const [price, maxTickets, roundEnd, roundNumber] = await client.multicall({
+    contracts: [
+      { address, abi: ticketsAbi, functionName: 'currentPrice' },
+      { address, abi: ticketsAbi, functionName: 'maxTicketsPerRound' },
+      { address, abi: ticketsAbi, functionName: 'roundEnd' },
+      { address, abi: ticketsAbi, functionName: 'roundNumber' },
+    ],
+    allowFailure: false,
+  });
+  return { price, maxTickets, roundEnd, roundNumber };
 }
 
 function randomDelay(): number {
