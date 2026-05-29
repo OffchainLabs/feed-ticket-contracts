@@ -60,14 +60,15 @@ interface ITickets {
     ///         before `firstRoundStart`.
     error BeforeFirstRoundStart();
 
-    /// @notice Emitted when one or more tickets are purchased in a single call.
+    /// @notice Emitted when tickets are purchased.
     /// @param  buyer       The account that purchased the tickets.
     /// @param  round       The round the tickets were purchased in.
     /// @param  apiKeyHash  The hash of the API key associated with the purchased tickets.
     /// @param  price       The per-ticket price paid.
     /// @param  numTickets  The number of tickets purchased in this call.
-    event TicketPurchased(
-        address indexed buyer, uint256 indexed round, bytes32 indexed apiKeyHash, uint256 price, uint256 numTickets
+    /// @param  numTicketsDesired The number of tickets the buyer attempted to purchase.
+    event TicketsPurchased(
+        address indexed buyer, uint256 indexed round, bytes32 indexed apiKeyHash, uint256 price, uint256 numTickets, uint256 numTicketsDesired
     );
 
     /// @notice Emitted when accumulated sale proceeds are forwarded to the beneficiary.
@@ -124,9 +125,9 @@ interface ITickets {
     ///         previous round.
     /// @param  expectedRound Round the caller expects to be current. Reverts if it does not match.
     /// @param  expectedPrice Price the caller expects. Reverts if the current price does not equal this value.
-    /// @param  numTickets    Number of tickets to purchase. Must be non-zero.
+    /// @param  numTicketsDesired Number of tickets to purchase. Must be non-zero.
     /// @param  apiKeyHash    The hash of the API key to associate with the ticket purchase.
-    function purchaseTickets(uint256 expectedRound, uint256 expectedPrice, uint256 numTickets, bytes32 apiKeyHash)
+    function purchaseTickets(uint256 expectedRound, uint256 expectedPrice, uint256 numTicketsDesired, bytes32 apiKeyHash)
         external;
 
     /// @notice Forward accumulated sale proceeds (those already rolled over by a prior lazy
