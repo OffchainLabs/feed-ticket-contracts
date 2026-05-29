@@ -223,14 +223,96 @@ contract TicketsPurchaseTest is BaseTicketsTest {
         assertEq(tickets.ticketsSoldThisRound(), MAX_TICKETS);
     }
 
-    /// @dev Boundary + 1: `_ticketsSoldThisRound + numTickets == maxTicketsPerRound + 1` reverts.
-    function test_purchaseTickets_revertsAtCapBoundaryPlusOne() public {
+    /// @dev Boundary + 1: a request exceeding the remaining room clamps to the room (5) instead of
+    ///      reverting. Companion to `succeedsAtCapBoundary` (desired == remaining).
+    function test_purchaseTickets_partialFillClampsToRemainingRoom() public {
         tickets.exposed_setTicketsSoldThisRound(MAX_TICKETS - 5);
         _deposit(buyer, 6 * MINIMUM_PRICE);
 
         vm.prank(buyer);
-        vm.expectRevert(ITickets.MaxTicketsSold.selector);
         tickets.purchaseTickets(0, MINIMUM_PRICE, 6, bytes32(0));
+
+        assertEq(tickets.ticketsSoldThisRound(), MAX_TICKETS);
+    }
+
+    /// @dev Cost is charged on the filled count, not the desired count: a deposit of 10e18
+    ///      (10 * MINIMUM_PRICE) with a request of 10 against 5 rooms of remaining capacity fills 5,
+    ///      debiting only 5e18 of internal balance and leaving 5e18. The unspent 5e18 stays held by
+    ///      the contract (the full deposit) until withdrawn.
+    function test_purchaseTickets_chargesFilledCostNotDesired() public {
+        tickets.exposed_setTicketsSoldThisRound(MAX_TICKETS - 5);
+        _deposit(buyer, 10 * MINIMUM_PRICE);
+
+        vm.prank(buyer);
+        tickets.purchaseTickets(0, MINIMUM_PRICE, 10, bytes32(0));
+
+        assertEq(tickets.ticketsSoldThisRound(), MAX_TICKETS);
+        assertEq(tickets.tokenBalance(buyer), 5 * MINIMUM_PRICE);
+        assertEq(token.balanceOf(address(tickets)), 10 * MINIMUM_PRICE);
+    }
+
+    /// @dev Boundary: the balance check uses the filled cost, so a balance equal to 5 * MINIMUM_PRICE
+    ///      affords a clamped fill of 5 even though the desired 10 could not be paid for. Debits to zero.
+    function test_purchaseTickets_balanceCheckUsesFilledCost_succeedsAtFilledCost() public {
+        tickets.exposed_setTicketsSoldThisRound(MAX_TICKETS - 5);
+        _deposit(buyer, 5 * MINIMUM_PRICE);
+
+        vm.prank(buyer);
+        tickets.purchaseTickets(0, MINIMUM_PRICE, 10, bytes32(0));
+
+        assertEq(tickets.ticketsSoldThisRound(), MAX_TICKETS);
+        assertEq(tickets.tokenBalance(buyer), 0);
+    }
+
+    /// @dev Boundary - 1: one wei short of the filled cost (5 * MINIMUM_PRICE) reverts, pinning the
+    ///      filled cost as `required` rather than the unclamped desired cost.
+    function test_purchaseTickets_balanceCheckUsesFilledCost_revertsOneWeiBelow() public {
+        tickets.exposed_setTicketsSoldThisRound(MAX_TICKETS - 5);
+        _deposit(buyer, 5 * MINIMUM_PRICE - 1);
+
+        vm.prank(buyer);
+        vm.expectRevert(
+            abi.encodeWithSelector(ITickets.InsufficientTokenBalance.selector, 5 * MINIMUM_PRICE - 1, 5 * MINIMUM_PRICE)
+        );
+        tickets.purchaseTickets(0, MINIMUM_PRICE, 10, bytes32(0));
+    }
+
+    /// @dev The event reports the filled count and the desired count separately when they differ.
+    function test_purchaseTickets_eventReportsFilledNotDesired() public {
+        tickets.exposed_setTicketsSoldThisRound(MAX_TICKETS - 5);
+        _deposit(buyer, 6 * MINIMUM_PRICE);
+
+        vm.expectEmit(true, true, true, true, address(tickets));
+        emit ITickets.TicketsPurchased(buyer, 0, bytes32(0), MINIMUM_PRICE, 5, 6);
+
+        vm.prank(buyer);
+        tickets.purchaseTickets(0, MINIMUM_PRICE, 6, bytes32(0));
+    }
+
+    /// @dev Sold-out boundary - 1: with one ticket of room left, a request for several fills exactly
+    ///      the last ticket. Companion to `revertsWhenMaxTicketsSold` (sold == MAX reverts).
+    function test_purchaseTickets_partialFillToLastTicket() public {
+        tickets.exposed_setTicketsSoldThisRound(MAX_TICKETS - 1);
+        _deposit(buyer, MINIMUM_PRICE);
+
+        vm.prank(buyer);
+        tickets.purchaseTickets(0, MINIMUM_PRICE, 5, bytes32(0));
+
+        assertEq(tickets.ticketsSoldThisRound(), MAX_TICKETS);
+        assertEq(tickets.tokenBalance(buyer), 0);
+    }
+
+    /// @dev Regression for the uint16 `ticketsSoldThisRound + numTicketsDesired` overflow fix:
+    ///      a desired count of type(uint16).max with one room left must clamp to 1, not revert.
+    function test_purchaseTickets_clampDoesNotOverflowUint16() public {
+        tickets.exposed_setTicketsSoldThisRound(MAX_TICKETS - 1);
+        _deposit(buyer, MINIMUM_PRICE);
+
+        vm.prank(buyer);
+        tickets.purchaseTickets(0, MINIMUM_PRICE, type(uint16).max, bytes32(0));
+
+        assertEq(tickets.ticketsSoldThisRound(), MAX_TICKETS);
+        assertEq(tickets.tokenBalance(buyer), 0);
     }
 
     /// @dev Boundary: in round 1's grandfather phase a buyer with K tickets in round 0 may
