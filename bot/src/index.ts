@@ -1,15 +1,24 @@
-import { createPublicClient, createWalletClient, http } from 'viem';
+import { createPublicClient, createWalletClient, getContract, http } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
-import { loadConfig } from './config.js';
+import { Config, loadConfig } from './config.js';
+import { ticketsAbi } from './ticketsAbi.js';
 
 async function main(): Promise<void> {
-  const config = loadConfig();
+  run(loadConfig());
+}
+
+export async function run(config: Config): Promise<void> {
   const account = privateKeyToAccount(config.privateKey);
   const transport = http(config.rpcUrl);
   const publicClient = createPublicClient({ transport });
   const walletClient = createWalletClient({ account, transport });
-  void walletClient;
-  void publicClient;
+
+  const tickets = getContract({
+    address: config.ticketsAddress,
+    abi: ticketsAbi,
+    client: { public: publicClient, wallet: walletClient },
+  });
+  void tickets;
 }
 
 main().catch((err) => {

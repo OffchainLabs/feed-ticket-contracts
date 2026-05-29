@@ -6,10 +6,12 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
-    "dev": "tsx src/index.ts"
+    "dev": "npm run generate && tsx src/index.ts",
+    "generate": "cd .. && forge build && cd - && wagmi generate"
   },
   "devDependencies": {
     "@types/node": "^25.9.1",
+    "@wagmi/cli": "2.10.0",
     "tsx": "^4.22.3",
     "typescript": "^6.0.3"
   },
