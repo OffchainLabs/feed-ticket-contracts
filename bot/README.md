@@ -27,7 +27,10 @@ RPC_URL=... PRIVATE_KEY=0x... TICKETS_ADDRESS=0x... TICKETS_PER_ROUND=... MAX_PR
 
 ## Docker
 
+The image build runs `tsc` only; it does not regenerate the ABI (no Foundry in the image). Generate it on the host first:
+
 ```
+npm run abigen
 docker build -t purchase-bot .
 docker run --rm \
   -e RPC_URL=... \

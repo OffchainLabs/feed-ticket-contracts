@@ -4,11 +4,12 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "npm run generate && tsc",
+    "build": "npm run abigen && tsc",
+    "build-skip-abigen": "tsc",
     "start": "node dist/index.js",
-    "dev": "npm run generate && tsx src/index.ts",
-    "generate": "cd .. && forge build && cd - && wagmi generate",
-    "test": "npm run generate && node --import tsx --test 'test/**/*.test.ts'"
+    "dev": "npm run abigen && tsx src/index.ts",
+    "abigen": "cd .. && forge build && cd - && wagmi generate",
+    "test": "npm run abigen && node --import tsx --test --test-force-exit 'test/**/*.test.ts'"
   },
   "devDependencies": {
     "@types/node": "^25.9.1",
