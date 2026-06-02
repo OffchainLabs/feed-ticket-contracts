@@ -53,16 +53,18 @@ export async function run(config: Config): Promise<void> {
         log({ event: 'purchase_attempt', gas: gas.toString(), maxFeePerGas: maxFeePerGas.toString(), maxTransactionFee: config.maxTransactionFee.toString() });
         const hash = await tickets.write.purchaseTickets(purchaseArgs, { account, chain: null, gas, maxFeePerGas, maxPriorityFeePerGas });
         log({ event: 'transaction_sent', hash });
-        const receipt = await publicClient.waitForTransactionReceipt({ hash });
 
-        const txFee = receipt.gasUsed * receipt.effectiveGasPrice;
-        const [purchase] = parseEventLogs({ abi: ticketsAbi, eventName: 'TicketsPurchased', logs: receipt.logs });
-        if (purchase) {
-          const { numTickets, price: ticketPrice } = purchase.args;
-          log({ event: 'purchase_success', hash, numTickets: numTickets.toString(), ticketPrice: ticketPrice.toString(), roundNumber: roundNumber.toString(), blockNumber: receipt.blockNumber, txFee: txFee.toString() });
-        } else {
-          log({ event: 'purchase_reverted', hash, roundNumber: roundNumber.toString(), blockNumber: receipt.blockNumber, txFee: txFee.toString() });
-        }
+        // don't block the loop waiting for the transaction receipt
+        publicClient.waitForTransactionReceipt({ hash }).then((receipt) => {
+          const txFee = receipt.gasUsed * receipt.effectiveGasPrice;
+          const [purchase] = parseEventLogs({ abi: ticketsAbi, eventName: 'TicketsPurchased', logs: receipt.logs });
+          if (purchase) {
+            const { numTickets, price: ticketPrice } = purchase.args;
+            log({ event: 'purchase_success', hash, numTickets: numTickets.toString(), ticketPrice: ticketPrice.toString(), roundNumber: roundNumber.toString(), blockNumber: receipt.blockNumber, txFee: txFee.toString() });
+          } else {
+            log({ event: 'purchase_reverted', hash, roundNumber: roundNumber.toString(), blockNumber: receipt.blockNumber, txFee: txFee.toString() });
+          }
+        });
 
         break;
       }
