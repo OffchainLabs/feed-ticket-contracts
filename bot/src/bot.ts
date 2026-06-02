@@ -3,15 +3,6 @@ import { privateKeyToAccount } from 'viem/accounts';
 import { Config } from './config.js';
 import { ticketsAbi } from './ticketsAbi.js';
 
-// todo: add env overrides for these parameters
-
-// Used to add some random delay to the bot's actions, to avoid all bots acting at the same time
-const RANDOM_DELAY_MAX = 30_000; // 30 seconds
-
-// Inner loop interval when trying to purchase tickets for a round
-// Used to wait for gas prices to drop
-const LOOP_INTERVAL = 10_000; // 10 seconds
-
 export async function run(config: Config): Promise<void> {
   const account = privateKeyToAccount(config.privateKey);
   const transport = http(config.rpcUrl, { batch: true });
@@ -88,25 +79,25 @@ export async function run(config: Config): Promise<void> {
         break;
       }
 
-      await wait(LOOP_INTERVAL);
+      await wait(config.gasPollIntervalMs);
     }
 
-    setTimeout(processRound, timeout(roundEnd));
+    setTimeout(processRound, timeout(roundEnd, config.maxScheduleJitterMs));
   }
 
-  setTimeout(processRound, timeout(await tickets.read.roundEnd()));
+  setTimeout(processRound, timeout(await tickets.read.roundEnd(), config.maxScheduleJitterMs));
 }
 
-function randomDelay(): number {
-  return Math.floor(Math.random() * RANDOM_DELAY_MAX);
+function randomDelay(max: number): number {
+  return Math.floor(Math.random() * max);
 }
 
 function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function timeout(roundEndSeconds: bigint): number {
-  return Math.max(0, Number(roundEndSeconds) * 1000 - Date.now() + randomDelay());
+function timeout(roundEndSeconds: bigint, maxScheduleJitterMs: number): number {
+  return Math.max(0, Number(roundEndSeconds) * 1000 - Date.now() + randomDelay(maxScheduleJitterMs));
 }
 
 function log(obj: Record<string, unknown>): void {
