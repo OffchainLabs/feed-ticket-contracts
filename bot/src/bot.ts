@@ -98,7 +98,7 @@ export async function run(config: Config, signal?: AbortSignal): Promise<void> {
       await wait(config.gasPollIntervalMs);
     }
 
-    await wait(calculateWaitTime(roundEnd, config.maxScheduleJitterMs));
+    await wait(calculateWaitTime(roundEnd, config.maxScheduleJitterMs, config.roundEndBufferMs));
   }
 }
 
@@ -110,8 +110,8 @@ function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function calculateWaitTime(roundEndSeconds: bigint, maxScheduleJitterMs: number): number {
-  return Math.max(0, Number(roundEndSeconds) * 1000 - Date.now() + randomDelay(maxScheduleJitterMs));
+function calculateWaitTime(roundEndSeconds: bigint, maxScheduleJitterMs: number, roundEndBufferMs: number): number {
+  return roundEndBufferMs + Math.max(0, Number(roundEndSeconds) * 1000 - Date.now() + randomDelay(maxScheduleJitterMs));
 }
 
 function log(obj: Record<string, unknown>): void {

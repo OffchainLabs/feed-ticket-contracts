@@ -31,6 +31,8 @@ export interface Config {
   maxScheduleJitterMs: number;
   // Poll interval while waiting for gas to drop within a round (ms).
   gasPollIntervalMs: number;
+  // Delay past round end before processing the next round.
+  roundEndBufferMs: number;
 }
 
 export function loadConfig(): Config {
@@ -44,5 +46,6 @@ export function loadConfig(): Config {
     apiKeyHash: parseHash('API_KEY_HASH'),
     maxScheduleJitterMs: optionalInt('MAX_SCHEDULE_JITTER_MS', 30_000),
     gasPollIntervalMs: optionalInt('GAS_POLL_INTERVAL_MS', 10_000),
+    roundEndBufferMs: optionalInt('ROUND_END_BUFFER_MS', 2_000),
   };
 }
