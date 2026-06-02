@@ -115,5 +115,5 @@ function calculateWaitTime(roundEndSeconds: bigint, maxScheduleJitterMs: number,
 }
 
 function log(obj: Record<string, unknown>): void {
-  console.log(JSON.stringify({timestamp: Date.now(), obj}));
+  console.log(JSON.stringify({timestamp: Date.now(), ...obj}));
 }

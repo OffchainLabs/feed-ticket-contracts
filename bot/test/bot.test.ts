@@ -136,7 +136,7 @@ after(() => {
 
 // The bot emits one JSON line per event via console.log. Capture them so tests can assert on the
 // bot's own view of what happened, while still printing them so they show in the test output.
-type BotLog = { timestamp: number; obj: Record<string, unknown> };
+type BotLog = { timestamp: number; event: string; [key: string]: unknown };
 const botLogs: BotLog[] = [];
 const realConsoleLog = console.log;
 
@@ -147,7 +147,7 @@ before(() => {
     if (typeof line !== 'string') return;
     try {
       const parsed = JSON.parse(line) as BotLog;
-      if (parsed?.obj?.event) botLogs.push(parsed);
+      if (parsed?.event) botLogs.push(parsed);
     } catch {}
   };
 });
@@ -174,7 +174,7 @@ afterEach(async () => {
   const from = botLogs.length;
   botAbort.abort();
   botAbort = undefined;
-  await waitForLog(from, (l) => l.obj.event === 'bot_stopped', 15_000);
+  await waitForLog(from, (l) => l.event === 'bot_stopped', 15_000);
 });
 
 function read(functionName: string) {
@@ -289,10 +289,10 @@ test('bot purchases tickets (happy path)', async () => {
   assert.equal((balance as bigint) < BOT_DEPOSIT, true);
 
   // The bot's own logs should report the purchase it just made on-chain.
-  const success = await waitForLog(logStart, (l) => l.obj.event === 'purchase_success', 5_000);
+  const success = await waitForLog(logStart, (l) => l.event === 'purchase_success', 5_000);
   assert.ok(success, 'bot did not log purchase_success');
-  assert.equal(success!.obj.numTickets, String(BOT_TICKETS_PER_ROUND));
-  assert.equal(success!.obj.ticketPrice, MINIMUM_PRICE.toString());
+  assert.equal(success!.numTickets, String(BOT_TICKETS_PER_ROUND));
+  assert.equal(success!.ticketPrice, MINIMUM_PRICE.toString());
 });
 
 test('bot waits for the gas price to drop before purchasing', async () => {
@@ -312,14 +312,14 @@ test('bot waits for the gas price to drop before purchasing', async () => {
   await waitForTimestamp(start + BigInt(roundDuration) + 1n);
   assert.equal((await getPurchases(address, account.address, fromBlock)).length, 0);
   // Logs confirm WHY: the fee never fit the budget, so the bot never attempted a purchase.
-  assert.equal(botLogs.slice(logStart).filter((l) => l.obj.event === 'purchase_attempt').length, 0);
+  assert.equal(botLogs.slice(logStart).filter((l) => l.event === 'purchase_attempt').length, 0);
 
   // Drop the gas price; the bot's next poll should now go through.
   await testClient.setNextBlockBaseFeePerGas({ baseFeePerGas: 1n * GWEI });
   const logs = await waitForPurchase(address, account.address, fromBlock, 10_000);
   assert.equal(logs.length > 0, true);
   // Once gas dropped, the bot attempted and completed the purchase.
-  const success = await waitForLog(logStart, (l) => l.obj.event === 'purchase_success', 5_000);
+  const success = await waitForLog(logStart, (l) => l.event === 'purchase_success', 5_000);
   assert.ok(success, 'bot did not log purchase_success after gas dropped');
 });
 
@@ -339,7 +339,7 @@ test('bot skips a round on contract revert, then recovers', async () => {
   await waitForTimestamp(start + BigInt(roundDuration) + 1n);
   assert.equal((await getPurchases(address, account.address, fromBlock)).length, 0);
   // Logs confirm the bot took the revert-skip path rather than skipping for some other reason.
-  const revertSkip = await waitForLog(logStart, (l) => l.obj.event === 'skip' && l.obj.reason === 'revert', 5_000);
+  const revertSkip = await waitForLog(logStart, (l) => l.event === 'skip' && l.reason === 'revert', 5_000);
   assert.ok(revertSkip, 'bot did not log a revert skip');
 
   // Fund it; a later round should succeed, proving the revert didn't kill the bot's loop.
@@ -348,6 +348,6 @@ test('bot skips a round on contract revert, then recovers', async () => {
   assert.equal(logs.length > 0, true);
   assert.equal((logs[0]!.args as PurchaseArgs).round >= 2n, true);
   // ...and it recovered: a purchase_success after the revert proves the loop survived.
-  const success = await waitForLog(logStart, (l) => l.obj.event === 'purchase_success', 5_000);
+  const success = await waitForLog(logStart, (l) => l.event === 'purchase_success', 5_000);
   assert.ok(success, 'bot did not recover with a purchase_success');
 });
