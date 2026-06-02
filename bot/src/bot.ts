@@ -1,4 +1,4 @@
-import { createPublicClient, createWalletClient, getContract, http, parseEventLogs, type Address, type PublicClient } from 'viem';
+import { createPublicClient, encodeFunctionData, getContract, http, parseEventLogs } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { Config } from './config.js';
 import { ticketsAbi } from './ticketsAbi.js';
@@ -14,22 +14,27 @@ const LOOP_INTERVAL = 10_000; // 10 seconds
 
 export async function run(config: Config): Promise<void> {
   const account = privateKeyToAccount(config.privateKey);
-  const transport = http(config.rpcUrl);
+  const transport = http(config.rpcUrl, { batch: true });
   const publicClient = createPublicClient({ transport });
-  const walletClient = createWalletClient({ account, transport });
 
   const tickets = getContract({
     address: config.ticketsAddress,
     abi: ticketsAbi,
-    client: { public: publicClient, wallet: walletClient },
+    client: publicClient,
   });
-  
-  const processRound = async () => {
-    const { price, roundEnd, roundNumber } =
-      await fetchRoundState(publicClient, config.ticketsAddress);
 
-    log({ event: 'round_start', roundNumber, roundEnd: roundEnd.toString(), price: price.toString() });
-    
+  const chainId = await publicClient.getChainId();
+
+  const processRound = async () => {
+    const [price, roundEnd, roundNumber, nonce] = await Promise.all([
+      publicClient.readContract({ address: tickets.address, abi: ticketsAbi, functionName: 'currentPrice' }),
+      publicClient.readContract({ address: tickets.address, abi: ticketsAbi, functionName: 'roundEnd' }),
+      publicClient.readContract({ address: tickets.address, abi: ticketsAbi, functionName: 'roundNumber' }),
+      publicClient.getTransactionCount({ address: account.address, blockTag: 'pending' }),
+    ]);
+
+    log({ event: 'round_start', roundNumber: roundNumber.toString(), roundEnd: roundEnd.toString(), price: price.toString() });
+
     while (true) {
       // check price, if it's above maxPricePerTicket, break
       if (price > config.maxPricePerTicket) {
@@ -43,15 +48,29 @@ export async function run(config: Config): Promise<void> {
         break;
       }
 
-      // simulate (guards against a revert), estimate the gas + fees the send would use, and
-      // if the resulting max fee is within budget, purchase tickets and break
       const purchaseArgs = [roundNumber, price, BigInt(config.ticketsPerRound), config.apiKeyHash] as const;
-      await tickets.simulate.purchaseTickets(purchaseArgs, { account }); // todo: don't love that these are 3 separate calls
-      const gas = await tickets.estimateGas.purchaseTickets(purchaseArgs, { account });
-      const { maxFeePerGas, maxPriorityFeePerGas } = await publicClient.estimateFeesPerGas();
-      if (gas * maxFeePerGas <= config.maxTransactionFee) {
-        log({ event: 'purchase_attempt', gas: gas.toString(), maxFeePerGas: maxFeePerGas.toString(), maxTransactionFee: config.maxTransactionFee.toString() });
-        const hash = await tickets.write.purchaseTickets(purchaseArgs, { account, chain: null, gas, maxFeePerGas, maxPriorityFeePerGas });
+      const data = encodeFunctionData({ abi: ticketsAbi, functionName: 'purchaseTickets', args: purchaseArgs });
+
+      const [gas, gasPrice] = await Promise.all([
+        publicClient.estimateGas({ account, to: config.ticketsAddress, data, prepare: false }),
+        publicClient.getGasPrice(),
+        tickets.simulate.purchaseTickets(purchaseArgs, { account }),
+      ]);
+
+      // if the resulting fee is within budget, purchase tickets and break
+      if (gas * gasPrice <= config.maxTransactionFee) {
+        log({ event: 'purchase_attempt', gas: gas.toString(), gasPrice: gasPrice.toString(), maxTransactionFee: config.maxTransactionFee.toString() });
+
+        const serializedTransaction = await account.signTransaction({
+          type: 'legacy',
+          chainId,
+          nonce,
+          to: config.ticketsAddress,
+          data,
+          gas,
+          gasPrice,
+        });
+        const hash = await publicClient.sendRawTransaction({ serializedTransaction });
         log({ event: 'transaction_sent', hash });
 
         // don't block the loop waiting for the transaction receipt
@@ -60,9 +79,9 @@ export async function run(config: Config): Promise<void> {
           const [purchase] = parseEventLogs({ abi: ticketsAbi, eventName: 'TicketsPurchased', logs: receipt.logs });
           if (purchase) {
             const { numTickets, price: ticketPrice } = purchase.args;
-            log({ event: 'purchase_success', hash, numTickets: numTickets.toString(), ticketPrice: ticketPrice.toString(), roundNumber: roundNumber.toString(), blockNumber: receipt.blockNumber, txFee: txFee.toString() });
+            log({ event: 'purchase_success', hash, numTickets: numTickets.toString(), ticketPrice: ticketPrice.toString(), roundNumber: roundNumber.toString(), blockNumber: receipt.blockNumber.toString(), txFee: txFee.toString() });
           } else {
-            log({ event: 'purchase_reverted', hash, roundNumber: roundNumber.toString(), blockNumber: receipt.blockNumber, txFee: txFee.toString() });
+            log({ event: 'purchase_reverted', hash, roundNumber: roundNumber.toString(), blockNumber: receipt.blockNumber.toString(), txFee: txFee.toString() });
           }
         });
 
@@ -72,23 +91,10 @@ export async function run(config: Config): Promise<void> {
       await wait(LOOP_INTERVAL);
     }
 
-    
     setTimeout(processRound, timeout(roundEnd));
   }
 
   setTimeout(processRound, timeout(await tickets.read.roundEnd()));
-}
-
-async function fetchRoundState(client: PublicClient, address: Address) {
-  const [price, roundEnd, roundNumber] = await client.multicall({
-    contracts: [
-      { address, abi: ticketsAbi, functionName: 'currentPrice' },
-      { address, abi: ticketsAbi, functionName: 'roundEnd' },
-      { address, abi: ticketsAbi, functionName: 'roundNumber' },
-    ],
-    allowFailure: false,
-  });
-  return { price, roundEnd, roundNumber };
 }
 
 function randomDelay(): number {
