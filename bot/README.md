@@ -18,6 +18,10 @@ TypeScript bot for purchasing feed tickets from the `Tickets` contract. Implemen
 
 The bot does not manage its own deposit balance; fund the signer's internal balance out of band via `depositToken` before purchases will succeed.
 
+## Error handling
+
+The bot does not catch transient RPC/network errors: any such failure crashes the whole process, and restarts are expected to be handled at a higher level (e.g. Docker `--restart`, Kubernetes, systemd). A contract revert on a purchase attempt is not an error -- the bot skips that round and continues. It also stops cleanly on SIGINT/SIGTERM.
+
 ## Local dev
 
 ```

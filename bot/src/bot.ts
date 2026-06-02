@@ -3,7 +3,7 @@ import { privateKeyToAccount } from 'viem/accounts';
 import { Config } from './config.js';
 import { ticketsAbi } from './ticketsAbi.js';
 
-export async function run(config: Config): Promise<void> {
+export async function run(config: Config, signal?: AbortSignal): Promise<void> {
   const account = privateKeyToAccount(config.privateKey);
   const transport = http(config.rpcUrl, { batch: true });
   const publicClient = createPublicClient({ transport });
@@ -16,7 +16,8 @@ export async function run(config: Config): Promise<void> {
 
   const chainId = await publicClient.getChainId();
 
-  const processRound = async () => {
+  // outer loop processes rounds sequentially, inner loop polls for price and round end, purchasing when conditions are met
+  while (true) {
     const [price, roundEnd, roundNumber, nonce] = await Promise.all([
       publicClient.readContract({ address: tickets.address, abi: ticketsAbi, functionName: 'currentPrice' }),
       publicClient.readContract({ address: tickets.address, abi: ticketsAbi, functionName: 'roundEnd' }),
@@ -27,6 +28,11 @@ export async function run(config: Config): Promise<void> {
     log({ event: 'round_start', roundNumber: roundNumber.toString(), roundEnd: roundEnd.toString(), price: price.toString() });
 
     while (true) {
+      if (signal?.aborted) {
+        log({ event: 'bot_stopped', reason: 'signal_aborted' });
+        return;
+      }
+
       // check price, if it's above maxPricePerTicket, break
       if (price > config.maxPricePerTicket) {
         log({ event: 'skip', reason: 'price_above_max', price: price.toString(), maxPricePerTicket: config.maxPricePerTicket.toString() });
@@ -92,10 +98,8 @@ export async function run(config: Config): Promise<void> {
       await wait(config.gasPollIntervalMs);
     }
 
-    setTimeout(processRound, timeout(roundEnd, config.maxScheduleJitterMs));
+    await wait(calculateWaitTime(roundEnd, config.maxScheduleJitterMs));
   }
-
-  setTimeout(processRound, timeout(await tickets.read.roundEnd(), config.maxScheduleJitterMs));
 }
 
 function randomDelay(max: number): number {
@@ -106,7 +110,7 @@ function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function timeout(roundEndSeconds: bigint, maxScheduleJitterMs: number): number {
+function calculateWaitTime(roundEndSeconds: bigint, maxScheduleJitterMs: number): number {
   return Math.max(0, Number(roundEndSeconds) * 1000 - Date.now() + randomDelay(maxScheduleJitterMs));
 }
 
