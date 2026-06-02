@@ -1,4 +1,4 @@
-import { createPublicClient, encodeFunctionData, getContract, http, parseEventLogs } from 'viem';
+import { BaseError, createPublicClient, encodeFunctionData, ExecutionRevertedError, getContract, http, parseEventLogs } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { Config } from './config.js';
 import { ticketsAbi } from './ticketsAbi.js';
@@ -42,11 +42,21 @@ export async function run(config: Config): Promise<void> {
       const purchaseArgs = [roundNumber, price, BigInt(config.ticketsPerRound), config.apiKeyHash] as const;
       const data = encodeFunctionData({ abi: ticketsAbi, functionName: 'purchaseTickets', args: purchaseArgs });
 
-      const [gas, gasPrice] = await Promise.all([
-        publicClient.estimateGas({ account, to: config.ticketsAddress, data, prepare: false }),
-        publicClient.getGasPrice(),
-        tickets.simulate.purchaseTickets(purchaseArgs, { account }),
-      ]);
+      let gas: bigint;
+      let gasPrice: bigint;
+      try {
+        [gas, gasPrice] = await Promise.all([
+          publicClient.estimateGas({ account, to: config.ticketsAddress, data, prepare: false }),
+          publicClient.getGasPrice(),
+        ]);
+      } catch (err) {
+        // Revert = can't buy this round (sold out / low balance / stale); skip it. Transport errors propagate.
+        if (err instanceof BaseError && err.walk((e) => e instanceof ExecutionRevertedError)) {
+          log({ event: 'skip', reason: 'revert', roundNumber: roundNumber.toString(), err });
+          break;
+        }
+        throw err;
+      }
 
       // if the resulting fee is within budget, purchase tickets and break
       if (gas * gasPrice <= config.maxTransactionFee) {
