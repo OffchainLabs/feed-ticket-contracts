@@ -32,7 +32,7 @@ export interface Config {
   // Poll interval while waiting for gas to drop within a round (ms).
   gasPollIntervalMs: number;
   // Delay past round end before processing the next round.
-  roundEndBufferMs: number;
+  roundEndBufferMs: number; // todo: rename to timingbuffer because we use it for round and grandfather boundaries
 }
 
 export function loadConfig(): Config {

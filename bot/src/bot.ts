@@ -1,12 +1,4 @@
-import {
-  BaseError,
-  createPublicClient,
-  encodeFunctionData,
-  ExecutionRevertedError,
-  getContract,
-  http,
-  parseEventLogs,
-} from 'viem';
+import { createPublicClient, getContract, Hex, http } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { Config } from './config.js';
 import { ticketsAbi } from './ticketsAbi.js';
@@ -16,32 +8,18 @@ export async function run(config: Config, signal?: AbortSignal): Promise<void> {
   const transport = http(config.rpcUrl, { batch: true });
   const publicClient = createPublicClient({ transport });
 
-  const tickets = getContract({
-    address: config.ticketsAddress,
-    abi: ticketsAbi,
-    client: publicClient,
-  });
+  const tickets = getTicketsContract(config.ticketsAddress, publicClient);
 
   const chainId = await publicClient.getChainId();
 
   // outer loop processes rounds sequentially, inner loop polls for price and round end, purchasing when conditions are met
   while (true) {
-    const [price, roundEnd, roundNumber, nonce] = await Promise.all([
-      publicClient.readContract({
-        address: tickets.address,
-        abi: ticketsAbi,
-        functionName: 'currentPrice',
-      }),
-      publicClient.readContract({
-        address: tickets.address,
-        abi: ticketsAbi,
-        functionName: 'roundEnd',
-      }),
-      publicClient.readContract({
-        address: tickets.address,
-        abi: ticketsAbi,
-        functionName: 'roundNumber',
-      }),
+    const [price, roundEnd, roundNumber, grandfatherCount, grandfatherPeriodEnd, nonce] = await Promise.all([
+      tickets.read.currentPrice(),
+      tickets.read.roundEnd(),
+      tickets.read.roundNumber(),
+      tickets.read.grandfatherCount([account.address]),
+      tickets.read.grandfatherPeriodEnd(),
       publicClient.getTransactionCount({
         address: account.address,
         blockTag: 'pending',
@@ -55,139 +33,67 @@ export async function run(config: Config, signal?: AbortSignal): Promise<void> {
       price,
     });
 
-    while (true) {
-      if (signal?.aborted) {
-        log({ event: 'bot_stopped', reason: 'signal_aborted' });
-        return;
-      }
-
-      // check price, if it's above maxPricePerTicket, break
-      if (price > config.maxPricePerTicket) {
-        log({
-          event: 'skip',
-          reason: 'price_above_max',
-          price,
-          maxPricePerTicket: config.maxPricePerTicket,
-        });
-        break;
-      }
-
-      // if round is over, break
-      if (Date.now() >= Number(roundEnd) * 1000) {
-        log({
-          event: 'skip',
-          reason: 'round_ended',
-          roundEnd,
-        });
-        break;
-      }
-
-      const purchaseArgs = [roundNumber, price, BigInt(config.ticketsPerRound), config.apiKeyHash] as const;
-
-      const data = encodeFunctionData({
-        abi: ticketsAbi,
-        functionName: 'purchaseTickets',
-        args: purchaseArgs,
-      });
-
-      let gas: bigint;
-      let gasPrice: bigint;
-      try {
-        [gas, gasPrice] = await Promise.all([
-          publicClient.estimateGas({
-            account,
-            to: config.ticketsAddress,
-            data,
-            prepare: false,
-          }),
-          publicClient.getGasPrice(),
-        ]);
-      } catch (err) {
-        // Revert = can't buy this round (sold out / low balance / stale); skip it. Transport errors propagate.
-        if (err instanceof BaseError && err.walk((e) => e instanceof ExecutionRevertedError)) {
-          log({
-            event: 'skip',
-            reason: 'revert',
-            roundNumber,
-            err,
-          });
-          break;
-        }
-        throw err;
-      }
-
-      // if the resulting fee is within budget, purchase tickets and break
-      if (gas * gasPrice <= config.maxTransactionFee) {
-        log({
-          event: 'purchase_attempt',
-          gas,
-          gasPrice,
-          maxTransactionFee: config.maxTransactionFee,
-        });
-
-        const serializedTransaction = await account.signTransaction({
-          type: 'legacy',
-          chainId,
-          nonce,
-          to: config.ticketsAddress,
-          data,
-          gas,
-          gasPrice,
-        });
-
-        const hash = await publicClient.sendRawTransaction({
-          serializedTransaction,
-        });
-
-        log({ event: 'transaction_sent', hash });
-
-        // don't block the loop waiting for the transaction receipt
-        publicClient.waitForTransactionReceipt({ hash }).then((receipt) => {
-          const txFee = receipt.gasUsed * receipt.effectiveGasPrice;
-          const [purchase] = parseEventLogs({
-            abi: ticketsAbi,
-            eventName: 'TicketsPurchased',
-            logs: receipt.logs,
-          });
-          if (purchase) {
-            const { numTickets, price: ticketPrice } = purchase.args;
-            log({
-              event: 'purchase_success',
-              hash,
-              numTickets,
-              ticketPrice,
-              roundNumber,
-              blockNumber: receipt.blockNumber,
-              txFee,
-            });
-          } else {
-            log({
-              event: 'purchase_reverted',
-              hash,
-              roundNumber,
-              blockNumber: receipt.blockNumber,
-              txFee,
-            });
-          }
-        });
-
-        break;
-      }
-
+    // if the price is too high, wait for the next round to start
+    if (price > config.maxPricePerTicket) {
       log({
-        event: 'wait',
-        reason: 'gas_fee_above_max',
-        gas,
-        gasPrice,
-        fee: gas * gasPrice,
-        maxTransactionFee: config.maxTransactionFee,
+        event: 'price_above_max',
+        roundNumber,
+        price,
+        maxPricePerTicket: config.maxPricePerTicket,
       });
-
-      await wait(config.gasPollIntervalMs);
+      await wait(calculateWaitTime(roundEnd, config.maxScheduleJitterMs, config.roundEndBufferMs));
+      continue;
     }
 
+    // if we are in grandfather period, buy as many tickets as we can up to the grandfather limit
+    const { ticketsPurchased } = await handleGrandfatherPeriod();
+
+    // if we bought enough tickets, wait for the next round to start
+    if (ticketsPurchased >= config.ticketsPerRound) {
+      log({
+        event: 'round_filled_during_grandfather',
+        roundNumber,
+        ticketsPurchased,
+      });
+      await wait(calculateWaitTime(roundEnd, config.maxScheduleJitterMs, config.roundEndBufferMs));
+      continue;
+    }
+
+    // if we need to buy more tickets, wait until the grandfather period ends
+    log({
+      event: 'wait_grandfather_period_end',
+      roundNumber,
+      grandfatherPeriodEnd,
+    });
+    await wait(calculateWaitTime(grandfatherPeriodEnd, config.maxScheduleJitterMs, config.roundEndBufferMs));
+
+    // attempt to buy remaining tickets
+    await handleOpenPurchaseWindow(config.ticketsPerRound - ticketsPurchased);
+
+    // wait for next round
+    log({
+      event: 'wait_next_round',
+      roundNumber,
+      roundEnd,
+    });
     await wait(calculateWaitTime(roundEnd, config.maxScheduleJitterMs, config.roundEndBufferMs));
   }
+}
+
+async function handleGrandfatherPeriod() {
+  return {
+    ticketsPurchased: 0,
+  };
+}
+
+async function handleOpenPurchaseWindow(numTicketsDesired: number) {}
+
+function getTicketsContract(address: Hex, client: ReturnType<typeof createPublicClient>) {
+  return getContract({
+    address,
+    abi: ticketsAbi,
+    client,
+  });
 }
 
 function randomDelay(max: number): number {
