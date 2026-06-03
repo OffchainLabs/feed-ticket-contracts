@@ -4,7 +4,6 @@ import {
   encodeFunctionData,
   ExecutionRevertedError,
   getContract,
-  Hex,
   http,
   parseEventLogs,
 } from 'viem';
@@ -17,11 +16,15 @@ export async function run(config: Config, signal?: AbortSignal): Promise<void> {
   const transport = http(config.rpcUrl, { batch: true });
   const publicClient = createPublicClient({ transport });
 
-  const tickets = getTicketsContract(config.ticketsAddress, publicClient);
+  const tickets = getContract({
+    address: config.ticketsAddress,
+    abi: ticketsAbi,
+    client: publicClient,
+  });
 
   const chainId = await publicClient.getChainId();
 
-  // outer loop processes rounds sequentially, inner loop polls for price and round end, purchasing when conditions are met
+  // each iteration handles one round: buy grandfathered tickets during the grandfather phase, then the rest once the window opens
   while (true) {
     if (signal?.aborted) {
       log({ event: 'abort' });
@@ -55,7 +58,7 @@ export async function run(config: Config, signal?: AbortSignal): Promise<void> {
         price,
         maxPricePerTicket: config.maxPricePerTicket,
       });
-      await wait(calculateWaitTime(roundEnd, config.maxScheduleJitterMs, config.roundEndBufferMs));
+      await wait(calculateWaitTime(roundEnd, config.maxScheduleJitterMs, config.boundaryBufferMs));
       continue;
     }
 
@@ -72,7 +75,7 @@ export async function run(config: Config, signal?: AbortSignal): Promise<void> {
         publicClient,
         account,
         Number(grandfatherPeriodEnd) * 1000,
-        Number(grandfatherCount),
+        Math.min(Number(grandfatherCount), config.ticketsPerRound),
         roundNumber,
         price,
         nonce,
@@ -86,7 +89,7 @@ export async function run(config: Config, signal?: AbortSignal): Promise<void> {
         roundNumber,
         numTicketsPurchasedInGrandfatherPhase,
       });
-      await wait(calculateWaitTime(roundEnd, config.maxScheduleJitterMs, config.roundEndBufferMs));
+      await wait(calculateWaitTime(roundEnd, config.maxScheduleJitterMs, config.boundaryBufferMs));
       continue;
     }
 
@@ -96,7 +99,7 @@ export async function run(config: Config, signal?: AbortSignal): Promise<void> {
       roundNumber,
       grandfatherPeriodEnd,
     });
-    await wait(calculateWaitTime(grandfatherPeriodEnd, config.maxScheduleJitterMs, config.roundEndBufferMs));
+    await wait(calculateWaitTime(grandfatherPeriodEnd, config.maxScheduleJitterMs, config.boundaryBufferMs));
 
     // attempt to buy remaining tickets
     log({
@@ -122,7 +125,7 @@ export async function run(config: Config, signal?: AbortSignal): Promise<void> {
       roundNumber,
       roundEnd,
     });
-    await wait(calculateWaitTime(roundEnd, config.maxScheduleJitterMs, config.roundEndBufferMs));
+    await wait(calculateWaitTime(roundEnd, config.maxScheduleJitterMs, config.boundaryBufferMs));
   }
 }
 
@@ -208,6 +211,7 @@ async function purchaseTicketsWhenGasIsAcceptable(
 
       log({ event: 'transaction_sent', hash });
 
+      // waiting for the receipt is acceptable because arb1 includes transactions quickly
       const receipt = await publicClient.waitForTransactionReceipt({ hash });
       const txFee = receipt.gasUsed * receipt.effectiveGasPrice;
       const [purchase] = parseEventLogs({
@@ -217,7 +221,7 @@ async function purchaseTicketsWhenGasIsAcceptable(
       });
 
       if (purchase) {
-        const { numTickets, price: ticketPrice } = purchase.args;
+        const { numTickets } = purchase.args;
         log({
           event: 'purchase_success',
           hash,
@@ -251,14 +255,6 @@ async function purchaseTicketsWhenGasIsAcceptable(
   }
 }
 
-function getTicketsContract(address: Hex, client: ReturnType<typeof createPublicClient>) {
-  return getContract({
-    address,
-    abi: ticketsAbi,
-    client,
-  });
-}
-
 function randomDelay(max: number): number {
   return Math.floor(Math.random() * max);
 }
@@ -267,8 +263,8 @@ function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function calculateWaitTime(roundEndSeconds: bigint, maxScheduleJitterMs: number, roundEndBufferMs: number): number {
-  return roundEndBufferMs + Math.max(0, Number(roundEndSeconds) * 1000 - Date.now() + randomDelay(maxScheduleJitterMs));
+function calculateWaitTime(boundarySeconds: bigint, maxScheduleJitterMs: number, boundaryBufferMs: number): number {
+  return boundaryBufferMs + Math.max(0, Number(boundarySeconds) * 1000 - Date.now() + randomDelay(maxScheduleJitterMs));
 }
 
 function log(obj: Record<string, unknown>): void {

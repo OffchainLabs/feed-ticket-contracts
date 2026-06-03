@@ -310,7 +310,7 @@ function makeBotConfig(privateKey: Hex, ticketsAddr: Address, overrides: Partial
     apiKeyHash: API_KEY_HASH,
     maxScheduleJitterMs: 0,
     gasPollIntervalMs: 250,
-    roundEndBufferMs: 1000,
+    boundaryBufferMs: 1000,
     ...overrides,
   };
 }

@@ -2,6 +2,8 @@
 
 TypeScript bot for purchasing feed tickets from the `Tickets` contract. Implements a "buy N tickets up to some max price every round" strategy.
 
+TODO: pseudocode the exact purchase algorithm (price check, grandfather-phase buy, open-window buy, round scheduling).
+
 ## Configuration
 
 | Env var                  | Description                                                                                                                         |
@@ -15,7 +17,7 @@ TypeScript bot for purchasing feed tickets from the `Tickets` contract. Implemen
 | `API_KEY_HASH`           | 0x-prefixed 32-byte hex hash of the API key to bind purchased tickets to.                                                           |
 | `MAX_SCHEDULE_JITTER_MS` | Optional. Max scheduling jitter in ms, so bots don't all act at once. Default `30000`.                                              |
 | `GAS_POLL_INTERVAL_MS`   | Optional. Poll interval in ms while waiting for gas to drop within a round. Default `10000`.                                        |
-| `ROUND_END_BUFFER_MS`    | Optional. Delay in ms past round end before processing the next round, so the chain has advanced past the boundary. Default `2000`. |
+| `BOUNDARY_BUFFER_MS`     | Optional. Delay in ms past a round or grandfather-phase boundary before acting, so the chain has advanced past it. Default `2000`.   |
 
 The bot does not manage its own deposit balance; fund the signer's internal balance out of band via `depositToken` before purchases will succeed.
 
