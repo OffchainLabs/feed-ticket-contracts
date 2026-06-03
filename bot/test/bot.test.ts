@@ -26,8 +26,10 @@ const ANVIL_BLOCK_TIME = '0.25';
 const RPC_URL = `http://127.0.0.1:${ANVIL_PORT}`;
 
 // anvil dev accounts
-const DEPLOYER_KEY = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
-const BENEFICIARY_KEY = '0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d';
+const DEPLOYER_KEY =
+  '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
+const BENEFICIARY_KEY =
+  '0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d';
 
 // parameters for the test deployment
 const ROUND_DURATION_SECONDS = 4;
@@ -41,20 +43,40 @@ const GRANDFATHER_PERIOD_FRACTION = 0;
 const FIRST_ROUND_LEAD_SECONDS = 2n;
 
 function loadArtifact(path: string): { abi: Abi; bytecode: Hex } {
-  const artifact = JSON.parse(readFileSync(`${fileURLToPath(new URL('../../out', import.meta.url))}/${path}`, 'utf8'));
+  const artifact = JSON.parse(
+    readFileSync(
+      `${fileURLToPath(new URL('../../out', import.meta.url))}/${path}`,
+      'utf8',
+    ),
+  );
   return { abi: artifact.abi, bytecode: artifact.bytecode.object as Hex };
 }
 
 const erc20Mock = loadArtifact('ERC20Mock.sol/ERC20Mock.json');
 const ticketsArtifact = loadArtifact('Tickets.sol/Tickets.json');
-const proxyArtifact = loadArtifact('TransparentUpgradeableProxy.sol/TransparentUpgradeableProxy.json');
+const proxyArtifact = loadArtifact(
+  'TransparentUpgradeableProxy.sol/TransparentUpgradeableProxy.json',
+);
 
 const deployer = privateKeyToAccount(DEPLOYER_KEY);
 const beneficiary = privateKeyToAccount(BENEFICIARY_KEY);
 
-const publicClient = createPublicClient({ chain: foundry, transport: http(RPC_URL), pollingInterval: 200, cacheTime: 0 });
-const walletClient = createWalletClient({ account: deployer, chain: foundry, transport: http(RPC_URL) });
-const testClient = createTestClient({ chain: foundry, mode: 'anvil', transport: http(RPC_URL) });
+const publicClient = createPublicClient({
+  chain: foundry,
+  transport: http(RPC_URL),
+  pollingInterval: 200,
+  cacheTime: 0,
+});
+const walletClient = createWalletClient({
+  account: deployer,
+  chain: foundry,
+  transport: http(RPC_URL),
+});
+const testClient = createTestClient({
+  chain: foundry,
+  mode: 'anvil',
+  transport: http(RPC_URL),
+});
 
 let anvil: ChildProcess;
 let tokenAddress: Address;
@@ -86,49 +108,74 @@ async function waitForTimestamp(target: bigint): Promise<void> {
   throw new Error('chain did not reach target timestamp');
 }
 
-async function deploy(artifact: { abi: Abi; bytecode: Hex }, args: unknown[]): Promise<Address> {
-  const hash = await walletClient.deployContract({ abi: artifact.abi, bytecode: artifact.bytecode, args, account: deployer, chain: foundry });
+async function deploy(
+  artifact: { abi: Abi; bytecode: Hex },
+  args: unknown[],
+): Promise<Address> {
+  const hash = await walletClient.deployContract({
+    abi: artifact.abi,
+    bytecode: artifact.bytecode,
+    args,
+    account: deployer,
+    chain: foundry,
+  });
   const receipt = await publicClient.waitForTransactionReceipt({ hash });
-  if (!receipt.contractAddress) throw new Error('deployment produced no contract address');
+  if (!receipt.contractAddress)
+    throw new Error('deployment produced no contract address');
   return getAddress(receipt.contractAddress);
 }
 
-async function deployTickets(
-  roundDuration = ROUND_DURATION_SECONDS,
-): Promise<{ address: Address; firstRoundStart: bigint; roundDuration: number }> {
+async function deployTickets(roundDuration = ROUND_DURATION_SECONDS): Promise<{
+  address: Address;
+  firstRoundStart: bigint;
+  roundDuration: number;
+}> {
   const impl = await deploy(ticketsArtifact, [tokenAddress]);
   const { timestamp } = await publicClient.getBlock({ blockTag: 'latest' });
   const start = timestamp + FIRST_ROUND_LEAD_SECONDS;
   const initData = encodeFunctionData({
     abi: ticketsArtifact.abi,
     functionName: 'initialize',
-    args: [{
-      defaultAdmin: deployer.address,
-      beneficiarySetter: deployer.address,
-      marketParamsSetter: deployer.address,
-      beneficiary: beneficiary.address,
-      roundDuration,
-      targetTicketsPerRound: TARGET_TICKETS_PER_ROUND,
-      maxTicketsPerRound: MAX_TICKETS_PER_ROUND,
-      minimumPrice: MINIMUM_PRICE,
-      priceUpdateFraction: PRICE_UPDATE_FRACTION,
-      grandfatherPeriodFraction: GRANDFATHER_PERIOD_FRACTION,
-      firstRoundStart: start,
-    }],
+    args: [
+      {
+        defaultAdmin: deployer.address,
+        beneficiarySetter: deployer.address,
+        marketParamsSetter: deployer.address,
+        beneficiary: beneficiary.address,
+        roundDuration,
+        targetTicketsPerRound: TARGET_TICKETS_PER_ROUND,
+        maxTicketsPerRound: MAX_TICKETS_PER_ROUND,
+        minimumPrice: MINIMUM_PRICE,
+        priceUpdateFraction: PRICE_UPDATE_FRACTION,
+        grandfatherPeriodFraction: GRANDFATHER_PERIOD_FRACTION,
+        firstRoundStart: start,
+      },
+    ],
   });
-  const address = await deploy(proxyArtifact, [impl, deployer.address, initData]);
+  const address = await deploy(proxyArtifact, [
+    impl,
+    deployer.address,
+    initData,
+  ]);
   return { address, firstRoundStart: start, roundDuration };
 }
 
-before(async () => {
-  anvil = spawn('anvil', ['--port', String(ANVIL_PORT), '--block-time', ANVIL_BLOCK_TIME], { stdio: 'ignore' });
-  await waitForAnvil();
+before(
+  async () => {
+    anvil = spawn(
+      'anvil',
+      ['--port', String(ANVIL_PORT), '--block-time', ANVIL_BLOCK_TIME],
+      { stdio: 'ignore' },
+    );
+    await waitForAnvil();
 
-  tokenAddress = await deploy(erc20Mock, []);
-  ({ address: ticketsAddress, firstRoundStart } = await deployTickets());
+    tokenAddress = await deploy(erc20Mock, []);
+    ({ address: ticketsAddress, firstRoundStart } = await deployTickets());
 
-  await waitForTimestamp(firstRoundStart);
-}, { timeout: 30_000 });
+    await waitForTimestamp(firstRoundStart);
+  },
+  { timeout: 30_000 },
+);
 
 after(() => {
   anvil?.kill('SIGKILL');
@@ -156,7 +203,11 @@ after(() => {
   console.log = realConsoleLog;
 });
 
-async function waitForLog(fromIndex: number, predicate: (l: BotLog) => boolean, timeoutMs: number): Promise<BotLog | undefined> {
+async function waitForLog(
+  fromIndex: number,
+  predicate: (l: BotLog) => boolean,
+  timeoutMs: number,
+): Promise<BotLog | undefined> {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
     const hit = botLogs.slice(fromIndex).find(predicate);
@@ -178,7 +229,11 @@ afterEach(async () => {
 });
 
 function read(functionName: string) {
-  return publicClient.readContract({ address: ticketsAddress, abi: ticketsArtifact.abi, functionName });
+  return publicClient.readContract({
+    address: ticketsAddress,
+    abi: ticketsArtifact.abi,
+    functionName,
+  });
 }
 
 test('deploys the tickets contract', async () => {
@@ -193,7 +248,10 @@ test('deploys the tickets contract', async () => {
 
 test('exposes live first-round state', async () => {
   assert.equal(await read('roundNumber'), 0n);
-  assert.equal(await read('roundEnd'), firstRoundStart + BigInt(ROUND_DURATION_SECONDS));
+  assert.equal(
+    await read('roundEnd'),
+    firstRoundStart + BigInt(ROUND_DURATION_SECONDS),
+  );
   assert.equal(await read('currentPrice'), MINIMUM_PRICE);
 });
 
@@ -201,7 +259,8 @@ test('exposes live first-round state', async () => {
 // These drive the real bot via run() against a fresh deployment each, with its own anvil
 // account. afterEach aborts the bot's signal so it stops between cases.
 
-const ANVIL_MNEMONIC = 'test test test test test test test test test test test junk';
+const ANVIL_MNEMONIC =
+  'test test test test test test test test test test test junk';
 const GWEI = 10n ** 9n;
 const API_KEY_HASH = ('0x' + 'ab'.repeat(32)) as Hex;
 const BOT_TICKETS_PER_ROUND = 3;
@@ -217,7 +276,10 @@ type PurchaseArgs = {
 };
 
 function anvilKey(index: number): Hex {
-  return toHex(mnemonicToAccount(ANVIL_MNEMONIC, { addressIndex: index }).getHdKey().privateKey!);
+  return toHex(
+    mnemonicToAccount(ANVIL_MNEMONIC, { addressIndex: index }).getHdKey()
+      .privateKey!,
+  );
 }
 
 // Indices 0/1 are the deployer/beneficiary; give each bot test its own account.
@@ -227,14 +289,47 @@ async function sendTx(hashPromise: Promise<Hex>): Promise<void> {
   await publicClient.waitForTransactionReceipt({ hash: await hashPromise });
 }
 
-async function fundDeposit(account: ReturnType<typeof privateKeyToAccount>, ticketsAddr: Address, amount: bigint): Promise<void> {
-  const wallet = createWalletClient({ account, chain: foundry, transport: http(RPC_URL) });
-  await sendTx(wallet.writeContract({ address: tokenAddress, abi: erc20Mock.abi, functionName: 'mint', args: [account.address, amount] }));
-  await sendTx(wallet.writeContract({ address: tokenAddress, abi: erc20Mock.abi, functionName: 'approve', args: [ticketsAddr, amount] }));
-  await sendTx(wallet.writeContract({ address: ticketsAddr, abi: ticketsArtifact.abi, functionName: 'depositToken', args: [amount] }));
+async function fundDeposit(
+  account: ReturnType<typeof privateKeyToAccount>,
+  ticketsAddr: Address,
+  amount: bigint,
+): Promise<void> {
+  const wallet = createWalletClient({
+    account,
+    chain: foundry,
+    transport: http(RPC_URL),
+  });
+  await sendTx(
+    wallet.writeContract({
+      address: tokenAddress,
+      abi: erc20Mock.abi,
+      functionName: 'mint',
+      args: [account.address, amount],
+    }),
+  );
+  await sendTx(
+    wallet.writeContract({
+      address: tokenAddress,
+      abi: erc20Mock.abi,
+      functionName: 'approve',
+      args: [ticketsAddr, amount],
+    }),
+  );
+  await sendTx(
+    wallet.writeContract({
+      address: ticketsAddr,
+      abi: ticketsArtifact.abi,
+      functionName: 'depositToken',
+      args: [amount],
+    }),
+  );
 }
 
-function makeBotConfig(privateKey: Hex, ticketsAddr: Address, overrides: Partial<Config> = {}): Config {
+function makeBotConfig(
+  privateKey: Hex,
+  ticketsAddr: Address,
+  overrides: Partial<Config> = {},
+): Config {
   return {
     rpcUrl: RPC_URL,
     ticketsPerRound: BOT_TICKETS_PER_ROUND,
@@ -251,10 +346,21 @@ function makeBotConfig(privateKey: Hex, ticketsAddr: Address, overrides: Partial
 }
 
 function getPurchases(ticketsAddr: Address, buyer: Address, fromBlock: bigint) {
-  return publicClient.getContractEvents({ address: ticketsAddr, abi: ticketsArtifact.abi, eventName: 'TicketsPurchased', args: { buyer }, fromBlock });
+  return publicClient.getContractEvents({
+    address: ticketsAddr,
+    abi: ticketsArtifact.abi,
+    eventName: 'TicketsPurchased',
+    args: { buyer },
+    fromBlock,
+  });
 }
 
-async function waitForPurchase(ticketsAddr: Address, buyer: Address, fromBlock: bigint, timeoutMs: number) {
+async function waitForPurchase(
+  ticketsAddr: Address,
+  buyer: Address,
+  fromBlock: bigint,
+  timeoutMs: number,
+) {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
     const logs = await getPurchases(ticketsAddr, buyer, fromBlock);
@@ -275,7 +381,12 @@ test('bot purchases tickets (happy path)', async () => {
   botAbort = new AbortController();
   run(makeBotConfig(botKeys[0], address), botAbort.signal);
 
-  const logs = await waitForPurchase(address, account.address, fromBlock, 20_000);
+  const logs = await waitForPurchase(
+    address,
+    account.address,
+    fromBlock,
+    20_000,
+  );
   assert.equal(logs.length > 0, true);
 
   const purchase = logs[0]!.args as PurchaseArgs;
@@ -285,18 +396,31 @@ test('bot purchases tickets (happy path)', async () => {
   assert.equal(purchase.price, MINIMUM_PRICE);
   assert.equal(purchase.apiKeyHash, API_KEY_HASH);
 
-  const balance = await publicClient.readContract({ address, abi: ticketsArtifact.abi, functionName: 'tokenBalance', args: [account.address] });
+  const balance = await publicClient.readContract({
+    address,
+    abi: ticketsArtifact.abi,
+    functionName: 'tokenBalance',
+    args: [account.address],
+  });
   assert.equal((balance as bigint) < BOT_DEPOSIT, true);
 
   // The bot's own logs should report the purchase it just made on-chain.
-  const success = await waitForLog(logStart, (l) => l.event === 'purchase_success', 5_000);
+  const success = await waitForLog(
+    logStart,
+    (l) => l.event === 'purchase_success',
+    5_000,
+  );
   assert.ok(success, 'bot did not log purchase_success');
   assert.equal(success!.numTickets, String(BOT_TICKETS_PER_ROUND));
   assert.equal(success!.ticketPrice, MINIMUM_PRICE.toString());
 });
 
 test('bot waits for the gas price to drop before purchasing', async () => {
-  const { address, firstRoundStart: start, roundDuration } = await deployTickets(5);
+  const {
+    address,
+    firstRoundStart: start,
+    roundDuration,
+  } = await deployTickets(5);
   const account = privateKeyToAccount(botKeys[1]);
   await waitForTimestamp(start);
   await fundDeposit(account, address, BOT_DEPOSIT);
@@ -306,25 +430,48 @@ test('bot waits for the gas price to drop before purchasing', async () => {
   const fromBlock = await publicClient.getBlockNumber();
   const logStart = botLogs.length;
   botAbort = new AbortController();
-  run(makeBotConfig(botKeys[1], address, { maxTransactionFee: 10n ** 16n }), botAbort.signal);
+  run(
+    makeBotConfig(botKeys[1], address, { maxTransactionFee: 10n ** 16n }),
+    botAbort.signal,
+  );
 
   // 1s into the bot's first purchase round (round 1): gas is still high, so it must not have bought.
   await waitForTimestamp(start + BigInt(roundDuration) + 1n);
-  assert.equal((await getPurchases(address, account.address, fromBlock)).length, 0);
+  assert.equal(
+    (await getPurchases(address, account.address, fromBlock)).length,
+    0,
+  );
   // Logs confirm WHY: the fee never fit the budget, so the bot never attempted a purchase.
-  assert.equal(botLogs.slice(logStart).filter((l) => l.event === 'purchase_attempt').length, 0);
+  assert.equal(
+    botLogs.slice(logStart).filter((l) => l.event === 'purchase_attempt')
+      .length,
+    0,
+  );
 
   // Drop the gas price; the bot's next poll should now go through.
   await testClient.setNextBlockBaseFeePerGas({ baseFeePerGas: 1n * GWEI });
-  const logs = await waitForPurchase(address, account.address, fromBlock, 10_000);
+  const logs = await waitForPurchase(
+    address,
+    account.address,
+    fromBlock,
+    10_000,
+  );
   assert.equal(logs.length > 0, true);
   // Once gas dropped, the bot attempted and completed the purchase.
-  const success = await waitForLog(logStart, (l) => l.event === 'purchase_success', 5_000);
+  const success = await waitForLog(
+    logStart,
+    (l) => l.event === 'purchase_success',
+    5_000,
+  );
   assert.ok(success, 'bot did not log purchase_success after gas dropped');
 });
 
 test('bot skips a round on contract revert, then recovers', async () => {
-  const { address, firstRoundStart: start, roundDuration } = await deployTickets(5);
+  const {
+    address,
+    firstRoundStart: start,
+    roundDuration,
+  } = await deployTickets(5);
   const account = privateKeyToAccount(botKeys[2]);
   await waitForTimestamp(start);
 
@@ -337,17 +484,33 @@ test('bot skips a round on contract revert, then recovers', async () => {
 
   // Round 1: the purchase would revert, so the bot must skip it (buy nothing) without crashing.
   await waitForTimestamp(start + BigInt(roundDuration) + 1n);
-  assert.equal((await getPurchases(address, account.address, fromBlock)).length, 0);
+  assert.equal(
+    (await getPurchases(address, account.address, fromBlock)).length,
+    0,
+  );
   // Logs confirm the bot took the revert-skip path rather than skipping for some other reason.
-  const revertSkip = await waitForLog(logStart, (l) => l.event === 'skip' && l.reason === 'revert', 5_000);
+  const revertSkip = await waitForLog(
+    logStart,
+    (l) => l.event === 'skip' && l.reason === 'revert',
+    5_000,
+  );
   assert.ok(revertSkip, 'bot did not log a revert skip');
 
   // Fund it; a later round should succeed, proving the revert didn't kill the bot's loop.
   await fundDeposit(account, address, BOT_DEPOSIT);
-  const logs = await waitForPurchase(address, account.address, fromBlock, 20_000);
+  const logs = await waitForPurchase(
+    address,
+    account.address,
+    fromBlock,
+    20_000,
+  );
   assert.equal(logs.length > 0, true);
   assert.equal((logs[0]!.args as PurchaseArgs).round >= 2n, true);
   // ...and it recovered: a purchase_success after the revert proves the loop survived.
-  const success = await waitForLog(logStart, (l) => l.event === 'purchase_success', 5_000);
+  const success = await waitForLog(
+    logStart,
+    (l) => l.event === 'purchase_success',
+    5_000,
+  );
   assert.ok(success, 'bot did not recover with a purchase_success');
 });
