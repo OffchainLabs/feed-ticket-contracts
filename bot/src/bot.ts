@@ -154,7 +154,7 @@ async function purchaseTicketsWhenGasIsAcceptable(
 
   while (true) {
     if (Date.now() >= deadlineTimestampMs) {
-      log({ event: 'abort', reason: 'deadline_passed' });
+      log({ event: 'deadline_passed', roundNumber });
       return { numTicketsPurchased: 0, transactionSent: false };
     }
 
