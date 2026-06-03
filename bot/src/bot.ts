@@ -24,7 +24,7 @@ export async function run(config: Config, signal?: AbortSignal): Promise<void> {
   // outer loop processes rounds sequentially, inner loop polls for price and round end, purchasing when conditions are met
   while (true) {
     if (signal?.aborted) {
-      log({ event: 'abort', reason: 'signal_aborted' });
+      log({ event: 'abort' });
       return;
     }
 
@@ -174,8 +174,7 @@ async function purchaseTicketsWhenGasIsAcceptable(
       // Revert = can't buy this round (sold out / low balance / stale); skip it. Transport errors propagate.
       if (err instanceof BaseError && err.walk((e) => e instanceof ExecutionRevertedError)) {
         log({
-          event: 'skip',
-          reason: 'revert',
+          event: 'skip_due_to_revert',
           roundNumber,
           err,
         });
