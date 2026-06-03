@@ -50,9 +50,9 @@ export async function run(config: Config, signal?: AbortSignal): Promise<void> {
 
     log({
       event: 'round_start',
-      roundNumber: roundNumber.toString(),
-      roundEnd: roundEnd.toString(),
-      price: price.toString(),
+      roundNumber,
+      roundEnd,
+      price,
     });
 
     while (true) {
@@ -66,8 +66,8 @@ export async function run(config: Config, signal?: AbortSignal): Promise<void> {
         log({
           event: 'skip',
           reason: 'price_above_max',
-          price: price.toString(),
-          maxPricePerTicket: config.maxPricePerTicket.toString(),
+          price,
+          maxPricePerTicket: config.maxPricePerTicket,
         });
         break;
       }
@@ -77,7 +77,7 @@ export async function run(config: Config, signal?: AbortSignal): Promise<void> {
         log({
           event: 'skip',
           reason: 'round_ended',
-          roundEnd: roundEnd.toString(),
+          roundEnd,
         });
         break;
       }
@@ -108,7 +108,7 @@ export async function run(config: Config, signal?: AbortSignal): Promise<void> {
           log({
             event: 'skip',
             reason: 'revert',
-            roundNumber: roundNumber.toString(),
+            roundNumber,
             err,
           });
           break;
@@ -120,9 +120,9 @@ export async function run(config: Config, signal?: AbortSignal): Promise<void> {
       if (gas * gasPrice <= config.maxTransactionFee) {
         log({
           event: 'purchase_attempt',
-          gas: gas.toString(),
-          gasPrice: gasPrice.toString(),
-          maxTransactionFee: config.maxTransactionFee.toString(),
+          gas,
+          gasPrice,
+          maxTransactionFee: config.maxTransactionFee,
         });
 
         const serializedTransaction = await account.signTransaction({
@@ -154,19 +154,19 @@ export async function run(config: Config, signal?: AbortSignal): Promise<void> {
             log({
               event: 'purchase_success',
               hash,
-              numTickets: numTickets.toString(),
-              ticketPrice: ticketPrice.toString(),
-              roundNumber: roundNumber.toString(),
-              blockNumber: receipt.blockNumber.toString(),
-              txFee: txFee.toString(),
+              numTickets,
+              ticketPrice,
+              roundNumber,
+              blockNumber: receipt.blockNumber,
+              txFee,
             });
           } else {
             log({
               event: 'purchase_reverted',
               hash,
-              roundNumber: roundNumber.toString(),
-              blockNumber: receipt.blockNumber.toString(),
-              txFee: txFee.toString(),
+              roundNumber,
+              blockNumber: receipt.blockNumber,
+              txFee,
             });
           }
         });
@@ -177,10 +177,10 @@ export async function run(config: Config, signal?: AbortSignal): Promise<void> {
       log({
         event: 'wait',
         reason: 'gas_fee_above_max',
-        gas: gas.toString(),
-        gasPrice: gasPrice.toString(),
-        fee: (gas * gasPrice).toString(),
-        maxTransactionFee: config.maxTransactionFee.toString(),
+        gas,
+        gasPrice,
+        fee: gas * gasPrice,
+        maxTransactionFee: config.maxTransactionFee,
       });
 
       await wait(config.gasPollIntervalMs);
@@ -203,5 +203,5 @@ function calculateWaitTime(roundEndSeconds: bigint, maxScheduleJitterMs: number,
 }
 
 function log(obj: Record<string, unknown>): void {
-  console.log(JSON.stringify({ timestamp: Date.now(), ...obj }));
+  console.log(JSON.stringify({ timestamp: Date.now(), ...obj }, (_, v) => (typeof v === 'bigint' ? v.toString() : v)));
 }
