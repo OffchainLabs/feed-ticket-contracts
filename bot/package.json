@@ -24,6 +24,7 @@
     "viem": "^2.51.3"
   },
   "prettier": {
-    "singleQuote": true
+    "singleQuote": true,
+    "printWidth": 120
   }
 }

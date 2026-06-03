@@ -82,12 +82,8 @@ export async function run(config: Config, signal?: AbortSignal): Promise<void> {
         break;
       }
 
-      const purchaseArgs = [
-        roundNumber,
-        price,
-        BigInt(config.ticketsPerRound),
-        config.apiKeyHash,
-      ] as const;
+      const purchaseArgs = [roundNumber, price, BigInt(config.ticketsPerRound), config.apiKeyHash] as const;
+
       const data = encodeFunctionData({
         abi: ticketsAbi,
         functionName: 'purchaseTickets',
@@ -108,10 +104,7 @@ export async function run(config: Config, signal?: AbortSignal): Promise<void> {
         ]);
       } catch (err) {
         // Revert = can't buy this round (sold out / low balance / stale); skip it. Transport errors propagate.
-        if (
-          err instanceof BaseError &&
-          err.walk((e) => e instanceof ExecutionRevertedError)
-        ) {
+        if (err instanceof BaseError && err.walk((e) => e instanceof ExecutionRevertedError)) {
           log({
             event: 'skip',
             reason: 'revert',
@@ -141,9 +134,11 @@ export async function run(config: Config, signal?: AbortSignal): Promise<void> {
           gas,
           gasPrice,
         });
+
         const hash = await publicClient.sendRawTransaction({
           serializedTransaction,
         });
+
         log({ event: 'transaction_sent', hash });
 
         // don't block the loop waiting for the transaction receipt
@@ -179,16 +174,19 @@ export async function run(config: Config, signal?: AbortSignal): Promise<void> {
         break;
       }
 
+      log({
+        event: 'wait',
+        reason: 'gas_fee_above_max',
+        gas: gas.toString(),
+        gasPrice: gasPrice.toString(),
+        fee: (gas * gasPrice).toString(),
+        maxTransactionFee: config.maxTransactionFee.toString(),
+      });
+
       await wait(config.gasPollIntervalMs);
     }
 
-    await wait(
-      calculateWaitTime(
-        roundEnd,
-        config.maxScheduleJitterMs,
-        config.roundEndBufferMs,
-      ),
-    );
+    await wait(calculateWaitTime(roundEnd, config.maxScheduleJitterMs, config.roundEndBufferMs));
   }
 }
 
@@ -200,20 +198,8 @@ function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function calculateWaitTime(
-  roundEndSeconds: bigint,
-  maxScheduleJitterMs: number,
-  roundEndBufferMs: number,
-): number {
-  return (
-    roundEndBufferMs +
-    Math.max(
-      0,
-      Number(roundEndSeconds) * 1000 -
-        Date.now() +
-        randomDelay(maxScheduleJitterMs),
-    )
-  );
+function calculateWaitTime(roundEndSeconds: bigint, maxScheduleJitterMs: number, roundEndBufferMs: number): number {
+  return roundEndBufferMs + Math.max(0, Number(roundEndSeconds) * 1000 - Date.now() + randomDelay(maxScheduleJitterMs));
 }
 
 function log(obj: Record<string, unknown>): void {
