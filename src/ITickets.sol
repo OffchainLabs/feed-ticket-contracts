@@ -130,9 +130,9 @@ interface ITickets {
     ///         balance via `depositToken`. Reverts if the round is already sold out on entry.
     ///         During the grandfather phase at the start of a round, the caller may purchase up to
     ///         the number of tickets they held in the previous round.
-    /// @dev    numTicketsDesired is clamped to the room remaining in case two buyers simultaneously 
-    ///         attempt to buy tickets close to the limit. For example, if only 3 tickets remain and 
-    ///         two buyers each attempt to buy 2 tickets, one buyer will be filled for 2 tickets and 
+    /// @dev    numTicketsDesired is clamped to the room remaining in case two buyers simultaneously
+    ///         attempt to buy tickets close to the limit. For example, if only 3 tickets remain and
+    ///         two buyers each attempt to buy 2 tickets, one buyer will be filled for 2 tickets and
     ///         the other will be filled for 1 ticket rather than reverting.
     /// @param  expectedRound Round the caller expects to be current. Reverts if it does not match.
     /// @param  expectedPrice Price the caller expects. Reverts if the current price does not equal this value.
