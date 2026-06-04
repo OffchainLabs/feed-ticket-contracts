@@ -112,10 +112,14 @@ async function deploy(artifact: { abi: Abi; bytecode: Hex }, args: unknown[]): P
   return getAddress(receipt.contractAddress);
 }
 
-async function deployTickets(roundDuration = ROUND_DURATION_SECONDS): Promise<{
+async function deployTickets(
+  roundDuration = ROUND_DURATION_SECONDS,
+  grandfatherPeriodFraction = GRANDFATHER_PERIOD_FRACTION,
+): Promise<{
   address: Address;
   firstRoundStart: bigint;
   roundDuration: number;
+  grandfatherPeriodFraction: number;
 }> {
   const impl = await deploy(ticketsArtifact, [tokenAddress]);
   const { timestamp } = await publicClient.getBlock({ blockTag: 'latest' });
@@ -134,13 +138,13 @@ async function deployTickets(roundDuration = ROUND_DURATION_SECONDS): Promise<{
         maxTicketsPerRound: MAX_TICKETS_PER_ROUND,
         minimumPrice: MINIMUM_PRICE,
         priceUpdateFraction: PRICE_UPDATE_FRACTION,
-        grandfatherPeriodFraction: GRANDFATHER_PERIOD_FRACTION,
+        grandfatherPeriodFraction,
         firstRoundStart: start,
       },
     ],
   });
   const address = await deploy(proxyArtifact, [impl, deployer.address, initData]);
-  return { address, firstRoundStart: start, roundDuration };
+  return { address, firstRoundStart: start, roundDuration, grandfatherPeriodFraction };
 }
 
 before(
@@ -242,6 +246,10 @@ const GWEI = 10n ** 9n;
 const API_KEY_HASH = ('0x' + 'ab'.repeat(32)) as Hex;
 const BOT_TICKETS_PER_ROUND = 3;
 const BOT_DEPOSIT = parseEther('100');
+const BOT_MAX_PRICE = parseEther('0.5'); // between the dropped price (0.1e18) and the round-0 price (1e18)
+const DROPPED_PRICE = parseEther('0.1'); // queued minimum price that round-0's price drops to
+const HIGH_BASE_FEE = 5_000n * GWEI; // prices the bot's fee above its budget
+const LOW_BASE_FEE = 1n * GWEI;
 
 type PurchaseArgs = {
   buyer: Address;
@@ -256,8 +264,8 @@ function anvilKey(index: number): Hex {
   return toHex(mnemonicToAccount(ANVIL_MNEMONIC, { addressIndex: index }).getHdKey().privateKey!);
 }
 
-// Indices 0/1 are the deployer/beneficiary; give each bot test its own account.
-const botKeys = [anvilKey(2), anvilKey(3), anvilKey(4)];
+// Indices 0/1 are the deployer/beneficiary; the bot gets its own account.
+const botKey = anvilKey(2);
 
 async function sendTx(hashPromise: Promise<Hex>): Promise<void> {
   await publicClient.waitForTransactionReceipt({ hash: await hashPromise });
@@ -335,99 +343,267 @@ async function waitForPurchase(ticketsAddr: Address, buyer: Address, fromBlock: 
   return [];
 }
 
-// test('bot purchases tickets (happy path)', async () => {
-//   const { address, firstRoundStart: start } = await deployTickets();
-//   const account = privateKeyToAccount(botKeys[0]);
-//   await waitForTimestamp(start);
-//   await fundDeposit(account, address, BOT_DEPOSIT);
+function setBaseFee(wei: bigint): Promise<void> {
+  return testClient.setNextBlockBaseFeePerGas({ baseFeePerGas: wei });
+}
 
-//   const fromBlock = await publicClient.getBlockNumber();
-//   const logStart = botLogs.length;
-//   botAbort = new AbortController();
-//   run(makeBotConfig(botKeys[0], address), botAbort.signal);
+// One bot run, driven through its whole lifecycle in sequence: it waits out a round priced above
+// its max, skips an unfunded round on the resulting revert, waits for gas to come down, and finally
+// purchases -- proving the loop recovers from both a price cap and a revert without dying.
+test(
+  'bot lifecycle: waits out the price cap, skips a revert, waits for gas, then purchases',
+  async () => {
+    const { address, firstRoundStart: start } = await deployTickets(5);
+    const account = privateKeyToAccount(botKey);
+    await waitForTimestamp(start);
 
-//   const logs = await waitForPurchase(address, account.address, fromBlock, 20_000);
-//   assert.equal(logs.length > 0, true);
+    // Round 0 sits at MINIMUM_PRICE, above the bot's max. Queue a drop below the bot's max so that
+    // from round 1 the bot clears the price check and proceeds to purchasing. The bot buys far below
+    // target, so excessTicketsSold stays 0 and currentPrice tracks minimumPrice exactly.
+    await sendTx(
+      walletClient.writeContract({
+        address,
+        abi: ticketsArtifact.abi,
+        functionName: 'setPricingParams',
+        args: [DROPPED_PRICE, BigInt(PRICE_UPDATE_FRACTION), 0n],
+        account: deployer,
+        chain: foundry,
+      }),
+    );
 
-//   const purchase = logs[0]!.args as PurchaseArgs;
-//   assert.equal(purchase.buyer, account.address);
-//   assert.equal(purchase.numTickets, BigInt(BOT_TICKETS_PER_ROUND));
-//   assert.equal(purchase.numTicketsDesired, BigInt(BOT_TICKETS_PER_ROUND));
-//   assert.equal(purchase.price, MINIMUM_PRICE);
-//   assert.equal(purchase.apiKeyHash, API_KEY_HASH);
+    const fromBlock = await publicClient.getBlockNumber();
+    const logStart = botLogs.length;
+    botAbort = new AbortController();
+    run(
+      makeBotConfig(botKey, address, { maxPricePerTicket: BOT_MAX_PRICE, maxTransactionFee: 10n ** 16n }),
+      botAbort.signal,
+    );
 
-//   const balance = await publicClient.readContract({
-//     address,
-//     abi: ticketsArtifact.abi,
-//     functionName: 'tokenBalance',
-//     args: [account.address],
-//   });
-//   assert.equal((balance as bigint) < BOT_DEPOSIT, true);
+    // Phase 1 -- price cap: round 0's price is above the bot's max, so it waits without buying.
+    const priceWait = await waitForLog(logStart, (l) => l.event === 'price_above_max', 8_000);
+    assert.ok(priceWait, 'bot did not log price_above_max in round 0');
+    assert.equal(priceWait.roundNumber, '0');
+    assert.equal(priceWait.price, MINIMUM_PRICE.toString());
+    assert.equal(BigInt(priceWait.price as string) > BigInt(priceWait.maxPricePerTicket as string), true);
 
-//   // The bot's own logs should report the purchase it just made on-chain.
-//   const success = await waitForLog(logStart, (l) => l.event === 'purchase_success', 5_000);
-//   assert.ok(success, 'bot did not log purchase_success');
-//   assert.equal(success!.numTickets, String(BOT_TICKETS_PER_ROUND));
-//   assert.equal(success!.ticketPrice, MINIMUM_PRICE.toString());
-// });
+    // Phase 2 -- revert skip: the price has dropped so the bot now tries to buy, but it is unfunded,
+    // so estimateGas reverts (InsufficientTokenBalance) and the bot skips the round without crashing.
+    const revertSkip = await waitForLog(logStart, (l) => l.event === 'skip_due_to_revert', 12_000);
+    assert.ok(revertSkip, 'bot did not log skip_due_to_revert after the price dropped');
+    assert.equal((await getPurchases(address, account.address, fromBlock)).length, 0);
 
-// test('bot waits for the gas price to drop before purchasing', async () => {
-//   const { address, firstRoundStart: start, roundDuration } = await deployTickets(5);
-//   const account = privateKeyToAccount(botKeys[1]);
-//   await waitForTimestamp(start);
-//   await fundDeposit(account, address, BOT_DEPOSIT);
+    // Phase 3 -- gas wait: fund the bot, then price gas out of its fee budget. estimateGas now
+    // succeeds, but the fee exceeds the budget, so the bot polls instead of buying. Re-apply the high
+    // base fee until we observe the wait, since anvil decays the base fee each block.
+    await fundDeposit(account, address, BOT_DEPOSIT);
+    const gasMarker = botLogs.length;
+    const gasDeadline = Date.now() + 15_000;
+    let gasWait: BotLog | undefined;
+    while (Date.now() < gasDeadline && !gasWait) {
+      await setBaseFee(HIGH_BASE_FEE);
+      gasWait = botLogs.slice(gasMarker).find((l) => l.event === 'wait_gas_fee_above_max');
+      await sleep(150);
+    }
+    assert.ok(gasWait, 'bot did not log wait_gas_fee_above_max while gas was high');
+    assert.equal(BigInt(gasWait.fee as string) > BigInt(gasWait.maxTransactionFee as string), true);
+    // It must not have attempted a purchase while the fee was above budget.
+    assert.equal(botLogs.slice(gasMarker).filter((l) => l.event === 'purchase_attempt').length, 0);
 
-//   // Price gas out of the bot's budget so its fee check fails and it polls instead of buying.
-//   await testClient.setNextBlockBaseFeePerGas({ baseFeePerGas: 5_000n * GWEI });
-//   const fromBlock = await publicClient.getBlockNumber();
-//   const logStart = botLogs.length;
-//   botAbort = new AbortController();
-//   run(makeBotConfig(botKeys[1], address, { maxTransactionFee: 10n ** 16n }), botAbort.signal);
+    // Phase 4 -- purchase: drop the gas price; the bot's next poll fits the budget and it buys.
+    await setBaseFee(LOW_BASE_FEE);
+    const success = await waitForLog(gasMarker, (l) => l.event === 'purchase_success', 15_000);
+    assert.ok(success, 'bot did not purchase after gas dropped');
+    assert.equal(success.numTickets, String(BOT_TICKETS_PER_ROUND));
 
-//   // 1s into the bot's first purchase round (round 1): gas is still high, so it must not have bought.
-//   await waitForTimestamp(start + BigInt(roundDuration) + 1n);
-//   assert.equal((await getPurchases(address, account.address, fromBlock)).length, 0);
-//   // Logs confirm WHY: the fee never fit the budget, so the bot never attempted a purchase.
-//   assert.equal(botLogs.slice(logStart).filter((l) => l.event === 'purchase_attempt').length, 0);
-//   // ...and the bot said so explicitly: it logged that it was waiting on a fee above the budget.
-//   const gasWait = botLogs.slice(logStart).find((l) => l.event === 'wait' && l.reason === 'gas_fee_above_max');
-//   assert.ok(gasWait, 'bot did not log a gas_fee_above_max wait');
-//   assert.equal(BigInt(gasWait.fee as string) > BigInt(gasWait.maxTransactionFee as string), true);
+    // The purchase landed on-chain with the expected terms, at the dropped price.
+    const logs = await waitForPurchase(address, account.address, fromBlock, 5_000);
+    assert.equal(logs.length > 0, true);
+    const purchase = logs[0]!.args as PurchaseArgs;
+    assert.equal(purchase.buyer, account.address);
+    assert.equal(purchase.numTickets, BigInt(BOT_TICKETS_PER_ROUND));
+    assert.equal(purchase.numTicketsDesired, BigInt(BOT_TICKETS_PER_ROUND));
+    assert.equal(purchase.price, DROPPED_PRICE);
+    assert.equal(purchase.apiKeyHash, API_KEY_HASH);
 
-//   // Drop the gas price; the bot's next poll should now go through.
-//   await testClient.setNextBlockBaseFeePerGas({ baseFeePerGas: 1n * GWEI });
-//   const logs = await waitForPurchase(address, account.address, fromBlock, 10_000);
-//   assert.equal(logs.length > 0, true);
-//   // Once gas dropped, the bot attempted and completed the purchase.
-//   const success = await waitForLog(logStart, (l) => l.event === 'purchase_success', 5_000);
-//   assert.ok(success, 'bot did not log purchase_success after gas dropped');
-// });
+    // The purchase debited the bot's deposited balance...
+    const balance = await publicClient.readContract({
+      address,
+      abi: ticketsArtifact.abi,
+      functionName: 'tokenBalance',
+      args: [account.address],
+    });
+    assert.equal((balance as bigint) < BOT_DEPOSIT, true);
 
-// test('bot skips a round on contract revert, then recovers', async () => {
-//   const { address, firstRoundStart: start, roundDuration } = await deployTickets(5);
-//   const account = privateKeyToAccount(botKeys[2]);
-//   await waitForTimestamp(start);
+    // ...and it came after the earlier revert, proving the loop recovered rather than died.
+    const events = botLogs.slice(logStart);
+    const skipIdx = events.findIndex((l) => l.event === 'skip_due_to_revert');
+    const successIdx = events.findIndex((l) => l.event === 'purchase_success');
+    assert.ok(skipIdx >= 0 && successIdx > skipIdx, 'purchase_success did not follow the revert skip');
+  },
+  { timeout: 60_000 },
+);
 
-//   // Unfunded: purchaseTickets reverts with InsufficientTokenBalance, which the bot sees as an
-//   // estimateGas revert and skips -- the same path it takes when a round is sold out (MaxTicketsSold).
-//   const fromBlock = await publicClient.getBlockNumber();
-//   const logStart = botLogs.length;
-//   botAbort = new AbortController();
-//   run(makeBotConfig(botKeys[2], address), botAbort.signal);
+// Round 0 has no previous round, so grandfatherCount is 0 and the bot buys in the open phase.
+// In round 1 the bot's prior-round purchases entitle it to a full grandfather allotment, so it
+// fills the entire round during the grandfather phase and never enters the open window.
+test(
+  'bot grandfather flow: round 0 sees no grandfather, round 1 fills during grandfather phase',
+  async () => {
+    // Long rounds + a long grandfather phase keep the bot's round-1 work comfortably inside the
+    // grandfather window even with viem's 4s default receipt polling.
+    const roundDuration = 10;
+    const grandfatherFraction = 192; // 3/4 of the round
+    const { address, firstRoundStart: start } = await deployTickets(roundDuration, grandfatherFraction);
+    const account = privateKeyToAccount(botKey);
 
-//   // Round 1: the purchase would revert, so the bot must skip it (buy nothing) without crashing.
-//   await waitForTimestamp(start + BigInt(roundDuration) + 1n);
-//   assert.equal((await getPurchases(address, account.address, fromBlock)).length, 0);
-//   // Logs confirm the bot took the revert-skip path rather than skipping for some other reason.
-//   const revertSkip = await waitForLog(logStart, (l) => l.event === 'skip' && l.reason === 'revert', 5_000);
-//   assert.ok(revertSkip, 'bot did not log a revert skip');
+    await fundDeposit(account, address, BOT_DEPOSIT);
+    await waitForTimestamp(start);
 
-//   // Fund it; a later round should succeed, proving the revert didn't kill the bot's loop.
-//   await fundDeposit(account, address, BOT_DEPOSIT);
-//   const logs = await waitForPurchase(address, account.address, fromBlock, 20_000);
-//   assert.equal(logs.length > 0, true);
-//   assert.equal((logs[0]!.args as PurchaseArgs).round >= 2n, true);
-//   // ...and it recovered: a purchase_success after the revert proves the loop survived.
-//   const success = await waitForLog(logStart, (l) => l.event === 'purchase_success', 5_000);
-//   assert.ok(success, 'bot did not recover with a purchase_success');
-// });
+    const fromBlock = await publicClient.getBlockNumber();
+    const logStart = botLogs.length;
+    botAbort = new AbortController();
+    run(makeBotConfig(botKey, address), botAbort.signal);
+
+    // Round 0: no previous round, so grandfatherCount is 0.
+    const r0Grandfather = await waitForLog(
+      logStart,
+      (l) => l.event === 'handle_grandfather_period' && l.roundNumber === '0',
+      8_000,
+    );
+    assert.ok(r0Grandfather, 'bot did not log handle_grandfather_period in round 0');
+    assert.equal(r0Grandfather.grandfatherCount, '0');
+
+    // Round 0 purchase lands in the open phase since the bot has no grandfather count to fill.
+    const r0Success = await waitForLog(
+      logStart,
+      (l) => l.event === 'purchase_success' && l.roundNumber === '0',
+      (roundDuration + 5) * 1000,
+    );
+    assert.ok(r0Success, 'bot did not purchase in round 0');
+    assert.equal(r0Success.numTickets, String(BOT_TICKETS_PER_ROUND));
+
+    // Round 1: the prior-round purchase entitles the bot to BOT_TICKETS_PER_ROUND grandfather
+    // tickets, which equals its desired count, so the round fills entirely in the grandfather phase.
+    const r1Grandfather = await waitForLog(
+      logStart,
+      (l) => l.event === 'handle_grandfather_period' && l.roundNumber === '1',
+      (roundDuration + 5) * 1000,
+    );
+    assert.ok(r1Grandfather, 'bot did not log handle_grandfather_period in round 1');
+    assert.equal(r1Grandfather.grandfatherCount, String(BOT_TICKETS_PER_ROUND));
+
+    const r1Fill = await waitForLog(
+      logStart,
+      (l) => l.event === 'round_filled_during_grandfather' && l.roundNumber === '1',
+      (roundDuration + 5) * 1000,
+    );
+    assert.ok(r1Fill, 'bot did not log round_filled_during_grandfather in round 1');
+    assert.equal(r1Fill.numTicketsPurchasedInGrandfatherPhase, BOT_TICKETS_PER_ROUND);
+
+    const r1Success = await waitForLog(
+      logStart,
+      (l) => l.event === 'purchase_success' && l.roundNumber === '1',
+      5_000,
+    );
+    assert.ok(r1Success, 'bot did not purchase in round 1');
+    assert.equal(r1Success.numTickets, String(BOT_TICKETS_PER_ROUND));
+
+    // Bot must not have entered the open phase in round 1 (it filled in the grandfather phase).
+    const r1OpenWindow = botLogs
+      .slice(logStart)
+      .find((l) => l.event === 'handle_open_purchase_window' && l.roundNumber === '1');
+    assert.equal(r1OpenWindow, undefined, 'bot entered the open window in round 1 despite filling');
+
+    // On-chain confirmation: two purchases (round 0 + round 1), each at BOT_TICKETS_PER_ROUND.
+    const purchases = await getPurchases(address, account.address, fromBlock);
+    assert.equal(purchases.length, 2);
+    const rounds = purchases.map((p) => (p.args as PurchaseArgs).round).sort((a, b) => Number(a - b));
+    assert.deepEqual(rounds, [0n, 1n]);
+    for (const purchase of purchases) {
+      assert.equal((purchase.args as PurchaseArgs).numTickets, BigInt(BOT_TICKETS_PER_ROUND));
+    }
+  },
+  { timeout: 60_000 },
+);
+
+// Partial grandfather fill: manually buy fewer tickets than the bot's per-round target in round 0
+// from the bot's own account, then start the bot only after round 1 begins. The bot fills its
+// partial grandfather allotment in the grandfather phase and tops up the remainder in the open
+// phase.
+test(
+  'bot grandfather flow: partial grandfather fill tops up in the open phase',
+  async () => {
+    const roundDuration = 15;
+    const grandfatherFraction = 128; // half the round
+    const { address, firstRoundStart: start } = await deployTickets(roundDuration, grandfatherFraction);
+    const account = privateKeyToAccount(botKey);
+    const partialCount = 2;
+    assert.ok(partialCount < BOT_TICKETS_PER_ROUND, 'partialCount must leave room for an open-phase top-up');
+
+    await fundDeposit(account, address, BOT_DEPOSIT);
+    await waitForTimestamp(start);
+
+    // Manually buy `partialCount` tickets from the bot's account in round 0. This gives the bot a
+    // grandfather allotment of `partialCount` in round 1, which is smaller than its per-round target.
+    const wallet = createWalletClient({ account, chain: foundry, transport: http(RPC_URL) });
+    await sendTx(
+      wallet.writeContract({
+        address,
+        abi: ticketsArtifact.abi,
+        functionName: 'purchaseTickets',
+        args: [0n, MINIMUM_PRICE, BigInt(partialCount), API_KEY_HASH],
+      }),
+    );
+
+    // Wait until round 1 starts so the bot's first iteration is round 1.
+    const round1Start = start + BigInt(roundDuration);
+    await waitForTimestamp(round1Start);
+
+    const fromBlock = await publicClient.getBlockNumber();
+    const logStart = botLogs.length;
+    botAbort = new AbortController();
+    run(makeBotConfig(botKey, address), botAbort.signal);
+
+    // Bot reads grandfatherCount = partialCount in round 1.
+    const r1Grandfather = await waitForLog(
+      logStart,
+      (l) => l.event === 'handle_grandfather_period' && l.roundNumber === '1',
+      8_000,
+    );
+    assert.ok(r1Grandfather, 'bot did not log handle_grandfather_period in round 1');
+    assert.equal(r1Grandfather.grandfatherCount, String(partialCount));
+
+    // Bot does not fully fill in the grandfather phase (partialCount < ticketsPerRound), so it
+    // proceeds to the open window for the remainder.
+    const r1OpenWindow = await waitForLog(
+      logStart,
+      (l) => l.event === 'handle_open_purchase_window' && l.roundNumber === '1',
+      (roundDuration + 5) * 1000,
+    );
+    assert.ok(r1OpenWindow, 'bot did not enter open purchase window in round 1');
+    assert.equal(r1OpenWindow.ticketsToBuy, BOT_TICKETS_PER_ROUND - partialCount);
+
+    // Bot must not have logged round_filled_during_grandfather in round 1.
+    const filled = botLogs
+      .slice(logStart)
+      .find((l) => l.event === 'round_filled_during_grandfather' && l.roundNumber === '1');
+    assert.equal(filled, undefined, 'bot logged round_filled_during_grandfather despite partial fill');
+
+    // Wait for the open-phase purchase to land and the round to wrap up.
+    const r1Done = await waitForLog(
+      logStart,
+      (l) => l.event === 'wait_next_round' && l.roundNumber === '1',
+      (roundDuration + 5) * 1000,
+    );
+    assert.ok(r1Done, 'bot did not finish round 1');
+
+    // On-chain: two round-1 purchases summing to ticketsPerRound, sized partialCount + the rest.
+    const r1Purchases = (await getPurchases(address, account.address, fromBlock)).filter(
+      (p) => (p.args as PurchaseArgs).round === 1n,
+    );
+    assert.equal(r1Purchases.length, 2);
+    const sizes = r1Purchases.map((p) => (p.args as PurchaseArgs).numTickets).sort((a, b) => Number(a - b));
+    assert.deepEqual(sizes, [BigInt(BOT_TICKETS_PER_ROUND - partialCount), BigInt(partialCount)]);
+  },
+  { timeout: 90_000 },
+);
