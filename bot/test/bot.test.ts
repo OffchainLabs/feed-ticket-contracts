@@ -319,6 +319,8 @@ function makeBotConfig(privateKey: Hex, ticketsAddr: Address, overrides: Partial
     maxScheduleJitterMs: 0,
     gasPollIntervalMs: 250,
     boundaryBufferMs: 1000,
+    priorityFeePerGas: 0n,
+    baseFeeBoostPercent: 20,
     ...overrides,
   };
 }
@@ -500,11 +502,7 @@ test(
     assert.ok(r1Fill, 'bot did not log round_filled_during_grandfather in round 1');
     assert.equal(r1Fill.numTicketsPurchasedInGrandfatherPhase, BOT_TICKETS_PER_ROUND);
 
-    const r1Success = await waitForLog(
-      logStart,
-      (l) => l.event === 'purchase_success' && l.roundNumber === '1',
-      5_000,
-    );
+    const r1Success = await waitForLog(logStart, (l) => l.event === 'purchase_success' && l.roundNumber === '1', 5_000);
     assert.ok(r1Success, 'bot did not purchase in round 1');
     assert.equal(r1Success.numTickets, String(BOT_TICKETS_PER_ROUND));
 

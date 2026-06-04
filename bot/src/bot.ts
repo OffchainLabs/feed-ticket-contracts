@@ -162,17 +162,19 @@ async function purchaseTicketsWhenGasIsAcceptable(
     }
 
     let gas: bigint;
-    let gasPrice: bigint;
+    let baseFeePerGas: bigint;
     try {
-      [gas, gasPrice] = await Promise.all([
+      const [estimatedGas, latestBlock] = await Promise.all([
         publicClient.estimateGas({
           account,
           to: config.ticketsAddress,
           data,
           prepare: false,
         }),
-        publicClient.getGasPrice(),
+        publicClient.getBlock({ blockTag: 'latest' }),
       ]);
+      gas = estimatedGas;
+      baseFeePerGas = latestBlock.baseFeePerGas!;
     } catch (err) {
       // Revert = can't buy this round (sold out / low balance / stale); skip it. Transport errors propagate.
       if (err instanceof BaseError && err.walk((e) => e instanceof ExecutionRevertedError)) {
@@ -186,23 +188,27 @@ async function purchaseTicketsWhenGasIsAcceptable(
       throw err;
     }
 
+    const maxFeePerGas = (baseFeePerGas * BigInt(100 + config.baseFeeBoostPercent)) / 100n + config.priorityFeePerGas;
+
     // if the resulting fee is within budget, purchase tickets
-    if (gas * gasPrice <= config.maxTransactionFee) {
+    if (gas * maxFeePerGas <= config.maxTransactionFee) {
       log({
         event: 'purchase_attempt',
         gas,
-        gasPrice,
+        baseFeePerGas,
+        maxFeePerGas,
+        priorityFeePerGas: config.priorityFeePerGas,
         maxTransactionFee: config.maxTransactionFee,
       });
 
       const serializedTransaction = await account.signTransaction({
-        type: 'legacy',
         chainId,
         nonce,
         to: config.ticketsAddress,
         data,
         gas,
-        gasPrice,
+        maxFeePerGas,
+        maxPriorityFeePerGas: config.priorityFeePerGas,
       });
 
       const hash = await publicClient.sendRawTransaction({
@@ -246,8 +252,9 @@ async function purchaseTicketsWhenGasIsAcceptable(
     log({
       event: 'wait_gas_fee_above_max',
       gas,
-      gasPrice,
-      fee: gas * gasPrice,
+      baseFeePerGas,
+      maxFeePerGas,
+      fee: gas * maxFeePerGas,
       maxTransactionFee: config.maxTransactionFee,
     });
 

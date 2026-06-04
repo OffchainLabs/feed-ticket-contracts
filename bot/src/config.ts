@@ -19,6 +19,11 @@ function optionalInt(name: string, fallback: number): number {
   return v === undefined ? fallback : parseInt(v, 10);
 }
 
+function optionalBigInt(name: string, fallback: bigint): bigint {
+  const v = process.env[name];
+  return v === undefined ? fallback : BigInt(v);
+}
+
 export interface Config {
   rpcUrl: string;
   ticketsPerRound: number;
@@ -33,6 +38,10 @@ export interface Config {
   gasPollIntervalMs: number;
   // Delay past a round or grandfather-phase boundary before acting, so the chain has advanced past it.
   boundaryBufferMs: number;
+  // EIP-1559 priority fee per gas (tip) in wei.
+  priorityFeePerGas: bigint;
+  // Percentage to boost the latest block's base fee by when setting maxFeePerGas, to absorb base-fee swings.
+  baseFeeBoostPercent: number;
 }
 
 export function loadConfig(): Config {
@@ -47,5 +56,7 @@ export function loadConfig(): Config {
     maxScheduleJitterMs: optionalInt('MAX_SCHEDULE_JITTER_MS', 30_000),
     gasPollIntervalMs: optionalInt('GAS_POLL_INTERVAL_MS', 10_000),
     boundaryBufferMs: optionalInt('BOUNDARY_BUFFER_MS', 2_000),
+    priorityFeePerGas: optionalBigInt('PRIORITY_FEE_PER_GAS', 0n),
+    baseFeeBoostPercent: optionalInt('BASE_FEE_BOOST_PERCENT', 20),
   };
 }
