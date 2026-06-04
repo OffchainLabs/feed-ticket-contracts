@@ -18,7 +18,7 @@ TODO: pseudocode the exact purchase algorithm (price check, grandfather-phase bu
 | `MAX_SCHEDULE_JITTER_MS` | Optional. Max scheduling jitter in ms, so bots don't all act at once. Default `30000`.                                             |
 | `GAS_POLL_INTERVAL_MS`   | Optional. Poll interval in ms while waiting for gas to drop within a round. Default `10000`.                                       |
 | `BOUNDARY_BUFFER_MS`     | Optional. Delay in ms past a round or grandfather-phase boundary before acting, so the chain has advanced past it. Default `2000`. |
-| `PRIORITY_FEE_PER_GAS`   | Optional. EIP-1559 priority fee per gas, in wei. Default `0`.                                                                |
+| `PRIORITY_FEE_PER_GAS`   | Optional. EIP-1559 priority fee per gas, in wei. Default `0`.                                                                      |
 | `BASE_FEE_BOOST_PERCENT` | Optional. Percentage boost applied to the latest block's base fee when computing `maxFeePerGas`. Default `20`.                     |
 
 The bot does not manage its own deposit balance; fund the signer's internal balance out of band via `depositToken` before purchases will succeed.
