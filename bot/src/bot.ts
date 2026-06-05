@@ -271,7 +271,8 @@ function wait(ms: number): Promise<void> {
 }
 
 function calculateWaitTime(boundarySeconds: bigint, maxScheduleJitterMs: number, boundaryBufferMs: number): number {
-  return boundaryBufferMs + Math.max(0, Number(boundarySeconds) * 1000 - Date.now() + randomDelay(maxScheduleJitterMs));
+  const target = Number(boundarySeconds) * 1000 + boundaryBufferMs + randomDelay(maxScheduleJitterMs);
+  return Math.max(0, target - Date.now());
 }
 
 function log(obj: Record<string, unknown>): void {

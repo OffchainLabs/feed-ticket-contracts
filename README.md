@@ -56,6 +56,8 @@ Each round, buyers then call `purchaseTickets(expectedRound, expectedPrice, numT
 
 Users can use the same API key for multiple purchases. Using the same key for multiple tickets in the same round is permitted.
 
+A reference TypeScript bot lives in [`bot/`](./bot/README.md).
+
 # How the Sequencer Uses the System
 
 The sequencer subscribes to `TicketsPurchased` to reconstruct the list of ticket holders and their key hashes for each round in real time. The event carries both the filled count and the desired count.

@@ -2,7 +2,55 @@
 
 TypeScript bot for purchasing feed tickets from the `Tickets` contract. Implements a "buy N tickets up to some max price every round" strategy.
 
-TODO: pseudocode the exact purchase algorithm (price check, grandfather-phase buy, open-window buy, round scheduling).
+## Algorithm
+
+```
+loop forever:
+    read price, roundEnd, roundNumber, grandfatherCount, grandfatherPeriodEnd
+
+    if price > MAX_PRICE_PER_TICKET:
+        sleep_past(roundEnd)
+        continue
+
+    boughtInGrandfather = purchaseWithinGasBudget(
+        deadline = grandfatherPeriodEnd,
+        toBuy    = min(grandfatherCount, TICKETS_PER_ROUND),
+    )
+
+    if boughtInGrandfather >= TICKETS_PER_ROUND:
+        sleep_past(roundEnd)
+        continue
+
+    sleep_past(grandfatherPeriodEnd)
+
+    purchaseWithinGasBudget(
+        deadline = roundEnd,
+        toBuy    = TICKETS_PER_ROUND - boughtInGrandfather,
+    )
+
+    sleep_past(roundEnd)
+
+
+function purchaseWithinGasBudget(deadline, toBuy):
+    if toBuy <= 0: return 0
+    loop:
+        if now >= deadline: return 0
+        try:
+            gas     = estimateGas()
+            baseFee = latestBlock.baseFeePerGas
+        except revert: # transport errors propagate and crash the process; contract reverts are caught
+            return 0   # skip the purchase
+        maxFeePerGas = baseFee * (100 + BASE_FEE_BOOST_PERCENT) / 100 + PRIORITY_FEE_PER_GAS
+        if gas * maxFeePerGas <= MAX_TRANSACTION_FEE:
+            send tx and wait for receipt
+            return TicketsPurchased.numTickets from receipt (0 if no event)
+        sleep(GAS_POLL_INTERVAL_MS)
+
+
+function sleep_past(boundarySeconds):
+    target = boundarySeconds*1000 + BOUNDARY_BUFFER_MS + random(0, MAX_SCHEDULE_JITTER_MS)
+    sleep(max(0, target - now))
+```
 
 ## Configuration
 
