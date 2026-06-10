@@ -16,12 +16,12 @@ function parseHash(name: string): Hex {
 
 function optionalInt(name: string, fallback: number): number {
   const v = process.env[name];
-  return v === undefined ? fallback : parseInt(v, 10);
+  return !v ? fallback : parseInt(v, 10);
 }
 
 function optionalBigInt(name: string, fallback: bigint): bigint {
   const v = process.env[name];
-  return v === undefined ? fallback : BigInt(v);
+  return !v ? fallback : BigInt(v);
 }
 
 export interface Config {
