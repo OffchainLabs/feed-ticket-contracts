@@ -75,14 +75,6 @@ The bot does not manage its own deposit balance; fund the signer's internal bala
 
 The bot does not catch transient RPC/network errors: any such failure crashes the whole process, and restarts are expected to be handled at a higher level (e.g. Docker `--restart`, Kubernetes, systemd). A contract revert on a purchase attempt is not an error -- the bot skips that round and continues. It also stops cleanly on SIGINT/SIGTERM.
 
-## Local dev
-
-```
-npm install
-cp .env.example .env  # then fill it in
-npm run dev
-```
-
 ## Docker
 
 ```
