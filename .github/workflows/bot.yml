@@ -40,6 +40,9 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Check ABI is up to date
+        run: git diff --exit-code -- src/ticketsAbi.ts
+
       - name: Run tests
         run: npm test
 

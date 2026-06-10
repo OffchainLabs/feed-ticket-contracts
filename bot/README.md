@@ -79,15 +79,13 @@ The bot does not catch transient RPC/network errors: any such failure crashes th
 
 ```
 npm install
-RPC_URL=... PRIVATE_KEY=0x... TICKETS_ADDRESS=0x... TICKETS_PER_ROUND=... MAX_PRICE_PER_TICKET=... MAX_TRANSACTION_FEE=... API_KEY_HASH=0x... npm run dev
+cp .env.example .env  # then fill it in
+npm run dev
 ```
 
 ## Docker
 
-The image build runs `tsc` only; it does not regenerate the ABI (no Foundry in the image). Generate it on the host first:
-
 ```
-npm run abigen
 docker build -t purchase-bot .
 docker run --rm \
   -e RPC_URL=... \
