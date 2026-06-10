@@ -1,0 +1,31 @@
+{
+  "name": "feed-ticket-purchase-bot",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "npm run abigen && tsc",
+    "build-skip-abigen": "tsc",
+    "start": "node dist/index.js",
+    "dev": "npm run abigen && tsx src/index.ts",
+    "abigen": "cd .. && forge build && cd - && wagmi generate",
+    "test": "npm run build && node --import tsx --test --test-force-exit 'test/**/*.test.ts'",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.1",
+    "@wagmi/cli": "2.10.0",
+    "prettier": "3.8.3",
+    "tsx": "^4.22.3",
+    "typescript": "^6.0.3"
+  },
+  "dependencies": {
+    "dotenv": "17.4.2",
+    "viem": "^2.51.3"
+  },
+  "prettier": {
+    "singleQuote": true,
+    "printWidth": 120
+  }
+}

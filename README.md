@@ -52,13 +52,15 @@ Pricing follows EIP-4844's `fake_exponential`: `currentPrice = min(fake_exponent
 
 Before a purchase, the buyer ERC-20-approves the `Tickets` contract for the desired amount of the payment token and calls `depositToken(amount)` to move those tokens into an internal balance held by the contract.
 
-Each round, buyers then call `purchaseTickets(expectedRound, expectedPrice, numTickets, apiKeyHash)`. The contract verifies `expectedRound` and `expectedPrice` against current state (so a buyer never accidentally pays a new round's higher price) and debits `expectedPrice * numTickets` from the caller's deposited balance. Any unused balance can be returned to the caller at any time via `withdrawToken`.
+Each round, buyers then call `purchaseTickets(expectedRound, expectedPrice, numTicketsDesired, apiKeyHash)`. The contract verifies `expectedRound` and `expectedPrice` against current state (so a buyer never accidentally pays a new round's higher price), fills up to `numTicketsDesired` clamped to the room left in the round, and debits `expectedPrice * (filled count)` from the caller's deposited balance. A buyer near the cap may receive (and pay for) fewer tickets than requested; the call only reverts if the round is already sold out. Any unused balance can be returned to the caller at any time via `withdrawToken`.
 
 Users can use the same API key for multiple purchases. Using the same key for multiple tickets in the same round is permitted.
 
+A reference TypeScript bot lives in [`bot/`](./bot/README.md).
+
 # How the Sequencer Uses the System
 
-The sequencer subscribes to `TicketPurchased` to reconstruct the list of ticket holders and their key hashes for each round in real time.
+The sequencer subscribes to `TicketsPurchased` to reconstruct the list of ticket holders and their key hashes for each round in real time. The event carries both the filled count and the desired count.
 
 When a round ends/advances, the sequencer compares the new list of api keys to the old list of api keys. Any overlap between the previously active keys and currently active keys should not have their websocket connections closed. Keys that were included in the previous set and not in the new set have their connection closed. When a new connection comes in, the provided API key is hashed and checked against the list of currently active key hashes.
 
