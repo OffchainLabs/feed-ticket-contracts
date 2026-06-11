@@ -7,6 +7,7 @@ import {
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {ITickets} from "./ITickets.sol";
 
 contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
@@ -424,11 +425,6 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         if (newMinimumPrice == 0) revert MinimumPriceZero();
         if (newPriceUpdateFraction == 0) revert PriceUpdateFractionZero();
         if (newExcessTicketsSoldOverride == EXCESS_TICKETS_SOLD_SENTINEL) revert ExcessTicketsSoldOverrideReserved();
-
-        // an overflowing _fakeExponential call will cause lazy update to revert,
-        // so we check the parameters here to prevent queuing an update that would break the contract until an admin intervenes.
-        _fakeExponential(newMinimumPrice, newExcessTicketsSoldOverride, newPriceUpdateFraction);
-
         _lazyUpdateRoundState();
         isAdminUpdateQueued = true;
         nextMinimumPrice = newMinimumPrice;
@@ -524,17 +520,29 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     /// @dev    Reference: EIP-4844 `fake_exponential` - https://eips.ethereum.org/EIPS/eip-4844
     ///         See also go-ethereum's reference implementation:
     ///         https://github.com/ethereum/go-ethereum/blob/16a6531ac204c110ea4b51c7905b3f71595b8f0c/consensus/misc/eip4844/eip4844.go#L217
+    ///
+    ///         Modified to return max uint whenever an intermediate operation overflows. 
+    ///         This may cause the return value to be higher than the true value.
     function _fakeExponential(uint256 factor, uint256 numerator, uint256 denominator) internal pure returns (uint256) {
         uint256 i = 1;
         uint256 output = 0;
-        uint256 accum = factor * denominator;
+
+        (bool success, uint256 accum) = Math.tryMul(factor, denominator);
+        if (!success) return type(uint256).max;
+        
         while (accum > 0) {
-            output += accum;
-            accum = accum * numerator;
+            (success, output) = Math.tryAdd(accum, output);
+            if (!success) return type(uint256).max;
+
+            (success, accum) = Math.tryMul(accum, numerator);
+            if (!success) return type(uint256).max;
+
             accum = accum / denominator;
             accum = accum / i;
-            i++;
+
+            i++; // no need to check overflow because OOG will occur first
         }
+
         return output / denominator;
     }
 }
