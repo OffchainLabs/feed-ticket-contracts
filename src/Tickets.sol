@@ -540,7 +540,7 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
             accum = accum / denominator;
             accum = accum / i;
 
-            i++; // no need to check overflow because OOG will occur first
+            ++i; // no need to check overflow because OOG will occur first
         }
 
         return output / denominator;
