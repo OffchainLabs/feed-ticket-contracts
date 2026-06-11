@@ -521,7 +521,7 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     ///         See also go-ethereum's reference implementation:
     ///         https://github.com/ethereum/go-ethereum/blob/16a6531ac204c110ea4b51c7905b3f71595b8f0c/consensus/misc/eip4844/eip4844.go#L217
     ///
-    ///         Modified to return max uint whenever an intermediate operation overflows. 
+    ///         Modified to return max uint whenever an intermediate operation overflows.
     ///         This may cause the return value to be higher than the true value.
     function _fakeExponential(uint256 factor, uint256 numerator, uint256 denominator) internal pure returns (uint256) {
         uint256 i = 1;
@@ -529,7 +529,7 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
 
         (bool success, uint256 accum) = Math.tryMul(factor, denominator);
         if (!success) return type(uint256).max;
-        
+
         while (accum > 0) {
             (success, output) = Math.tryAdd(accum, output);
             if (!success) return type(uint256).max;
