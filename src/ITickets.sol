@@ -268,7 +268,9 @@ interface ITickets {
     /// @dev    The price is `fake_exponential(minimumPrice(), excessTicketsSold(), priceUpdateFraction())`
     ///         (EIP-4844 style), clamped at `type(uint72).max` (~4722e18). If the formula would
     ///         exceed that cap, this returns `type(uint72).max` and tickets are sold at the cap
-    ///         rather than at the higher formula price.
+    ///         rather than at the higher formula price. An intermediate overflow inside
+    ///         `fake_exponential` saturates to `type(uint256).max` instead of reverting, and is
+    ///         likewise clamped to the cap.
     function currentPrice() external view returns (uint256);
 
     /// @notice Set the account that receives sale proceeds. Takes effect immediately.

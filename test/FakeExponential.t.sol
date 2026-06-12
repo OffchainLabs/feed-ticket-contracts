@@ -57,4 +57,11 @@ contract FakeExponentialTest is Test {
             );
         }
     }
+
+    /// @dev Overflow protection: an intermediate multiply in the Taylor loop that would exceed
+    ///      uint256 saturates to type(uint256).max instead of reverting
+    function test_fakeExponential_saturatesOnIntermediateOverflow() public view {
+        assertLt(harness.fakeExponential(17e6, 21495, 144), type(uint256).max);
+        assertEq(harness.fakeExponential(17e6, 21496, 144), type(uint256).max);
+    }
 }
