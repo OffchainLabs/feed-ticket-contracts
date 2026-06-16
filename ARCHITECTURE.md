@@ -30,7 +30,7 @@ View functions surface the queued value as soon as one round has elapsed since t
 
 ## Round skip on duration reduction
 
-Reducing `roundDuration` can make a single mutative call roll the round number forward by more than one round. A purchase call binds to the round it commits, which may already be over on the wall clock.
+Reducing `roundDuration` can cause the lazy update to commit a round to storage that is immediately behind the value reported by `roundNumber()`. A purchase call binds to the round it commits to storage, which may already be over on the wall clock.
 
 With `T` = call timestamp, `S` = stored `_roundStart`, `D_old` = stored `_roundDuration` (the value being replaced), and `D_new` = queued duration, the call binds to
 
