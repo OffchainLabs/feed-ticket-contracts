@@ -28,6 +28,26 @@ View functions surface the queued value as soon as one round has elapsed since t
 
 `excessTicketsSoldOverride` is special: `_lazyUpdateRoundState` does not assign it to `_excessTicketsSold` explicitly. Instead, the lazy update calls `excessTicketsSold()`, which returns the override if one is queued; that return value is then written to `_excessTicketsSold`. The override slot is reset to the sentinel as a separate step. Any future override mechanism needs to preserve this view-driven application.
 
+## Round skip on duration reduction
+
+Reducing `roundDuration` can cause the lazy update to commit a round to storage that is immediately behind the value reported by `roundNumber()`. A purchase call binds to the round it commits to storage, which may already be over on the wall clock.
+
+With `T` = call timestamp, `S` = stored `_roundStart`, `D_old` = stored `_roundDuration` (the value being replaced), and `D_new` = queued duration, the call binds to
+
+```
+R_committed = _roundNumber + floor((T - S) / D_old)
+```
+
+but leaves the contract reporting
+
+```
+R_committed + floor(((T - S) mod D_old) / D_new)
+```
+
+A user whose purchase commits round R but rolls the contract forward to round R+2 will have purchased a ticket that immediately becomes invalid to the sequencer.
+
+Since this requires purchase inactivity and is avoidable by manually triggering a lazy update, this is left alone as a known issue.
+
 ## Pricing
 
 `currentPrice() = min(fake_exponential(minimumPrice(), excessTicketsSold(), priceUpdateFraction()), type(uint72).max)`
