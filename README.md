@@ -54,6 +54,8 @@ Before a purchase, the buyer ERC-20-approves the `Tickets` contract for the desi
 
 Each round, buyers then call `purchaseTickets(expectedRound, expectedPrice, numTicketsDesired, apiKeyHash)`. The contract verifies `expectedRound` and `expectedPrice` against current state (so a buyer never accidentally pays a new round's higher price), fills up to `numTicketsDesired` clamped to the room left in the round, and debits `expectedPrice * (filled count)` from the caller's deposited balance. A buyer near the cap may receive (and pay for) fewer tickets than requested; the call only reverts if the round is already sold out. Any unused balance can be returned to the caller at any time via `withdrawToken`.
 
+The `apiKeyHash` argument is the Keccak-256 hash of the buyer's API key.
+
 Users can use the same API key for multiple purchases. Using the same key for multiple tickets in the same round is permitted.
 
 A reference TypeScript bot lives in [`bot/`](./bot/README.md).

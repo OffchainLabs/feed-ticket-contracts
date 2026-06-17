@@ -62,7 +62,7 @@ function sleep_past(boundarySeconds):
 | `TICKETS_PER_ROUND`      | Number of tickets to buy per round.                                                                                                |
 | `MAX_PRICE_PER_TICKET`   | Maximum price per ticket the bot will pay, in wei of the payment token.                                                            |
 | `MAX_TRANSACTION_FEE`    | Maximum total transaction fee (gas) the bot will pay per purchase, in wei.                                                         |
-| `API_KEY_HASH`           | 0x-prefixed 32-byte hex hash of the API key to bind purchased tickets to.                                                          |
+| `API_KEY_HASH`           | 0x-prefixed Keccak-256 hash (32-byte hex) of the API key to bind purchased tickets to.                                             |
 | `MAX_SCHEDULE_JITTER_MS` | Optional. Max scheduling jitter in ms, so bots don't all act at once. Default `30000`.                                             |
 | `GAS_POLL_INTERVAL_MS`   | Optional. Poll interval in ms while waiting for gas to drop within a round. Default `10000`.                                       |
 | `BOUNDARY_BUFFER_MS`     | Optional. Delay in ms past a round or grandfather-phase boundary before acting, so the chain has advanced past it. Default `2000`. |
