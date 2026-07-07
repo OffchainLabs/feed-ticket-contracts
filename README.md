@@ -70,7 +70,7 @@ The sequencer cannot allow more open connections per key than the number of acti
 
 # Deployment
 
-`script/DeployTickets.s.sol` deploys the `Tickets` contract, configured by environment variables. See [`.env.example`](./.env.example) for the full list and defaults. If `TOKEN` is unset, a test `ERC20PresetMinter` is deployed as the payment token. If `CREATE2_SALT` is set, all contracts are deployed via CREATE2 with that salt; otherwise plain CREATE is used.
+`script/DeployTickets.s.sol` deploys the `Tickets` contract, configured by environment variables. See [`.env.example`](./.env.example) for the full list and defaults.
 
 ```bash
 cp .env.example .env  # edit as needed
