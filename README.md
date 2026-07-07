@@ -68,6 +68,15 @@ When a round ends/advances, the sequencer compares the new list of api keys to t
 
 The sequencer cannot allow more open connections per key than the number of active tickets bound to that key. If more connections are allowed, then people will share keys.
 
+# Deployment
+
+`script/DeployTickets.s.sol` deploys the `Tickets` contract, configured by environment variables. See [`.env.example`](./.env.example) for the full list and defaults. If `TOKEN` is unset, a test `ERC20PresetMinter` is deployed as the payment token. If `CREATE2_SALT` is set, all contracts are deployed via CREATE2 with that salt; otherwise plain CREATE is used.
+
+```bash
+cp .env.example .env  # edit as needed
+forge script script/DeployTickets.s.sol --rpc-url $RPC_URL --account <account> --broadcast
+```
+
 # Potential Improvements
 
 ## Continuous Pricing Across Param Updates
