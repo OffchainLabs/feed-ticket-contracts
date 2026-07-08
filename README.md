@@ -74,7 +74,7 @@ The sequencer cannot allow more open connections per key than the number of acti
 
 ```bash
 cp .env.example .env  # edit as needed
-forge script script/DeployTickets.s.sol --rpc-url $RPC_URL --account <account> --broadcast
+forge script script/DeployTickets.s.sol --rpc-url $RPC_URL --private-key $PRIVATE_KEY --broadcast
 ```
 
 # Potential Improvements
