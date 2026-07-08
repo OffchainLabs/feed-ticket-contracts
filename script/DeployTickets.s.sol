@@ -10,7 +10,7 @@ import {Tickets} from "../src/Tickets.sol";
 
 /// @notice Deploys Tickets behind a TransparentUpgradeableProxy, configured by env vars.
 ///         See .env.example. If CREATE2_SALT is unset, contracts are deployed with plain
-///         CREATE; if TOKEN is unset, a test ERC20PresetMinter is deployed as the token.
+///         CREATE; if TOKEN is unset, a mintable TestToken is deployed as the token.
 contract DeployTickets is Script {
     using SafeCast for uint256;
 
@@ -40,9 +40,7 @@ contract DeployTickets is Script {
 
         address token = vm.envOr("TOKEN", address(0));
         if (token == address(0)) {
-            token = useCreate2
-                ? address(new ERC20PresetMinter{salt: salt}("TestToken", "TEST", deployer))
-                : address(new ERC20PresetMinter("TestToken", "TEST", deployer));
+            token = useCreate2 ? address(new TestToken{salt: salt}(deployer)) : address(new TestToken(deployer));
         }
 
         Tickets impl = useCreate2 ? new Tickets{salt: salt}(token) : new Tickets(token);
@@ -63,11 +61,15 @@ contract DeployTickets is Script {
     }
 }
 
-contract ERC20PresetMinter is ERC20 {
+contract TestToken is ERC20 {
     address public immutable minter;
 
-    constructor(string memory name, string memory symbol, address _minter) ERC20(name, symbol) {
+    constructor(address _minter) ERC20("TestToken", "TEST") {
         minter = _minter;
+    }
+
+    function decimals() public pure override returns (uint8) {
+        return 6;
     }
 
     function mint(address to, uint256 amount) external {
