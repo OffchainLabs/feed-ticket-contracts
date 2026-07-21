@@ -48,6 +48,10 @@ A user whose purchase commits round R but rolls the contract forward to round R+
 
 Since this requires purchase inactivity and is avoidable by manually triggering a lazy update, this is left alone as a known issue.
 
+## Grandfathered holders excluded after max ticket update
+
+If `maxTicketsPerRound` is reduced below the number of tickets sold in the previous round, then the slowest of those holders will lose their right to purchase in the current round.  
+
 ## Pricing
 
 `currentPrice() = min(fake_exponential(minimumPrice(), excessTicketsSold(), priceUpdateFraction()), type(uint72).max)`
