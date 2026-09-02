@@ -1,5 +1,7 @@
 # Feed Ticket Contracts
 
+_This repository is offered under the Apache 2.0 license. See [LICENSE](./LICENSE) for details._
+
 These contracts sell "feed tickets." Feed tickets grant holders access to a premium sequencer feed.
 
 The basic mechanism is as follows:
