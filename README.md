@@ -78,23 +78,3 @@ The sequencer cannot allow more open connections per key than the number of acti
 cp .env.example .env  # edit as needed
 forge script script/DeployTickets.s.sol --rpc-url $RPC_URL --private-key $PRIVATE_KEY --broadcast
 ```
-
-# Potential Improvements
-
-## Continuous Pricing Across Param Updates
-
-The price is `currentPrice = fake_exponential(M, E, F) ~= M * e^(E/F)` where `M = minimumPrice`, `E = excessTicketsSold`, `F = priceUpdateFraction`. By default, changing `nextMinimumPrice` / `nextPriceUpdateFraction` causes the price to jump discontinuously.
-
-To make the price continuous across a pricing-param update, recompute `E` during lazy update (at the moment the new params are applied) so that
-
-```
-M' * e^(E'/F') = M * e^(E/F)
-```
-
-Solving for `E'`:
-
-```
-E' = F' * ln(M/M') + E * F'/F
-```
-
-At the moment, we've deemed discontinuous jumps acceptable.
