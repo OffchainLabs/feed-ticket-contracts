@@ -59,6 +59,22 @@ If `maxTicketsPerRound` is reduced below the number of tickets sold in the previ
 - `_currentPrice` is cached so purchases don't recompute the Taylor series every call.
 - `excessTicketsSold` accumulates across rounds: each round adds `_ticketsSoldThisRound`, then subtracts `_targetTicketsPerRound * elapsed`, floored at zero.
 
+## Continuous Pricing Across Param Updates
+
+The price is `currentPrice = fake_exponential(M, E, F) ~= M * e^(E/F)` where `M = minimumPrice`, `E = excessTicketsSold`, `F = priceUpdateFraction`. By default, changing `nextMinimumPrice` / `nextPriceUpdateFraction` causes the price to jump discontinuously.
+
+To make the price continuous across a pricing-param update, recompute `E` during lazy update (at the moment the new params are applied) so that
+
+```
+M' * e^(E'/F') = M * e^(E/F)
+```
+
+Solving for `E'`:
+
+```
+E' = F' * ln(M/M') + E * F'/F
+```
+
 ## Per-user state (parity-keyed)
 
 ```
