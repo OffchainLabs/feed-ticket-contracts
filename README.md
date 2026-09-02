@@ -78,3 +78,7 @@ The sequencer cannot allow more open connections per key than the number of acti
 cp .env.example .env  # edit as needed
 forge script script/DeployTickets.s.sol --rpc-url $RPC_URL --private-key $PRIVATE_KEY --broadcast
 ```
+
+# Audits
+
+[Trail of Bits (2026-07-31)](https://docs.arbitrum.io/assets/files/2026_07_31_sequencer_feed_ticketing_summary_report-7673b36399a7be50c859bc5da18235d8.pdf)
