@@ -24,7 +24,7 @@ Each mutative entry point either calls `_lazyUpdateRoundState` first or delibera
 
 `MARKET_PARAMS_SETTER` setters write a `next*` slot and set `isAdminUpdateQueued = true`; `_lazyUpdateRoundState` commits the queued values and clears the queue on the next round boundary.
 
-View functions surface the queued value as soon as one round has elapsed since the stored round. Internal arithmetic still uses the stored value until the lazy update lands.
+View functions surface the queued value as soon as one round has elapsed since the stored round. Internal arithmetic still uses the stored value until the lazy update lands. This means a queued admin update followed by one or more inactive rounds can cause inconsistency/inaccuracy in some view functions.
 
 `excessTicketsSoldOverride` is special: `_lazyUpdateRoundState` does not assign it to `_excessTicketsSold` explicitly. Instead, the lazy update calls `excessTicketsSold()`, which returns the override if one is queued; that return value is then written to `_excessTicketsSold`. The override slot is reset to the sentinel as a separate step. Any future override mechanism needs to preserve this view-driven application.
 
@@ -47,6 +47,10 @@ R_committed + floor(((T - S) mod D_old) / D_new)
 A user whose purchase commits round R but rolls the contract forward to round R+2 will have purchased a ticket that immediately becomes invalid to the sequencer.
 
 Since this requires purchase inactivity and is avoidable by manually triggering a lazy update, this is left alone as a known issue.
+
+## Grandfathered holders excluded after max ticket update
+
+If `maxTicketsPerRound` is reduced below the number of tickets sold in the previous round, then the slowest of those holders will lose their right to purchase in the current round.  
 
 ## Pricing
 

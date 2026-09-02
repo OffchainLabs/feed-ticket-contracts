@@ -127,7 +127,7 @@ interface ITickets {
     /// @notice Purchase tickets for the current round. Fills up to `numTicketsDesired`, clamped to
     ///         the room remaining before `maxTicketsPerRound`, and debits `expectedPrice * filled`
     ///         from the caller's deposited token balance; the caller must have first funded that
-    ///         balance via `depositToken`. Reverts if the round is already sold out on entry.
+    ///         balance via `depositToken`. Reverts if the round is already sold out.
     ///         During the grandfather phase at the start of a round, the caller may purchase up to
     ///         the number of tickets they held in the previous round.
     /// @dev    A buyer near the cap may receive (and pay for) fewer tickets than requested; the call only reverts if the round is already sold out.
