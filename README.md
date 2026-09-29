@@ -38,7 +38,7 @@ Admin setters queue their new values rather than applying them immediately. A va
 
 The mutative calls that _do not_ trigger lazy update are setting the beneficiary, distributing funds, and depositing/withdrawing payment tokens. For beneficiary/distribute this keeps a fund-rescue path live even if a bug in the lazy update would otherwise cause it to revert; for deposit/withdraw the round state is irrelevant to the operation, so we skip the work.
 
-Pricing follows EIP-4844's `fake_exponential`: `currentPrice = min(fake_exponential(minimumPrice, excessTicketsSold, priceUpdateFraction), type(uint72).max)`. `excessTicketsSold` is the running total of tickets sold above `targetTicketsPerRound` across all rounds, floored at zero. The cap (~4722e18) prevents the cached price from overflowing its slot; if the formula would exceed it, tickets are sold at the cap. See the "Base fee per blob gas update rule" in EIP-4844 for guidance on setting `priceUpdateFraction`.
+Pricing follows EIP-4844's `fake_exponential`: `currentPrice = min(fake_exponential(minimumPrice, excessTicketsSold, priceUpdateFraction), type(uint72).max)`. `excessTicketsSold` is the running total of tickets sold above `targetTicketsPerRound` across all rounds, floored at zero. The cap (~4722e18) prevents the cached price from overflowing its slot; if the formula would exceed it, tickets are sold at the cap. See the "Base fee per blob gas update rule" in EIP-4844 for guidance on setting `priceUpdateFraction`. `setPricingParams` also installs an `excessTicketsSold` override, which the admin can choose to limit the price jump (see [ARCHITECTURE.md](./ARCHITECTURE.md#continuous-pricing-across-param-updates)).
 
 ### Admin Roles
 
