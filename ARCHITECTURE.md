@@ -61,9 +61,9 @@ If `maxTicketsPerRound` is reduced below the number of tickets sold in the previ
 
 ## Continuous Pricing Across Param Updates
 
-The price is `currentPrice = fake_exponential(M, E, F) ~= M * e^(E/F)` where `M = minimumPrice`, `E = excessTicketsSold`, `F = priceUpdateFraction`. By default, changing `nextMinimumPrice` / `nextPriceUpdateFraction` causes the price to jump discontinuously.
+The price is `currentPrice = fake_exponential(M, E, F) ~= M * e^(E/F)` where `M = minimumPrice`, `E = excessTicketsSold`, `F = priceUpdateFraction`. Changing `M` or `F` alone makes the price jump discontinuously, so `setPricingParams` also takes an `excessTicketsSoldOverride` that replaces `E` when the new params are committed.
 
-To make the price continuous across a pricing-param update, recompute `E` during lazy update (at the moment the new params are applied) so that
+The contract does not compute the override. To keep the price continuous, the admin picks `E'` offchain so that
 
 ```
 M' * e^(E'/F') = M * e^(E/F)
@@ -74,6 +74,8 @@ Solving for `E'`:
 ```
 E' = F' * ln(M/M') + E * F'/F
 ```
+
+The override is an absolute value, while `E` at commit time depends on sales between queueing and commit, so continuity is only approximate. If `E'` would be negative, the closest option is 0, which sets the price to `M'`.
 
 ## Per-user state (parity-keyed)
 
