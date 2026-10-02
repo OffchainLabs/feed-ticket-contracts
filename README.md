@@ -81,9 +81,9 @@ forge script script/DeployTickets.s.sol --rpc-url $RPC_URL --private-key $PRIVAT
 
 ### Upgrading from v1.0.0
 
-v1.0.0 stores `priceUpdateFraction` and `excessTicketsSold` in tickets. Upgrade with `ProxyAdmin.upgradeAndCall(proxy, newImpl, abi.encodeCall(Tickets.postUpgradeInit_v1_1_0, ()))`. This queues both, rescaled, for the next round, as `setPricingParams(minimumPrice, rescaledFraction, rescaledExcess)` would. They are multiplied by `1e6 / targetTicketsPerRound`, rounded down (144 becomes 1,440,000 at target 100). This keeps the price curve at or below target, and above it only when `maxTicketsPerRound == 2 * targetTicketsPerRound`. The queued values replace any pending `setPricingParams` update. Since the rescaled excess is applied as an override, the upgrade round's sales do not move the price.
+v1.0.0 stores `priceUpdateFraction` and `excessTicketsSold` in tickets. Upgrade with `ProxyAdmin.upgradeAndCall(proxy, newImpl, abi.encodeCall(Tickets.postUpgradeInit_v1_1_0, ()))`. This queues both, rescaled, for the next round, as `setPricingParams(minimumPrice, rescaledFraction, rescaledExcess)` would. They are multiplied by `1e6 / targetTicketsPerRound`, rounded down (144 becomes 1,440,000 at target 100). This keeps the price curve at or below target, and above it only when `maxTicketsPerRound == 2 * targetTicketsPerRound`. Since the rescaled excess is applied as an override, the upgrade round's sales do not move the price.
 
-`postUpgradeInit_v1_1_0` reverts if the current round is not committed, so call `commitRoundState()` earlier in the same round. Proxies deployed at v1.1.0 are initialized at version 2, so it reverts on them.
+`postUpgradeInit_v1_1_0` reverts if the current round is not committed, if an admin update is queued, or if `targetTicketsPerRound >= maxTicketsPerRound`. Call `commitRoundState()` earlier in the same round, which also commits updates queued in earlier rounds, and queue no admin updates in that round before the upgrade. Proxies deployed at v1.1.0 are initialized at version 2, so it reverts on them.
 
 # Audits
 
