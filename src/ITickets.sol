@@ -46,6 +46,9 @@ interface ITickets {
     /// @param  max    The max tickets per round the next round would use.
     error TargetTicketsNotBelowMax(uint256 target, uint256 max);
 
+    // todo: natspec
+    error AdminUpdateQueued();
+
     /// @notice Thrown when `initialize` is given a `firstRoundStart` that is not strictly in the future.
     error FirstRoundStartNotInFuture();
 

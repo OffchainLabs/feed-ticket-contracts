@@ -225,6 +225,10 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     function postUpgradeInit_v1_1_0() external reinitializer(2) {
         if (msg.sender != ERC1967Utils.getAdmin()) revert NotProxyAdmin();
         if (roundsElapsedSinceStored() != 0) revert RoundNotCommitted();
+        if (isAdminUpdateQueued) revert AdminUpdateQueued();
+        if (_targetTicketsPerRound >= _maxTicketsPerRound) {
+            revert TargetTicketsNotBelowMax(_targetTicketsPerRound, _maxTicketsPerRound);
+        }
         _setPricingParams(
             _minimumPrice,
             (_priceUpdateFraction * EXCESS_SCALE / _targetTicketsPerRound).toUint40(),
