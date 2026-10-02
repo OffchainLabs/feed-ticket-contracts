@@ -211,18 +211,15 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         _grantRole(MARKET_PARAMS_SETTER, marketParamsSetter);
     }
 
-    /// @notice Rescales pricing state stored by v1.0.0 from tickets to `EXCESS_SCALE` units, keeping
-    ///         the price curve. Callable once, by the proxy admin through `upgradeToAndCall`.
-    /// @dev    Exact only when max is twice target and target divides `EXCESS_SCALE`.
+    /// @notice Rescales pricing state stored by v1.0.0 from tickets to `EXCESS_SCALE` units. Keeps the
+    ///         price curve at or below target, and above it when max is twice target. Callable once,
+    ///         by the proxy admin through `upgradeToAndCall`.
     // forge-lint: disable-next-line(mixed-case-function)
     function postUpgradeInit_v1_1_0() external reinitializer(2) {
         if (msg.sender != ERC1967Utils.getAdmin()) revert NotProxyAdmin();
-        uint256 target = _targetTicketsPerRound;
-        if (isAdminUpdateQueued || _maxTicketsPerRound != 2 * target || EXCESS_SCALE % target != 0) {
-            revert UnsupportedUpgradeState();
-        }
-        _priceUpdateFraction = (_priceUpdateFraction * EXCESS_SCALE / target).toUint40();
-        _excessTicketsSold = (_excessTicketsSold * EXCESS_SCALE / target).toUint56();
+        if (isAdminUpdateQueued) revert AdminUpdateQueued();
+        _priceUpdateFraction = (_priceUpdateFraction * EXCESS_SCALE / _targetTicketsPerRound).toUint40();
+        _excessTicketsSold = (_excessTicketsSold * EXCESS_SCALE / _targetTicketsPerRound).toUint56();
     }
 
     /// @inheritdoc ITickets

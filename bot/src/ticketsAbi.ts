@@ -479,6 +479,7 @@ export const iTicketsAbi = [
     ],
     name: 'TokensWithdrawn',
   },
+  { type: 'error', inputs: [], name: 'AdminUpdateQueued' },
   { type: 'error', inputs: [], name: 'BeforeFirstRoundStart' },
   { type: 'error', inputs: [], name: 'ExcessTicketsSoldOverrideReserved' },
   { type: 'error', inputs: [], name: 'FirstRoundStartNotInFuture' },
@@ -526,7 +527,6 @@ export const iTicketsAbi = [
     name: 'RoundNumberMismatch',
   },
   { type: 'error', inputs: [], name: 'TargetTicketsPerRoundZero' },
-  { type: 'error', inputs: [], name: 'UnsupportedUpgradeState' },
   { type: 'error', inputs: [], name: 'ZeroTicketsRequested' },
 ] as const
 
@@ -1254,6 +1254,7 @@ export const ticketsAbi = [
     ],
     name: 'AccessControlUnauthorizedAccount',
   },
+  { type: 'error', inputs: [], name: 'AdminUpdateQueued' },
   { type: 'error', inputs: [], name: 'BeforeFirstRoundStart' },
   { type: 'error', inputs: [], name: 'ExcessTicketsSoldOverrideReserved' },
   { type: 'error', inputs: [], name: 'FirstRoundStartNotInFuture' },
@@ -1316,6 +1317,5 @@ export const ticketsAbi = [
     name: 'SafeERC20FailedOperation',
   },
   { type: 'error', inputs: [], name: 'TargetTicketsPerRoundZero' },
-  { type: 'error', inputs: [], name: 'UnsupportedUpgradeState' },
   { type: 'error', inputs: [], name: 'ZeroTicketsRequested' },
 ] as const
