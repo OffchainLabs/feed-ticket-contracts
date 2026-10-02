@@ -394,11 +394,11 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         // sold <= _maxTicketsPerRound, so sold > target implies _maxTicketsPerRound > target.
         uint256 sold = _ticketsSoldThisRound;
         uint256 target = _targetTicketsPerRound;
-        sold = sold > target
+        uint256 normalizedSold = sold > target
             ? EXCESS_SCALE + (sold - target) * EXCESS_SCALE / (_maxTicketsPerRound - target)
             : sold * EXCESS_SCALE / target;
 
-        uint256 gross = uint256(_excessTicketsSold) + sold;
+        uint256 gross = uint256(_excessTicketsSold) + normalizedSold;
         uint256 consumed = elapsed * EXCESS_SCALE;
         return gross > consumed ? Math.min(gross - consumed, EXCESS_TICKETS_SOLD_SENTINEL - 1) : 0;
     }
