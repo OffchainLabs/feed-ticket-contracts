@@ -183,6 +183,9 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         if (p.roundDuration == 0) revert RoundDurationZero();
         if (p.targetTicketsPerRound == 0) revert TargetTicketsPerRoundZero();
         if (p.maxTicketsPerRound == 0) revert MaxTicketsPerRoundZero();
+        if (p.targetTicketsPerRound >= p.maxTicketsPerRound) {
+            revert TargetTicketsNotBelowMax(p.targetTicketsPerRound, p.maxTicketsPerRound);
+        }
         if (p.minimumPrice == 0) revert MinimumPriceZero();
         if (p.priceUpdateFraction == 0) revert PriceUpdateFractionZero();
         if (p.grandfatherPeriodFraction == GRANDFATHER_PERIOD_SENTINEL) revert GrandfatherPeriodFractionReserved();
@@ -444,6 +447,8 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     function setMaxTicketsPerRound(uint16 newMax) external onlyRole(MARKET_PARAMS_SETTER) {
         if (newMax == 0) revert MaxTicketsPerRoundZero();
         _lazyUpdateRoundState();
+        uint16 target = nextTargetTicketsPerRound != 0 ? nextTargetTicketsPerRound : _targetTicketsPerRound;
+        if (target >= newMax) revert TargetTicketsNotBelowMax(target, newMax);
         isAdminUpdateQueued = true;
         nextMaxTicketsPerRound = newMax;
         emit MaxTicketsPerRoundQueued(newMax);
@@ -453,6 +458,8 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     function setTargetTicketsPerRound(uint16 newTarget) external onlyRole(MARKET_PARAMS_SETTER) {
         if (newTarget == 0) revert TargetTicketsPerRoundZero();
         _lazyUpdateRoundState();
+        uint16 max = nextMaxTicketsPerRound != 0 ? nextMaxTicketsPerRound : _maxTicketsPerRound;
+        if (newTarget >= max) revert TargetTicketsNotBelowMax(newTarget, max);
         isAdminUpdateQueued = true;
         nextTargetTicketsPerRound = newTarget;
         emit TargetTicketsPerRoundQueued(newTarget);

@@ -21,6 +21,7 @@ pragma solidity ^0.8.20;
 // forge-lint: disable-start
 
 import {BaseTicketsTest} from "./BaseTicketsTest.t.sol";
+import {ITickets} from "../src/ITickets.sol";
 
 contract TicketPricingTest is BaseTicketsTest {
     function test_currentPrice_returnsMinimumPriceWithNoExcess() public view {
@@ -126,16 +127,47 @@ contract TicketPricingTest is BaseTicketsTest {
         assertEq(tickets.currentPrice(), MINIMUM_PRICE);
     }
 
-    function test_excessTicketsSold_targetAboveMaxDoesNotRevert() public {
-        vm.prank(marketParamsSetter);
-        tickets.setTargetTicketsPerRound(MAX_TICKETS + 1);
-        vm.warp(FIRST_ROUND_START + ROUND_DURATION);
-        tickets.commitRoundState();
+    function test_setTargetTicketsPerRound_revertsAtOrAboveMax() public {
+        vm.startPrank(marketParamsSetter);
+        vm.expectRevert(abi.encodeWithSelector(ITickets.TargetTicketsNotBelowMax.selector, MAX_TICKETS, MAX_TICKETS));
+        tickets.setTargetTicketsPerRound(MAX_TICKETS);
+        tickets.setTargetTicketsPerRound(MAX_TICKETS - 1);
+        assertEq(tickets.nextTargetTicketsPerRound(), MAX_TICKETS - 1);
+    }
 
-        tickets.exposed_setTicketsSoldThisRound(MAX_TICKETS);
-        vm.warp(FIRST_ROUND_START + 2 * ROUND_DURATION);
-        tickets.commitRoundState();
+    function test_setMaxTicketsPerRound_revertsAtOrBelowTarget() public {
+        vm.startPrank(marketParamsSetter);
+        vm.expectRevert(
+            abi.encodeWithSelector(ITickets.TargetTicketsNotBelowMax.selector, TARGET_TICKETS, TARGET_TICKETS)
+        );
+        tickets.setMaxTicketsPerRound(TARGET_TICKETS);
+        tickets.setMaxTicketsPerRound(TARGET_TICKETS + 1);
+        assertEq(tickets.nextMaxTicketsPerRound(), TARGET_TICKETS + 1);
+    }
 
-        assertEq(tickets.excessTicketsSold(), 0);
+    function test_setTargetTicketsPerRound_checksQueuedMax() public {
+        vm.startPrank(marketParamsSetter);
+        tickets.setMaxTicketsPerRound(TARGET_TICKETS + 10);
+        vm.expectRevert(
+            abi.encodeWithSelector(ITickets.TargetTicketsNotBelowMax.selector, TARGET_TICKETS + 10, TARGET_TICKETS + 10)
+        );
+        tickets.setTargetTicketsPerRound(TARGET_TICKETS + 10);
+
+        tickets.setMaxTicketsPerRound(MAX_TICKETS + 100);
+        tickets.setTargetTicketsPerRound(MAX_TICKETS + 50);
+        assertEq(tickets.nextTargetTicketsPerRound(), MAX_TICKETS + 50);
+    }
+
+    function test_setMaxTicketsPerRound_checksQueuedTarget() public {
+        vm.startPrank(marketParamsSetter);
+        tickets.setTargetTicketsPerRound(TARGET_TICKETS + 50);
+        vm.expectRevert(
+            abi.encodeWithSelector(ITickets.TargetTicketsNotBelowMax.selector, TARGET_TICKETS + 50, TARGET_TICKETS + 50)
+        );
+        tickets.setMaxTicketsPerRound(TARGET_TICKETS + 50);
+
+        tickets.setTargetTicketsPerRound(TARGET_TICKETS / 2);
+        tickets.setMaxTicketsPerRound(TARGET_TICKETS);
+        assertEq(tickets.nextMaxTicketsPerRound(), TARGET_TICKETS);
     }
 }

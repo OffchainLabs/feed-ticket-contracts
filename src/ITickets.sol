@@ -40,6 +40,12 @@ interface ITickets {
     ///         which is reserved as the "no override queued" sentinel.
     error ExcessTicketsSoldOverrideReserved();
 
+    /// @notice Thrown when `initialize`, `setTargetTicketsPerRound`, or `setMaxTicketsPerRound` would
+    ///         leave the next round's target at or above its max.
+    /// @param  target The target tickets per round the next round would use.
+    /// @param  max    The max tickets per round the next round would use.
+    error TargetTicketsNotBelowMax(uint256 target, uint256 max);
+
     /// @notice Thrown when `initialize` is given a `firstRoundStart` that is not strictly in the future.
     error FirstRoundStartNotInFuture();
 
@@ -312,12 +318,14 @@ interface ITickets {
     /// @param  newMax The new max tickets per round.
     ///                Must be greater than zero, which is reserved as the
     ///                "no update queued" sentinel and is an invalid value.
+    ///                Must be greater than the queued target, or the current target if none is queued.
     function setMaxTicketsPerRound(uint16 newMax) external;
 
     /// @notice Queue a new target tickets per round. Takes effect next active round.
     /// @param  newTarget The new target tickets per round.
     ///                   Must be greater than zero, which is reserved as the
     ///                   "no update queued" sentinel and is an invalid value.
+    ///                   Must be less than the queued max, or the current max if none is queued.
     function setTargetTicketsPerRound(uint16 newTarget) external;
 
     /// @notice Queue new pricing parameters. Takes effect next active round.
