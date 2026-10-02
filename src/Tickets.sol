@@ -71,7 +71,8 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     /// @dev Sentinel for "no excess tickets override"
     uint56 constant EXCESS_TICKETS_SOLD_SENTINEL = type(uint56).max;
 
-    /// @dev `excessTicketsSold` added by a round that sells exactly the target.
+    /// @dev Per-round unit of `excessTicketsSold`: a sold-out round nets +EXCESS_SCALE, an empty
+    ///      round -EXCESS_SCALE, and a round at target 0.
     uint256 constant EXCESS_SCALE = 1e6;
 
     /// @inheritdoc ITickets
