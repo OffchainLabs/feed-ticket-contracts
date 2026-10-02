@@ -70,6 +70,9 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     /// @dev Sentinel for "no excess tickets override"
     uint56 constant EXCESS_TICKETS_SOLD_SENTINEL = type(uint56).max;
 
+    /// @dev `excessTicketsSold` units per ticket below target.
+    uint256 constant EXCESS_SCALE = 1e4;
+
     /// @inheritdoc ITickets
     /// @dev Assumed to be a standard ERC-20: no fee-on-transfer, no rebasing, no transfer hooks.
     ///      `depositToken` credits the requested amount without measuring the actual balance delta.
@@ -105,8 +108,8 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     // -- End Hot Path Storage -- //
     // -- Begin Warm Path Storage (Accessed on Round Change) -- //
 
-    /// @dev uint40 - at target of 1, max of 2^16, the lowest max change we can support is
-    ///      e^((2^16 - 2) / (2^40 - 1)) = 1.00000006
+    /// @dev uint40 - at target of 1, the lowest per-round change we can support is
+    ///      e^(EXCESS_SCALE / (2^40 - 1)) = 1.000000009
     uint40 internal _priceUpdateFraction;
 
     // ------ End Slot 0 ------ //
@@ -118,8 +121,7 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     /// @dev Type matches maxTicketsPerRound.
     uint16 internal _targetTicketsPerRound;
 
-    /// @dev uint56 - Up to 2^16 excess/round (uint16 cap) * 2^40 rounds (uint40 _roundNumber)
-    ///      = 2^56 worst-case excess.
+    /// @dev uint56 - Saturates below EXCESS_TICKETS_SOLD_SENTINEL.
     uint56 internal _excessTicketsSold;
 
     /// @inheritdoc ITickets
@@ -390,13 +392,15 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
 
         // Above target, scale so a full round raises the price by the factor an empty round lowers it.
         // sold <= _maxTicketsPerRound, so sold > target implies _maxTicketsPerRound > target.
-        uint256 sold = _ticketsSoldThisRound;
-        uint256 target = _targetTicketsPerRound;
-        if (sold > target) sold = target + (sold - target) * target / (uint256(_maxTicketsPerRound) - target);
+        uint256 sold = uint256(_ticketsSoldThisRound) * EXCESS_SCALE;
+        uint256 target = uint256(_targetTicketsPerRound) * EXCESS_SCALE;
+        if (sold > target) {
+            sold = target + (sold - target) * _targetTicketsPerRound / (_maxTicketsPerRound - _targetTicketsPerRound);
+        }
 
         uint256 gross = uint256(_excessTicketsSold) + sold;
         uint256 consumed = elapsed * target;
-        return gross > consumed ? gross - consumed : 0;
+        return gross > consumed ? Math.min(gross - consumed, EXCESS_TICKETS_SOLD_SENTINEL - 1) : 0;
     }
 
     /// @inheritdoc ITickets

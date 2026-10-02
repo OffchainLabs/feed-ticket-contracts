@@ -272,14 +272,16 @@ interface ITickets {
     ///         held in the previous round.
     function grandfatherPeriodEnd() external view returns (uint256);
 
-    /// @notice Total tickets sold in excess of the cumulative target as of the end of last round.
+    /// @notice Total tickets sold in excess of the cumulative target as of the end of last round,
+    ///         in units of 1e-4 tickets.
     /// @dev    Within the active stored round (no rounds elapsed), returns the stored value directly.
     ///         Once a round has elapsed, this view returns either:
     ///         (a) `excessTicketsSoldOverride` if a pricing update is queued - lets the admin
     ///             avoid a price jump across the param change; or
     ///         (b) the stored value plus `_ticketsSoldThisRound`, minus elapsed
-    ///             rounds' worth of target (saturated at zero). Sales above target are scaled
-    ///             by `target / (max - target)`, so selling `max` adds exactly `target`.
+    ///             rounds' worth of target (saturated at zero and below `type(uint56).max`).
+    ///             Sales above target are scaled by `target / (max - target)`, so selling `max`
+    ///             adds exactly `target` tickets.
     function excessTicketsSold() external view returns (uint256);
 
     /// @notice Ticket price for the current round, in wei.

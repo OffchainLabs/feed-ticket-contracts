@@ -57,7 +57,7 @@ If `maxTicketsPerRound` is reduced below the number of tickets sold in the previ
 `currentPrice() = min(fake_exponential(minimumPrice(), excessTicketsSold(), priceUpdateFraction()), type(uint72).max)`
 
 - `_currentPrice` is cached so purchases don't recompute the Taylor series every call.
-- `excessTicketsSold` accumulates across rounds: each round adds `_ticketsSoldThisRound`, then subtracts `_targetTicketsPerRound * elapsed`, floored at zero. Sales above target count as `(sold - target) * target / (max - target)`, rounded down, so a sold-out round adds exactly `target`.
+- `excessTicketsSold` accumulates across rounds in units of `1 / EXCESS_SCALE` tickets: each round adds `_ticketsSoldThisRound * EXCESS_SCALE`, then subtracts `_targetTicketsPerRound * EXCESS_SCALE * elapsed`, floored at zero and saturated below the override sentinel. Sales above target count as `(sold - target) * target / (max - target)`, rounded down to the unit, so a sold-out round adds exactly `target` tickets.
 
 ## Continuous Pricing Across Param Updates
 
