@@ -41,8 +41,8 @@ contract TicketsE2ETest is Test {
     uint16 constant TARGET = 4;
     uint16 constant MAX = 8;
     uint64 constant MIN_PRICE = 1 ether;
-    uint256 constant EXCESS_SCALE = 1e4;
-    uint24 constant FRACTION = 10 * 1e4;
+    uint256 constant EXCESS_PER_TICKET = 1e6 / TARGET;
+    uint24 constant FRACTION = 10 * 1e6 / TARGET;
     uint8 constant GRANDFATHER_PERIOD_FRACTION = 100;
     uint40 constant FIRST_ROUND_START = 1_700_000_000;
 
@@ -124,7 +124,7 @@ contract TicketsE2ETest is Test {
         vm.warp(FIRST_ROUND_START + ROUND_DURATION);
         assertEq(tickets.roundNumber(), 1);
         // gross = 0 + 8 = 8, consumed = 1*4 = 4 → excess = 4.
-        assertEq(tickets.excessTicketsSold(), 4 * EXCESS_SCALE);
+        assertEq(tickets.excessTicketsSold(), 4 * EXCESS_PER_TICKET);
         uint256 r1Price = tickets.currentPrice();
         assertGt(r1Price, MIN_PRICE);
 
@@ -159,7 +159,7 @@ contract TicketsE2ETest is Test {
         vm.warp(FIRST_ROUND_START + 2 * ROUND_DURATION);
         assertEq(tickets.roundNumber(), 2);
         // gross = 4 + 4 = 8, consumed = 1*4 = 4 → excess = 4 (round 1 sold exactly the target).
-        assertEq(tickets.excessTicketsSold(), 4 * EXCESS_SCALE);
+        assertEq(tickets.excessTicketsSold(), 4 * EXCESS_PER_TICKET);
         // No change in excess → price unchanged from round 1.
         assertEq(tickets.currentPrice(), r1Price);
 
@@ -194,7 +194,7 @@ contract TicketsE2ETest is Test {
         vm.warp(FIRST_ROUND_START + 3 * ROUND_DURATION);
         assertEq(tickets.roundNumber(), 3);
         // gross = 4 + 5 = 9, consumed = 1*4 = 4 → excess = 5.
-        assertEq(tickets.excessTicketsSold(), 5 * EXCESS_SCALE);
+        assertEq(tickets.excessTicketsSold(), 5 * EXCESS_PER_TICKET);
         uint256 r3Price = tickets.currentPrice();
         assertGt(r3Price, r1Price);
 

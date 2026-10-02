@@ -213,7 +213,8 @@ interface ITickets {
     /// @notice Minimum ticket price. Floor of the pricing function.
     function minimumPrice() external view returns (uint256);
 
-    /// @notice Parameter controlling how quickly price moves per excess ticket sold.
+    /// @notice Parameter controlling how quickly price moves. A sold-out round multiplies the
+    ///         price by `e^(1e6 / priceUpdateFraction)`.
     function priceUpdateFraction() external view returns (uint256);
 
     /// @notice Length of the grandfather phase at the start of each round, as a fraction of 256
@@ -272,16 +273,14 @@ interface ITickets {
     ///         held in the previous round.
     function grandfatherPeriodEnd() external view returns (uint256);
 
-    /// @notice Total tickets sold in excess of the cumulative target as of the end of last round,
-    ///         in units of 1e-4 tickets.
+    /// @notice Normalized excess sales as of the end of last round. A round at target leaves it
+    ///         unchanged, a sold-out round adds 1e6, and an empty round subtracts 1e6.
     /// @dev    Within the active stored round (no rounds elapsed), returns the stored value directly.
     ///         Once a round has elapsed, this view returns either:
     ///         (a) `excessTicketsSoldOverride` if a pricing update is queued - lets the admin
     ///             avoid a price jump across the param change; or
-    ///         (b) the stored value plus `_ticketsSoldThisRound`, minus elapsed
-    ///             rounds' worth of target (saturated at zero and below `type(uint56).max`).
-    ///             Sales above target are scaled by `target / (max - target)`, so selling `max`
-    ///             adds exactly `target` tickets.
+    ///         (b) the stored value plus this round's normalized sales, minus 1e6 per elapsed
+    ///             round (saturated at zero and below `type(uint56).max`).
     function excessTicketsSold() external view returns (uint256);
 
     /// @notice Ticket price for the current round, in wei.

@@ -86,8 +86,8 @@ contract TicketPricingTest is BaseTicketsTest {
         tickets.exposed_setTicketsSoldThisRound(300);
         vm.warp(FIRST_ROUND_START + 2 * ROUND_DURATION);
 
-        // 100 + (300 - 100) * 100 / (500 - 100) - 100
-        assertEq(tickets.excessTicketsSold(), 50 * EXCESS_SCALE);
+        // EXCESS_SCALE * (1 + (300 - 100) / (500 - 100) - 1)
+        assertEq(tickets.excessTicketsSold(), EXCESS_SCALE / 2);
     }
 
     function test_excessTicketsSold_countsSingleTicketAboveTarget() public {
@@ -95,8 +95,7 @@ contract TicketPricingTest is BaseTicketsTest {
         tickets.exposed_setTicketsSoldThisRound(TARGET_TICKETS + 1);
         vm.warp(FIRST_ROUND_START + 2 * ROUND_DURATION);
 
-        // 100 / (500 - 100) of a ticket
-        assertEq(tickets.excessTicketsSold(), EXCESS_SCALE / 4);
+        assertEq(tickets.excessTicketsSold(), EXCESS_SCALE / (500 - TARGET_TICKETS));
     }
 
     function test_excessTicketsSold_saturatesBelowSentinel() public {
@@ -120,8 +119,7 @@ contract TicketPricingTest is BaseTicketsTest {
         tickets.commitRoundState();
 
         assertEq(
-            tickets.currentPrice(),
-            tickets.exposed_fakeExponential(MINIMUM_PRICE, TARGET_TICKETS * EXCESS_SCALE, PRICE_UPDATE_FRACTION)
+            tickets.currentPrice(), tickets.exposed_fakeExponential(MINIMUM_PRICE, EXCESS_SCALE, PRICE_UPDATE_FRACTION)
         );
 
         vm.warp(FIRST_ROUND_START + 3 * ROUND_DURATION);
