@@ -176,7 +176,10 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         _disableInitializers();
     }
 
-    function initialize(InitParams calldata p) external initializer {
+    /// @dev Version 2 so `postUpgradeInit_v1_1_0` cannot run on fresh deployments. Proxies initialized
+    ///      by v1.0.0 are at version 1 and are rejected by the `_roundDuration` check.
+    function initialize(InitParams calldata p) external reinitializer(2) {
+        if (_roundDuration != 0) revert InvalidInitialization();
         if (p.roundDuration == 0) revert RoundDurationZero();
         if (p.targetTicketsPerRound == 0) revert TargetTicketsPerRoundZero();
         if (p.maxTicketsPerRound == 0) revert MaxTicketsPerRoundZero();
