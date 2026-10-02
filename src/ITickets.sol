@@ -52,8 +52,8 @@ interface ITickets {
     /// @notice Thrown when `postUpgradeInit_v1_1_0` is called by an account other than the proxy admin.
     error NotProxyAdmin();
 
-    /// @notice Thrown when `postUpgradeInit_v1_1_0` is called while an admin update is queued.
-    error AdminUpdateQueued();
+    /// @notice Thrown when `postUpgradeInit_v1_1_0` is called before the current round is committed.
+    error RoundNotCommitted();
 
     /// @notice Thrown when `purchaseTickets` is called with an `expectedRound` that does not
     ///         match the current round.

@@ -218,15 +218,18 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         _grantRole(MARKET_PARAMS_SETTER, marketParamsSetter);
     }
 
-    /// @notice Rescales pricing state stored by v1.0.0 from tickets to `EXCESS_SCALE` units. Keeps the
-    ///         price curve at or below target, and above it when max is twice target. Callable once,
-    ///         by the proxy admin through `upgradeToAndCall`.
+    /// @notice Queues pricing state stored by v1.0.0, rescaled from tickets to `EXCESS_SCALE` units, for
+    ///         the next round. Keeps the price curve at or below target, and above it when max is twice
+    ///         target. Callable once, by the proxy admin through `upgradeToAndCall`.
     // forge-lint: disable-next-line(mixed-case-function)
     function postUpgradeInit_v1_1_0() external reinitializer(2) {
         if (msg.sender != ERC1967Utils.getAdmin()) revert NotProxyAdmin();
-        if (isAdminUpdateQueued) revert AdminUpdateQueued();
-        _priceUpdateFraction = (_priceUpdateFraction * EXCESS_SCALE / _targetTicketsPerRound).toUint40();
-        _excessTicketsSold = (_excessTicketsSold * EXCESS_SCALE / _targetTicketsPerRound).toUint56();
+        if (roundsElapsedSinceStored() != 0) revert RoundNotCommitted();
+        _setPricingParams(
+            _minimumPrice,
+            (_priceUpdateFraction * EXCESS_SCALE / _targetTicketsPerRound).toUint40(),
+            (_excessTicketsSold * EXCESS_SCALE / _targetTicketsPerRound).toUint56()
+        );
     }
 
     /// @inheritdoc ITickets
@@ -472,6 +475,14 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         uint40 newPriceUpdateFraction,
         uint56 newExcessTicketsSoldOverride
     ) external onlyRole(MARKET_PARAMS_SETTER) {
+        _setPricingParams(newMinimumPrice, newPriceUpdateFraction, newExcessTicketsSoldOverride);
+    }
+
+    function _setPricingParams(
+        uint64 newMinimumPrice,
+        uint40 newPriceUpdateFraction,
+        uint56 newExcessTicketsSoldOverride
+    ) internal {
         if (newMinimumPrice == 0) revert MinimumPriceZero();
         if (newPriceUpdateFraction == 0) revert PriceUpdateFractionZero();
         if (newExcessTicketsSoldOverride == EXCESS_TICKETS_SOLD_SENTINEL) revert ExcessTicketsSoldOverrideReserved();
