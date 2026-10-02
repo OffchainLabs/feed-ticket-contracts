@@ -514,6 +514,7 @@ export const iTicketsAbi = [
     ],
     name: 'NotEnoughGrandfatheredTickets',
   },
+  { type: 'error', inputs: [], name: 'NotProxyAdmin' },
   { type: 'error', inputs: [], name: 'PriceUpdateFractionZero' },
   { type: 'error', inputs: [], name: 'RoundDurationZero' },
   {
@@ -525,6 +526,7 @@ export const iTicketsAbi = [
     name: 'RoundNumberMismatch',
   },
   { type: 'error', inputs: [], name: 'TargetTicketsPerRoundZero' },
+  { type: 'error', inputs: [], name: 'UnsupportedUpgradeState' },
   { type: 'error', inputs: [], name: 'ZeroTicketsRequested' },
 ] as const
 
@@ -792,6 +794,13 @@ export const ticketsAbi = [
     name: 'nextTargetTicketsPerRound',
     outputs: [{ name: '', internalType: 'uint16', type: 'uint16' }],
     stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'postUpgradeInit_v1_1_0',
+    outputs: [],
+    stateMutability: 'nonpayable',
   },
   {
     type: 'function',
@@ -1282,6 +1291,7 @@ export const ticketsAbi = [
     name: 'NotEnoughGrandfatheredTickets',
   },
   { type: 'error', inputs: [], name: 'NotInitializing' },
+  { type: 'error', inputs: [], name: 'NotProxyAdmin' },
   { type: 'error', inputs: [], name: 'PriceUpdateFractionZero' },
   { type: 'error', inputs: [], name: 'RoundDurationZero' },
   {
@@ -1306,5 +1316,6 @@ export const ticketsAbi = [
     name: 'SafeERC20FailedOperation',
   },
   { type: 'error', inputs: [], name: 'TargetTicketsPerRoundZero' },
+  { type: 'error', inputs: [], name: 'UnsupportedUpgradeState' },
   { type: 'error', inputs: [], name: 'ZeroTicketsRequested' },
 ] as const

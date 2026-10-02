@@ -79,6 +79,12 @@ cp .env.example .env  # edit as needed
 forge script script/DeployTickets.s.sol --rpc-url $RPC_URL --private-key $PRIVATE_KEY --broadcast
 ```
 
+### Upgrading from v1.0.0
+
+v1.0.0 stores `priceUpdateFraction` and `excessTicketsSold` in tickets. Upgrade with `ProxyAdmin.upgradeAndCall(proxy, newImpl, abi.encodeCall(Tickets.postUpgradeInit_v1_1_0, ()))` so both are rescaled before any round rolls. They are multiplied by `1e6 / targetTicketsPerRound` (144 becomes 1,440,000 at target 100), which keeps the price curve.
+
+`postUpgradeInit_v1_1_0` reverts if an admin update is queued (`commitRoundState()` commits one queued in an earlier round), if `maxTicketsPerRound != 2 * targetTicketsPerRound`, or if the target does not divide 1e6. Do not call it on proxies deployed at v1.1.0 or later.
+
 # Audits
 
 [Trail of Bits (2026-07-31)](https://docs.arbitrum.io/assets/files/2026_07_31_sequencer_feed_ticketing_summary_report-7673b36399a7be50c859bc5da18235d8.pdf)

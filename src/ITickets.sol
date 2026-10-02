@@ -43,6 +43,13 @@ interface ITickets {
     /// @notice Thrown when `initialize` is given a `firstRoundStart` that is not strictly in the future.
     error FirstRoundStartNotInFuture();
 
+    /// @notice Thrown when `postUpgradeInit_v1_1_0` is called by an account other than the proxy admin.
+    error NotProxyAdmin();
+
+    /// @notice Thrown when `postUpgradeInit_v1_1_0` cannot keep the price curve: an admin update is
+    ///         queued, `maxTicketsPerRound != 2 * targetTicketsPerRound`, or the target does not divide 1e6.
+    error UnsupportedUpgradeState();
+
     /// @notice Thrown when `purchaseTickets` is called with an `expectedRound` that does not
     ///         match the current round.
     /// @param  expected The round the caller passed as `expectedRound`.
