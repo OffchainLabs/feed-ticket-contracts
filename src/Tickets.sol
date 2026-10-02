@@ -388,8 +388,14 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
             return excessTicketsSoldOverride;
         }
 
-        uint256 gross = uint256(_excessTicketsSold) + _ticketsSoldThisRound;
-        uint256 consumed = elapsed * uint256(_targetTicketsPerRound);
+        // Above target, scale so a full round raises the price by the factor an empty round lowers it.
+        // sold <= _maxTicketsPerRound, so sold > target implies _maxTicketsPerRound > target.
+        uint256 sold = _ticketsSoldThisRound;
+        uint256 target = _targetTicketsPerRound;
+        if (sold > target) sold = target + (sold - target) * target / (uint256(_maxTicketsPerRound) - target);
+
+        uint256 gross = uint256(_excessTicketsSold) + sold;
+        uint256 consumed = elapsed * target;
         return gross > consumed ? gross - consumed : 0;
     }
 

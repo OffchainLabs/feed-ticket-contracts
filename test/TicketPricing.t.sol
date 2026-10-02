@@ -72,4 +72,57 @@ contract TicketPricingTest is BaseTicketsTest {
         assertGt(raw, uint256(type(uint72).max));
         assertEq(tickets.currentPrice(), type(uint72).max);
     }
+
+    /// @dev Raises max to 500 (target 100) and commits it, leaving the contract at round 1.
+    function _setMax500() internal {
+        vm.prank(marketParamsSetter);
+        tickets.setMaxTicketsPerRound(500);
+        vm.warp(FIRST_ROUND_START + ROUND_DURATION);
+        tickets.commitRoundState();
+    }
+
+    function test_excessTicketsSold_scalesSalesAboveTarget() public {
+        _setMax500();
+        tickets.exposed_setTicketsSoldThisRound(300);
+        vm.warp(FIRST_ROUND_START + 2 * ROUND_DURATION);
+
+        // 100 + (300 - 100) * 100 / (500 - 100) - 100
+        assertEq(tickets.excessTicketsSold(), 50);
+    }
+
+    function test_excessTicketsSold_roundsScaledSalesDown() public {
+        _setMax500();
+        tickets.exposed_setTicketsSoldThisRound(103);
+        vm.warp(FIRST_ROUND_START + 2 * ROUND_DURATION);
+
+        assertEq(tickets.excessTicketsSold(), 0);
+    }
+
+    function test_currentPrice_fullRoundThenEmptyRoundRestoresMinimum() public {
+        _setMax500();
+        tickets.exposed_setTicketsSoldThisRound(500);
+        vm.warp(FIRST_ROUND_START + 2 * ROUND_DURATION);
+        tickets.commitRoundState();
+
+        assertEq(
+            tickets.currentPrice(),
+            tickets.exposed_fakeExponential(MINIMUM_PRICE, TARGET_TICKETS, PRICE_UPDATE_FRACTION)
+        );
+
+        vm.warp(FIRST_ROUND_START + 3 * ROUND_DURATION);
+        assertEq(tickets.currentPrice(), MINIMUM_PRICE);
+    }
+
+    function test_excessTicketsSold_targetAboveMaxDoesNotRevert() public {
+        vm.prank(marketParamsSetter);
+        tickets.setTargetTicketsPerRound(MAX_TICKETS + 1);
+        vm.warp(FIRST_ROUND_START + ROUND_DURATION);
+        tickets.commitRoundState();
+
+        tickets.exposed_setTicketsSoldThisRound(MAX_TICKETS);
+        vm.warp(FIRST_ROUND_START + 2 * ROUND_DURATION);
+        tickets.commitRoundState();
+
+        assertEq(tickets.excessTicketsSold(), 0);
+    }
 }

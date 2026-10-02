@@ -278,7 +278,8 @@ interface ITickets {
     ///         (a) `excessTicketsSoldOverride` if a pricing update is queued - lets the admin
     ///             avoid a price jump across the param change; or
     ///         (b) the stored value plus `_ticketsSoldThisRound`, minus elapsed
-    ///             rounds' worth of target (saturated at zero).
+    ///             rounds' worth of target (saturated at zero). Sales above target are scaled
+    ///             by `target / (max - target)`, so selling `max` adds exactly `target`.
     function excessTicketsSold() external view returns (uint256);
 
     /// @notice Ticket price for the current round, in wei.
