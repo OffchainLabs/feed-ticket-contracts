@@ -24,6 +24,8 @@ Each mutative entry point either calls `_lazyUpdateRoundState` first or delibera
 
 `MARKET_PARAMS_SETTER` setters write a `next*` slot and set `isAdminUpdateQueued = true`; `_lazyUpdateRoundState` commits the queued values and clears the queue on the next round boundary.
 
+The target and max setters check `target < max` against the other value as it will be committed (queued, else stored), so the committed pair always satisfies it. Changing both in one round therefore has an order: raise max before target, lower target before max.
+
 View functions surface the queued value as soon as one round has elapsed since the stored round. Internal arithmetic still uses the stored value until the lazy update lands. This means a queued admin update followed by one or more inactive rounds can cause inconsistency/inaccuracy in some view functions.
 
 `excessTicketsSoldOverride` is special: `_lazyUpdateRoundState` does not assign it to `_excessTicketsSold` explicitly. Instead, the lazy update calls `excessTicketsSold()`, which returns the override if one is queued; that return value is then written to `_excessTicketsSold`. The override slot is reset to the sentinel as a separate step. Any future override mechanism needs to preserve this view-driven application.
