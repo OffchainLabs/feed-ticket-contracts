@@ -518,6 +518,7 @@ export const iTicketsAbi = [
   { type: 'error', inputs: [], name: 'NotProxyAdmin' },
   { type: 'error', inputs: [], name: 'PriceUpdateFractionZero' },
   { type: 'error', inputs: [], name: 'RoundDurationZero' },
+  { type: 'error', inputs: [], name: 'RoundNotCommitted' },
   {
     type: 'error',
     inputs: [
@@ -1303,6 +1304,7 @@ export const ticketsAbi = [
   { type: 'error', inputs: [], name: 'NotProxyAdmin' },
   { type: 'error', inputs: [], name: 'PriceUpdateFractionZero' },
   { type: 'error', inputs: [], name: 'RoundDurationZero' },
+  { type: 'error', inputs: [], name: 'RoundNotCommitted' },
   {
     type: 'error',
     inputs: [
