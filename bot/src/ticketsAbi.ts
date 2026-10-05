@@ -479,6 +479,7 @@ export const iTicketsAbi = [
     ],
     name: 'TokensWithdrawn',
   },
+  { type: 'error', inputs: [], name: 'AdminUpdateQueued' },
   { type: 'error', inputs: [], name: 'BeforeFirstRoundStart' },
   { type: 'error', inputs: [], name: 'ExcessTicketsSoldOverrideReserved' },
   { type: 'error', inputs: [], name: 'FirstRoundStartNotInFuture' },
@@ -514,8 +515,10 @@ export const iTicketsAbi = [
     ],
     name: 'NotEnoughGrandfatheredTickets',
   },
+  { type: 'error', inputs: [], name: 'NotProxyAdmin' },
   { type: 'error', inputs: [], name: 'PriceUpdateFractionZero' },
   { type: 'error', inputs: [], name: 'RoundDurationZero' },
+  { type: 'error', inputs: [], name: 'RoundNotCommitted' },
   {
     type: 'error',
     inputs: [
@@ -800,6 +803,13 @@ export const ticketsAbi = [
     name: 'nextTargetTicketsPerRound',
     outputs: [{ name: '', internalType: 'uint16', type: 'uint16' }],
     stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'postUpgradeInit_v1_1_0',
+    outputs: [],
+    stateMutability: 'nonpayable',
   },
   {
     type: 'function',
@@ -1253,6 +1263,7 @@ export const ticketsAbi = [
     ],
     name: 'AccessControlUnauthorizedAccount',
   },
+  { type: 'error', inputs: [], name: 'AdminUpdateQueued' },
   { type: 'error', inputs: [], name: 'BeforeFirstRoundStart' },
   { type: 'error', inputs: [], name: 'ExcessTicketsSoldOverrideReserved' },
   { type: 'error', inputs: [], name: 'FirstRoundStartNotInFuture' },
@@ -1290,8 +1301,10 @@ export const ticketsAbi = [
     name: 'NotEnoughGrandfatheredTickets',
   },
   { type: 'error', inputs: [], name: 'NotInitializing' },
+  { type: 'error', inputs: [], name: 'NotProxyAdmin' },
   { type: 'error', inputs: [], name: 'PriceUpdateFractionZero' },
   { type: 'error', inputs: [], name: 'RoundDurationZero' },
+  { type: 'error', inputs: [], name: 'RoundNotCommitted' },
   {
     type: 'error',
     inputs: [

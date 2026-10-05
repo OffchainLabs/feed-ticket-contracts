@@ -21,6 +21,7 @@ pragma solidity ^0.8.20;
 import {
     AccessControlEnumerableUpgradeable
 } from "@openzeppelin/contracts-upgradeable/access/extensions/AccessControlEnumerableUpgradeable.sol";
+import {ERC1967Utils} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Utils.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
@@ -176,7 +177,10 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         _disableInitializers();
     }
 
-    function initialize(InitParams calldata p) external initializer {
+    /// @dev Version 2 so `postUpgradeInit_v1_1_0` cannot run on fresh deployments. Proxies initialized
+    ///      by v1.0.0 are at version 1 and are rejected by the `_roundDuration` check.
+    function initialize(InitParams calldata p) external reinitializer(2) {
+        if (_roundDuration != 0) revert InvalidInitialization();
         if (p.roundDuration == 0) revert RoundDurationZero();
         if (p.targetTicketsPerRound == 0) revert TargetTicketsPerRoundZero();
         if (p.maxTicketsPerRound == 0) revert MaxTicketsPerRoundZero();
@@ -212,6 +216,24 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         _grantRole(DEFAULT_ADMIN_ROLE, defaultAdmin);
         _grantRole(BENEFICIARY_SETTER, beneficiarySetter);
         _grantRole(MARKET_PARAMS_SETTER, marketParamsSetter);
+    }
+
+    /// @notice Queues pricing state stored by v1.0.0, rescaled from tickets to `EXCESS_SCALE` units, for
+    ///         the next round. Keeps the price curve at or below target, and above it when max is twice
+    ///         target. Callable once, by the proxy admin through `upgradeToAndCall`.
+    // forge-lint: disable-next-line(mixed-case-function)
+    function postUpgradeInit_v1_1_0() external reinitializer(2) {
+        if (msg.sender != ERC1967Utils.getAdmin()) revert NotProxyAdmin();
+        if (roundsElapsedSinceStored() != 0) revert RoundNotCommitted();
+        if (isAdminUpdateQueued) revert AdminUpdateQueued();
+        if (_targetTicketsPerRound >= _maxTicketsPerRound) {
+            revert TargetTicketsNotBelowMax(_targetTicketsPerRound, _maxTicketsPerRound);
+        }
+        _setPricingParams(
+            _minimumPrice,
+            (_priceUpdateFraction * EXCESS_SCALE / _targetTicketsPerRound).toUint40(),
+            (_excessTicketsSold * EXCESS_SCALE / _targetTicketsPerRound).toUint56()
+        );
     }
 
     /// @inheritdoc ITickets
@@ -457,6 +479,14 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         uint40 newPriceUpdateFraction,
         uint56 newExcessTicketsSoldOverride
     ) external onlyRole(MARKET_PARAMS_SETTER) {
+        _setPricingParams(newMinimumPrice, newPriceUpdateFraction, newExcessTicketsSoldOverride);
+    }
+
+    function _setPricingParams(
+        uint64 newMinimumPrice,
+        uint40 newPriceUpdateFraction,
+        uint56 newExcessTicketsSoldOverride
+    ) internal {
         if (newMinimumPrice == 0) revert MinimumPriceZero();
         if (newPriceUpdateFraction == 0) revert PriceUpdateFractionZero();
         if (newExcessTicketsSoldOverride == EXCESS_TICKETS_SOLD_SENTINEL) revert ExcessTicketsSoldOverrideReserved();

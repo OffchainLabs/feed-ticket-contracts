@@ -40,11 +40,20 @@ interface ITickets {
     ///         which is reserved as the "no override queued" sentinel.
     error ExcessTicketsSoldOverrideReserved();
 
-    /// @notice Thrown when `initialize`, `setTargetTicketsPerRound`, or `setMaxTicketsPerRound` would
-    ///         leave the next round's target at or above its max.
+    /// @notice Thrown when `initialize`, `setTargetTicketsPerRound`, `setMaxTicketsPerRound`, or
+    ///         `postUpgradeInit_v1_1_0` would leave the next round's target at or above its max.
     /// @param  target The target tickets per round the next round would use.
     /// @param  max    The max tickets per round the next round would use.
     error TargetTicketsNotBelowMax(uint256 target, uint256 max);
+
+    /// @notice Thrown when `postUpgradeInit_v1_1_0` is called by an account other than the proxy admin.
+    error NotProxyAdmin();
+
+    /// @notice Thrown when `postUpgradeInit_v1_1_0` is called before the current round is committed.
+    error RoundNotCommitted();
+
+    /// @notice Thrown when `postUpgradeInit_v1_1_0` is called while an admin update is queued.
+    error AdminUpdateQueued();
 
     /// @notice Thrown when `initialize` is given a `firstRoundStart` that is not strictly in the future.
     error FirstRoundStartNotInFuture();
