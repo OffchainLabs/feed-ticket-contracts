@@ -60,6 +60,7 @@ If `maxTicketsPerRound` is reduced below the number of tickets sold in the previ
 
 - `_currentPrice` is cached so purchases don't recompute the Taylor series every call.
 - `excessTicketsSold` accumulates across rounds: each round adds `EXCESS_SCALE * sold / target` at or below target, or `EXCESS_SCALE * (1 + (sold - target) / (max - target))` above it, rounded down, then subtracts `EXCESS_SCALE * elapsed`. The result is floored at zero and saturated below the override sentinel. A sold-out round nets `+EXCESS_SCALE` and an empty round `-EXCESS_SCALE`.
+- `EXCESS_SCALE = 1e6` must exceed `type(uint16).max` so a single ticket still moves `excessTicketsSold` after dividing by `target` or `max - target`; rounding loses at most 1 unit per round. It must stay small enough that `uint40 _priceUpdateFraction` can express fine per-round changes, down to `e^(EXCESS_SCALE / (2^40 - 1)) = 1.0000009`.
 
 ## Continuous Pricing Across Param Updates
 
