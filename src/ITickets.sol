@@ -216,6 +216,10 @@ interface ITickets {
     /// @notice Account that receives ticket sale proceeds.
     function beneficiary() external view returns (address);
 
+    /// @notice Sale proceeds `distributeSaleProceeds` would forward now. Excludes the in-flight
+    ///         round's revenue until a lazy update rolls it in.
+    function storedProceeds() external view returns (uint256);
+
     /// @notice Duration of a round, in seconds.
     function roundDuration() external view returns (uint256);
 

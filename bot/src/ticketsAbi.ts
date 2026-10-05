@@ -249,6 +249,13 @@ export const iTicketsAbi = [
   {
     type: 'function',
     inputs: [],
+    name: 'storedProceeds',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
     name: 'targetTicketsPerRound',
     outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
     stateMutability: 'view',
@@ -940,6 +947,13 @@ export const ticketsAbi = [
     name: 'setTargetTicketsPerRound',
     outputs: [],
     stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'storedProceeds',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
   },
   {
     type: 'function',
