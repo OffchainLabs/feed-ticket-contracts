@@ -333,6 +333,11 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     }
 
     /// @inheritdoc ITickets
+    function storedProceeds() external view returns (uint256) {
+        return _storedProceeds;
+    }
+
+    /// @inheritdoc ITickets
     function grandfatherCount(address account) external view returns (uint256) {
         uint256 __roundNumber = roundNumber();
         if (__roundNumber == 0) return 0;
@@ -403,6 +408,7 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         return _applyAdminUpdate(_grandfatherPeriodFraction, nextGrandfatherPeriodFraction, GRANDFATHER_PERIOD_SENTINEL);
     }
 
+    /// @inheritdoc ITickets
     function ticketsSoldThisRound() external view returns (uint256) {
         return roundsElapsedSinceStored() == 0 ? _ticketsSoldThisRound : 0;
     }

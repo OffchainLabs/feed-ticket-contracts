@@ -49,7 +49,7 @@ contract TicketsStoredProceedsTest is BaseTicketsTest {
         assertGt(tickets.exposed_storedCurrentPrice(), oldPrice);
 
         // credit used the OLD price, not the new one
-        assertEq(tickets.exposed_storedProceeds(), uint256(MAX_TICKETS) * oldPrice);
+        assertEq(tickets.storedProceeds(), uint256(MAX_TICKETS) * oldPrice);
     }
 
     function test_storedProceeds_accumulatesAcrossRounds() public {
@@ -59,7 +59,7 @@ contract TicketsStoredProceedsTest is BaseTicketsTest {
         // Close round 0: credits 1 * MINIMUM_PRICE.
         vm.warp(FIRST_ROUND_START + ROUND_DURATION);
         tickets.exposed_lazyUpdateRoundState();
-        assertEq(tickets.exposed_storedProceeds(), MINIMUM_PRICE);
+        assertEq(tickets.storedProceeds(), MINIMUM_PRICE);
 
         // buyer was grandfathered by round 0; reuse for round 1.
         uint256 r1Price = tickets.currentPrice();
@@ -70,7 +70,7 @@ contract TicketsStoredProceedsTest is BaseTicketsTest {
         // Close round 1: credits another 1 * r1Price on top of the running total.
         vm.warp(FIRST_ROUND_START + 2 * ROUND_DURATION);
         tickets.exposed_lazyUpdateRoundState();
-        assertEq(tickets.exposed_storedProceeds(), MINIMUM_PRICE + r1Price);
+        assertEq(tickets.storedProceeds(), MINIMUM_PRICE + r1Price);
     }
 
     function test_storedProceeds_doubleLazyUpdate_creditsOnce() public {
@@ -78,12 +78,12 @@ contract TicketsStoredProceedsTest is BaseTicketsTest {
 
         vm.warp(FIRST_ROUND_START + ROUND_DURATION);
         tickets.exposed_lazyUpdateRoundState();
-        uint256 afterFirst = tickets.exposed_storedProceeds();
+        uint256 afterFirst = tickets.storedProceeds();
         assertEq(afterFirst, MINIMUM_PRICE);
 
         // Second call in the same round is a no-op: roundsElapsedSinceStored() is now 0.
         tickets.exposed_lazyUpdateRoundState();
-        assertEq(tickets.exposed_storedProceeds(), afterFirst);
+        assertEq(tickets.storedProceeds(), afterFirst);
     }
 
     function test_storedProceeds_emptyRoundCreditsZero() public {
@@ -92,7 +92,7 @@ contract TicketsStoredProceedsTest is BaseTicketsTest {
         vm.warp(FIRST_ROUND_START + ROUND_DURATION);
         tickets.exposed_lazyUpdateRoundState();
 
-        assertEq(tickets.exposed_storedProceeds(), 0);
+        assertEq(tickets.storedProceeds(), 0);
     }
 
     /// @dev `_storedProceeds += uint112(_ticketsSoldThisRound) * _currentPrice` must not overflow
@@ -111,6 +111,6 @@ contract TicketsStoredProceedsTest is BaseTicketsTest {
         tickets.exposed_lazyUpdateRoundState();
 
         uint256 expected = uint256(type(uint16).max) * uint256(type(uint72).max);
-        assertEq(tickets.exposed_storedProceeds(), expected);
+        assertEq(tickets.storedProceeds(), expected);
     }
 }

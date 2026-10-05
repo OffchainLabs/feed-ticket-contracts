@@ -372,13 +372,13 @@ contract TicketsLazyUpdateTest is BaseTicketsTest {
         vm.prank(buyer);
         tickets.purchaseTickets(0, MINIMUM_PRICE, 1, bytes32(0));
 
-        assertEq(tickets.exposed_storedProceeds(), 0);
+        assertEq(tickets.storedProceeds(), 0);
 
         vm.warp(FIRST_ROUND_START + ROUND_DURATION);
         vm.prank(makeAddr("watcher"));
         tickets.commitRoundState();
 
-        assertEq(tickets.exposed_storedProceeds(), MINIMUM_PRICE);
+        assertEq(tickets.storedProceeds(), MINIMUM_PRICE);
         assertEq(tickets.exposed_storedRoundNumber(), 1);
     }
 
@@ -392,7 +392,7 @@ contract TicketsLazyUpdateTest is BaseTicketsTest {
         vm.warp(FIRST_ROUND_START + ROUND_DURATION - 1);
         tickets.commitRoundState();
 
-        assertEq(tickets.exposed_storedProceeds(), 0);
+        assertEq(tickets.storedProceeds(), 0);
         assertEq(tickets.exposed_storedRoundNumber(), 0);
     }
 }
