@@ -85,6 +85,8 @@ v1.0.0 stores `priceUpdateFraction` and `excessTicketsSold` in tickets. Upgrade 
 
 `postUpgradeInit_v1_1_0` reverts if the current round is not committed, if an admin update is queued, or if `targetTicketsPerRound >= maxTicketsPerRound`. Call `commitRoundState()` earlier in the same round, which also commits updates queued in earlier rounds, and queue no admin updates in that round before the upgrade. Proxies deployed at v1.1.0 are initialized at version 2, so it reverts on them.
 
+`make test-upgrade` fuzzes the upgrade against a proxy running the 1.0.1 build. It checks out the `1.0.1` tag, so commit or stash tracked changes first.
+
 # Audits
 
 [Trail of Bits (2026-07-31)](https://docs.arbitrum.io/assets/files/2026_07_31_sequencer_feed_ticketing_summary_report-7673b36399a7be50c859bc5da18235d8.pdf)
