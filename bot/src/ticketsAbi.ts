@@ -524,6 +524,14 @@ export const iTicketsAbi = [
     ],
     name: 'RoundNumberMismatch',
   },
+  {
+    type: 'error',
+    inputs: [
+      { name: 'target', internalType: 'uint256', type: 'uint256' },
+      { name: 'max', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'TargetTicketsNotBelowMax',
+  },
   { type: 'error', inputs: [], name: 'TargetTicketsPerRoundZero' },
   { type: 'error', inputs: [], name: 'ZeroTicketsRequested' },
 ] as const
@@ -1304,6 +1312,14 @@ export const ticketsAbi = [
     type: 'error',
     inputs: [{ name: 'token', internalType: 'address', type: 'address' }],
     name: 'SafeERC20FailedOperation',
+  },
+  {
+    type: 'error',
+    inputs: [
+      { name: 'target', internalType: 'uint256', type: 'uint256' },
+      { name: 'max', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'TargetTicketsNotBelowMax',
   },
   { type: 'error', inputs: [], name: 'TargetTicketsPerRoundZero' },
   { type: 'error', inputs: [], name: 'ZeroTicketsRequested' },

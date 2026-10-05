@@ -70,6 +70,10 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     /// @dev Sentinel for "no excess tickets override"
     uint56 constant EXCESS_TICKETS_SOLD_SENTINEL = type(uint56).max;
 
+    /// @dev Per-round unit of `excessTicketsSold`: a sold-out round nets +EXCESS_SCALE, an empty
+    ///      round -EXCESS_SCALE, and a round at target 0.
+    uint256 constant EXCESS_SCALE = 1e6;
+
     /// @inheritdoc ITickets
     /// @dev Assumed to be a standard ERC-20: no fee-on-transfer, no rebasing, no transfer hooks.
     ///      `depositToken` credits the requested amount without measuring the actual balance delta.
@@ -105,8 +109,8 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     // -- End Hot Path Storage -- //
     // -- Begin Warm Path Storage (Accessed on Round Change) -- //
 
-    /// @dev uint40 - at target of 1, max of 2^16, the lowest max change we can support is
-    ///      e^((2^16 - 2) / (2^40 - 1)) = 1.00000006
+    /// @dev uint40 - the lowest per-round change we can support is
+    ///      e^(EXCESS_SCALE / (2^40 - 1)) = 1.0000009
     uint40 internal _priceUpdateFraction;
 
     // ------ End Slot 0 ------ //
@@ -118,8 +122,7 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     /// @dev Type matches maxTicketsPerRound.
     uint16 internal _targetTicketsPerRound;
 
-    /// @dev uint56 - Up to 2^16 excess/round (uint16 cap) * 2^40 rounds (uint40 _roundNumber)
-    ///      = 2^56 worst-case excess.
+    /// @dev uint56 - Saturates below EXCESS_TICKETS_SOLD_SENTINEL.
     uint56 internal _excessTicketsSold;
 
     /// @inheritdoc ITickets
@@ -177,6 +180,9 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         if (p.roundDuration == 0) revert RoundDurationZero();
         if (p.targetTicketsPerRound == 0) revert TargetTicketsPerRoundZero();
         if (p.maxTicketsPerRound == 0) revert MaxTicketsPerRoundZero();
+        if (p.targetTicketsPerRound >= p.maxTicketsPerRound) {
+            revert TargetTicketsNotBelowMax(p.targetTicketsPerRound, p.maxTicketsPerRound);
+        }
         if (p.minimumPrice == 0) revert MinimumPriceZero();
         if (p.priceUpdateFraction == 0) revert PriceUpdateFractionZero();
         if (p.grandfatherPeriodFraction == GRANDFATHER_PERIOD_SENTINEL) revert GrandfatherPeriodFractionReserved();
@@ -388,9 +394,17 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
             return excessTicketsSoldOverride;
         }
 
-        uint256 gross = uint256(_excessTicketsSold) + _ticketsSoldThisRound;
-        uint256 consumed = elapsed * uint256(_targetTicketsPerRound);
-        return gross > consumed ? gross - consumed : 0;
+        // Normalize so an empty round adds 0, a target round EXCESS_SCALE, and a full round 2 * EXCESS_SCALE.
+        // sold <= _maxTicketsPerRound, so sold > target implies _maxTicketsPerRound > target.
+        uint256 sold = _ticketsSoldThisRound;
+        uint256 target = _targetTicketsPerRound;
+        uint256 normalizedSold = sold > target
+            ? EXCESS_SCALE + (sold - target) * EXCESS_SCALE / (_maxTicketsPerRound - target)
+            : sold * EXCESS_SCALE / target;
+
+        uint256 gross = uint256(_excessTicketsSold) + normalizedSold;
+        uint256 consumed = elapsed * EXCESS_SCALE;
+        return gross > consumed ? Math.min(gross - consumed, EXCESS_TICKETS_SOLD_SENTINEL - 1) : 0;
     }
 
     /// @inheritdoc ITickets
@@ -419,6 +433,8 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     function setMaxTicketsPerRound(uint16 newMax) external onlyRole(MARKET_PARAMS_SETTER) {
         if (newMax == 0) revert MaxTicketsPerRoundZero();
         _lazyUpdateRoundState();
+        uint16 target = nextTargetTicketsPerRound != 0 ? nextTargetTicketsPerRound : _targetTicketsPerRound;
+        if (target >= newMax) revert TargetTicketsNotBelowMax(target, newMax);
         isAdminUpdateQueued = true;
         nextMaxTicketsPerRound = newMax;
         emit MaxTicketsPerRoundQueued(newMax);
@@ -428,6 +444,8 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     function setTargetTicketsPerRound(uint16 newTarget) external onlyRole(MARKET_PARAMS_SETTER) {
         if (newTarget == 0) revert TargetTicketsPerRoundZero();
         _lazyUpdateRoundState();
+        uint16 max = nextMaxTicketsPerRound != 0 ? nextMaxTicketsPerRound : _maxTicketsPerRound;
+        if (newTarget >= max) revert TargetTicketsNotBelowMax(newTarget, max);
         isAdminUpdateQueued = true;
         nextTargetTicketsPerRound = newTarget;
         emit TargetTicketsPerRoundQueued(newTarget);

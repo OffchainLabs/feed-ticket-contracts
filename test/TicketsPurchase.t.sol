@@ -153,7 +153,7 @@ contract TicketsPurchaseTest is BaseTicketsTest {
 
         assertEq(tickets.exposed_storedRoundNumber(), 1);
         assertEq(tickets.exposed_storedRoundStart(), FIRST_ROUND_START + ROUND_DURATION);
-        assertEq(tickets.exposed_storedExcessTicketsSold(), 250);
+        assertEq(tickets.exposed_storedExcessTicketsSold(), 250 * EXCESS_PER_TICKET);
 
         uint256 price = tickets.currentPrice();
         _deposit(buyer, price);
@@ -167,7 +167,7 @@ contract TicketsPurchaseTest is BaseTicketsTest {
 
         assertEq(tickets.exposed_storedRoundNumber(), 2);
         assertEq(tickets.exposed_storedRoundStart(), FIRST_ROUND_START + 2 * ROUND_DURATION);
-        assertEq(tickets.exposed_storedExcessTicketsSold(), 200);
+        assertEq(tickets.exposed_storedExcessTicketsSold(), 200 * EXCESS_PER_TICKET);
         assertEq(tickets.grandfatherCount(buyer), 0);
         assertEq(tickets.ticketsSoldThisRound(), 1);
     }

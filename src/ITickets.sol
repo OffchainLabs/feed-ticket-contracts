@@ -40,6 +40,12 @@ interface ITickets {
     ///         which is reserved as the "no override queued" sentinel.
     error ExcessTicketsSoldOverrideReserved();
 
+    /// @notice Thrown when `initialize`, `setTargetTicketsPerRound`, or `setMaxTicketsPerRound` would
+    ///         leave the next round's target at or above its max.
+    /// @param  target The target tickets per round the next round would use.
+    /// @param  max    The max tickets per round the next round would use.
+    error TargetTicketsNotBelowMax(uint256 target, uint256 max);
+
     /// @notice Thrown when `initialize` is given a `firstRoundStart` that is not strictly in the future.
     error FirstRoundStartNotInFuture();
 
@@ -213,7 +219,8 @@ interface ITickets {
     /// @notice Minimum ticket price. Floor of the pricing function.
     function minimumPrice() external view returns (uint256);
 
-    /// @notice Parameter controlling how quickly price moves per excess ticket sold.
+    /// @notice Parameter controlling how quickly price moves. A sold-out round multiplies the
+    ///         price by `e^(1e6 / priceUpdateFraction)`.
     function priceUpdateFraction() external view returns (uint256);
 
     /// @notice Length of the grandfather phase at the start of each round, as a fraction of 256
@@ -272,13 +279,14 @@ interface ITickets {
     ///         held in the previous round.
     function grandfatherPeriodEnd() external view returns (uint256);
 
-    /// @notice Total tickets sold in excess of the cumulative target as of the end of last round.
+    /// @notice Normalized excess sales as of the end of last round. A round at target leaves it
+    ///         unchanged, a sold-out round adds 1e6, and an empty round subtracts 1e6.
     /// @dev    Within the active stored round (no rounds elapsed), returns the stored value directly.
     ///         Once a round has elapsed, this view returns either:
     ///         (a) `excessTicketsSoldOverride` if a pricing update is queued - lets the admin
     ///             avoid a price jump across the param change; or
-    ///         (b) the stored value plus `_ticketsSoldThisRound`, minus elapsed
-    ///             rounds' worth of target (saturated at zero).
+    ///         (b) the stored value plus this round's normalized sales, minus 1e6 per elapsed
+    ///             round (saturated at zero and below `type(uint56).max`).
     function excessTicketsSold() external view returns (uint256);
 
     /// @notice Ticket price for the current round, in wei.
@@ -304,12 +312,14 @@ interface ITickets {
     /// @param  newMax The new max tickets per round.
     ///                Must be greater than zero, which is reserved as the
     ///                "no update queued" sentinel and is an invalid value.
+    ///                Must be greater than the queued target, or the current target if none is queued.
     function setMaxTicketsPerRound(uint16 newMax) external;
 
     /// @notice Queue a new target tickets per round. Takes effect next active round.
     /// @param  newTarget The new target tickets per round.
     ///                   Must be greater than zero, which is reserved as the
     ///                   "no update queued" sentinel and is an invalid value.
+    ///                   Must be less than the queued max, or the current max if none is queued.
     function setTargetTicketsPerRound(uint16 newTarget) external;
 
     /// @notice Queue new pricing parameters. Takes effect next active round.
