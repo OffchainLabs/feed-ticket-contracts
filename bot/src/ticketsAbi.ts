@@ -249,6 +249,13 @@ export const iTicketsAbi = [
   {
     type: 'function',
     inputs: [],
+    name: 'storedProceeds',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
     name: 'targetTicketsPerRound',
     outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
     stateMutability: 'view',
@@ -479,6 +486,7 @@ export const iTicketsAbi = [
     ],
     name: 'TokensWithdrawn',
   },
+  { type: 'error', inputs: [], name: 'AdminUpdateQueued' },
   { type: 'error', inputs: [], name: 'BeforeFirstRoundStart' },
   { type: 'error', inputs: [], name: 'ExcessTicketsSoldOverrideReserved' },
   { type: 'error', inputs: [], name: 'FirstRoundStartNotInFuture' },
@@ -514,8 +522,10 @@ export const iTicketsAbi = [
     ],
     name: 'NotEnoughGrandfatheredTickets',
   },
+  { type: 'error', inputs: [], name: 'NotProxyAdmin' },
   { type: 'error', inputs: [], name: 'PriceUpdateFractionZero' },
   { type: 'error', inputs: [], name: 'RoundDurationZero' },
+  { type: 'error', inputs: [], name: 'RoundNotCommitted' },
   {
     type: 'error',
     inputs: [
@@ -523,6 +533,14 @@ export const iTicketsAbi = [
       { name: 'actual', internalType: 'uint256', type: 'uint256' },
     ],
     name: 'RoundNumberMismatch',
+  },
+  {
+    type: 'error',
+    inputs: [
+      { name: 'target', internalType: 'uint256', type: 'uint256' },
+      { name: 'max', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'TargetTicketsNotBelowMax',
   },
   { type: 'error', inputs: [], name: 'TargetTicketsPerRoundZero' },
   { type: 'error', inputs: [], name: 'ZeroTicketsRequested' },
@@ -796,6 +814,13 @@ export const ticketsAbi = [
   {
     type: 'function',
     inputs: [],
+    name: 'postUpgradeInit_v1_1_0',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
     name: 'priceUpdateFraction',
     outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
     stateMutability: 'view',
@@ -922,6 +947,13 @@ export const ticketsAbi = [
     name: 'setTargetTicketsPerRound',
     outputs: [],
     stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'storedProceeds',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
   },
   {
     type: 'function',
@@ -1245,6 +1277,7 @@ export const ticketsAbi = [
     ],
     name: 'AccessControlUnauthorizedAccount',
   },
+  { type: 'error', inputs: [], name: 'AdminUpdateQueued' },
   { type: 'error', inputs: [], name: 'BeforeFirstRoundStart' },
   { type: 'error', inputs: [], name: 'ExcessTicketsSoldOverrideReserved' },
   { type: 'error', inputs: [], name: 'FirstRoundStartNotInFuture' },
@@ -1282,8 +1315,10 @@ export const ticketsAbi = [
     name: 'NotEnoughGrandfatheredTickets',
   },
   { type: 'error', inputs: [], name: 'NotInitializing' },
+  { type: 'error', inputs: [], name: 'NotProxyAdmin' },
   { type: 'error', inputs: [], name: 'PriceUpdateFractionZero' },
   { type: 'error', inputs: [], name: 'RoundDurationZero' },
+  { type: 'error', inputs: [], name: 'RoundNotCommitted' },
   {
     type: 'error',
     inputs: [
@@ -1304,6 +1339,14 @@ export const ticketsAbi = [
     type: 'error',
     inputs: [{ name: 'token', internalType: 'address', type: 'address' }],
     name: 'SafeERC20FailedOperation',
+  },
+  {
+    type: 'error',
+    inputs: [
+      { name: 'target', internalType: 'uint256', type: 'uint256' },
+      { name: 'max', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'TargetTicketsNotBelowMax',
   },
   { type: 'error', inputs: [], name: 'TargetTicketsPerRoundZero' },
   { type: 'error', inputs: [], name: 'ZeroTicketsRequested' },

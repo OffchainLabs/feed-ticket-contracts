@@ -78,6 +78,13 @@ contract TicketsInitTest is BaseTicketsTest {
         impl.initialize(_params());
     }
 
+    function test_initialize_revertsWhenTargetNotBelowMax() public {
+        Tickets.InitParams memory p = _params();
+        p.targetTicketsPerRound = p.maxTicketsPerRound;
+        vm.expectRevert(abi.encodeWithSelector(ITickets.TargetTicketsNotBelowMax.selector, MAX_TICKETS, MAX_TICKETS));
+        new TransparentUpgradeableProxy(address(impl), proxyAdmin, abi.encodeCall(Tickets.initialize, (p)));
+    }
+
     function test_initialize_revertsWhenFirstRoundStartEqualsNow() public {
         Tickets.InitParams memory p = _params();
         p.firstRoundStart = uint40(block.timestamp);

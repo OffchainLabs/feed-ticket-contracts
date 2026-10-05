@@ -89,9 +89,9 @@ contract TicketsLazyUpdateTest is BaseTicketsTest {
     function test_excessTicketsSold_appliesFormulaAfterAdvance() public {
         tickets.exposed_setTicketsSoldThisRound(350);
         vm.warp(FIRST_ROUND_START + 1 * ROUND_DURATION);
-        assertEq(tickets.excessTicketsSold(), 350 - TARGET_TICKETS);
+        assertEq(tickets.excessTicketsSold(), (350 - TARGET_TICKETS) * EXCESS_PER_TICKET);
         vm.warp(FIRST_ROUND_START + 3 * ROUND_DURATION - 1);
-        assertEq(tickets.excessTicketsSold(), 350 - 2 * TARGET_TICKETS);
+        assertEq(tickets.excessTicketsSold(), (350 - 2 * TARGET_TICKETS) * EXCESS_PER_TICKET);
     }
 
     /// @dev With a queued pricing update, excessTicketsSold() returns the override (not the
@@ -141,7 +141,7 @@ contract TicketsLazyUpdateTest is BaseTicketsTest {
 
         // Boundary: one round elapsed, view must take the formula path.
         vm.warp(FIRST_ROUND_START + 2 * ROUND_DURATION);
-        uint256 expectedExcess = uint256(firstOverride) + 350 - TARGET_TICKETS;
+        uint256 expectedExcess = uint256(firstOverride) + (350 - TARGET_TICKETS) * EXCESS_PER_TICKET;
         assertEq(tickets.excessTicketsSold(), expectedExcess);
 
         // Commit also writes the formula value (not the stale override) to storage.
@@ -264,7 +264,7 @@ contract TicketsLazyUpdateTest is BaseTicketsTest {
         assertEq(tickets.roundsElapsedSinceStored(), 3);
         assertEq(tickets.roundNumber(), 3);
         assertEq(tickets.roundStart(), FIRST_ROUND_START + 3 * ROUND_DURATION);
-        assertEq(tickets.excessTicketsSold(), 350 - 3 * TARGET_TICKETS);
+        assertEq(tickets.excessTicketsSold(), (350 - 3 * TARGET_TICKETS) * EXCESS_PER_TICKET);
     }
 
     function test_queuedDurationTakesEffectAtLeastOneRoundAfterQueuing() public {
@@ -372,13 +372,13 @@ contract TicketsLazyUpdateTest is BaseTicketsTest {
         vm.prank(buyer);
         tickets.purchaseTickets(0, MINIMUM_PRICE, 1, bytes32(0));
 
-        assertEq(tickets.exposed_storedProceeds(), 0);
+        assertEq(tickets.storedProceeds(), 0);
 
         vm.warp(FIRST_ROUND_START + ROUND_DURATION);
         vm.prank(makeAddr("watcher"));
         tickets.commitRoundState();
 
-        assertEq(tickets.exposed_storedProceeds(), MINIMUM_PRICE);
+        assertEq(tickets.storedProceeds(), MINIMUM_PRICE);
         assertEq(tickets.exposed_storedRoundNumber(), 1);
     }
 
@@ -392,7 +392,7 @@ contract TicketsLazyUpdateTest is BaseTicketsTest {
         vm.warp(FIRST_ROUND_START + ROUND_DURATION - 1);
         tickets.commitRoundState();
 
-        assertEq(tickets.exposed_storedProceeds(), 0);
+        assertEq(tickets.storedProceeds(), 0);
         assertEq(tickets.exposed_storedRoundNumber(), 0);
     }
 }

@@ -21,6 +21,7 @@ pragma solidity ^0.8.20;
 import {
     AccessControlEnumerableUpgradeable
 } from "@openzeppelin/contracts-upgradeable/access/extensions/AccessControlEnumerableUpgradeable.sol";
+import {ERC1967Utils} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Utils.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
@@ -70,6 +71,10 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     /// @dev Sentinel for "no excess tickets override"
     uint56 constant EXCESS_TICKETS_SOLD_SENTINEL = type(uint56).max;
 
+    /// @dev Per-round unit of `excessTicketsSold`: a sold-out round nets +EXCESS_SCALE, an empty
+    ///      round -EXCESS_SCALE, and a round at target 0.
+    uint256 constant EXCESS_SCALE = 1e6;
+
     /// @inheritdoc ITickets
     /// @dev Assumed to be a standard ERC-20: no fee-on-transfer, no rebasing, no transfer hooks.
     ///      `depositToken` credits the requested amount without measuring the actual balance delta.
@@ -105,8 +110,8 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     // -- End Hot Path Storage -- //
     // -- Begin Warm Path Storage (Accessed on Round Change) -- //
 
-    /// @dev uint40 - at target of 1, max of 2^16, the lowest max change we can support is
-    ///      e^((2^16 - 2) / (2^40 - 1)) = 1.00000006
+    /// @dev uint40 - the lowest per-round change we can support is
+    ///      e^(EXCESS_SCALE / (2^40 - 1)) = 1.0000009
     uint40 internal _priceUpdateFraction;
 
     // ------ End Slot 0 ------ //
@@ -118,8 +123,7 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     /// @dev Type matches maxTicketsPerRound.
     uint16 internal _targetTicketsPerRound;
 
-    /// @dev uint56 - Up to 2^16 excess/round (uint16 cap) * 2^40 rounds (uint40 _roundNumber)
-    ///      = 2^56 worst-case excess.
+    /// @dev uint56 - Saturates below EXCESS_TICKETS_SOLD_SENTINEL.
     uint56 internal _excessTicketsSold;
 
     /// @inheritdoc ITickets
@@ -173,10 +177,16 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         _disableInitializers();
     }
 
-    function initialize(InitParams calldata p) external initializer {
+    /// @dev Version 2 so `postUpgradeInit_v1_1_0` cannot run on fresh deployments. Proxies initialized
+    ///      by v1.0.0 are at version 1 and are rejected by the `_roundDuration` check.
+    function initialize(InitParams calldata p) external reinitializer(2) {
+        if (_roundDuration != 0) revert InvalidInitialization();
         if (p.roundDuration == 0) revert RoundDurationZero();
         if (p.targetTicketsPerRound == 0) revert TargetTicketsPerRoundZero();
         if (p.maxTicketsPerRound == 0) revert MaxTicketsPerRoundZero();
+        if (p.targetTicketsPerRound >= p.maxTicketsPerRound) {
+            revert TargetTicketsNotBelowMax(p.targetTicketsPerRound, p.maxTicketsPerRound);
+        }
         if (p.minimumPrice == 0) revert MinimumPriceZero();
         if (p.priceUpdateFraction == 0) revert PriceUpdateFractionZero();
         if (p.grandfatherPeriodFraction == GRANDFATHER_PERIOD_SENTINEL) revert GrandfatherPeriodFractionReserved();
@@ -206,6 +216,24 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         _grantRole(DEFAULT_ADMIN_ROLE, defaultAdmin);
         _grantRole(BENEFICIARY_SETTER, beneficiarySetter);
         _grantRole(MARKET_PARAMS_SETTER, marketParamsSetter);
+    }
+
+    /// @notice Queues pricing state stored by v1.0.0, rescaled from tickets to `EXCESS_SCALE` units, for
+    ///         the next round. Keeps the price curve at or below target, and above it when max is twice
+    ///         target. Callable once, by the proxy admin through `upgradeToAndCall`.
+    // forge-lint: disable-next-line(mixed-case-function)
+    function postUpgradeInit_v1_1_0() external reinitializer(2) {
+        if (msg.sender != ERC1967Utils.getAdmin()) revert NotProxyAdmin();
+        if (roundsElapsedSinceStored() != 0) revert RoundNotCommitted();
+        if (isAdminUpdateQueued) revert AdminUpdateQueued();
+        if (_targetTicketsPerRound >= _maxTicketsPerRound) {
+            revert TargetTicketsNotBelowMax(_targetTicketsPerRound, _maxTicketsPerRound);
+        }
+        _setPricingParams(
+            _minimumPrice,
+            (_priceUpdateFraction * EXCESS_SCALE / _targetTicketsPerRound).toUint40(),
+            (_excessTicketsSold * EXCESS_SCALE / _targetTicketsPerRound).toUint56()
+        );
     }
 
     /// @inheritdoc ITickets
@@ -305,6 +333,11 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     }
 
     /// @inheritdoc ITickets
+    function storedProceeds() external view returns (uint256) {
+        return _storedProceeds;
+    }
+
+    /// @inheritdoc ITickets
     function grandfatherCount(address account) external view returns (uint256) {
         uint256 __roundNumber = roundNumber();
         if (__roundNumber == 0) return 0;
@@ -375,6 +408,7 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         return _applyAdminUpdate(_grandfatherPeriodFraction, nextGrandfatherPeriodFraction, GRANDFATHER_PERIOD_SENTINEL);
     }
 
+    /// @inheritdoc ITickets
     function ticketsSoldThisRound() external view returns (uint256) {
         return roundsElapsedSinceStored() == 0 ? _ticketsSoldThisRound : 0;
     }
@@ -388,9 +422,17 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
             return excessTicketsSoldOverride;
         }
 
-        uint256 gross = uint256(_excessTicketsSold) + _ticketsSoldThisRound;
-        uint256 consumed = elapsed * uint256(_targetTicketsPerRound);
-        return gross > consumed ? gross - consumed : 0;
+        // Normalize so an empty round adds 0, a target round EXCESS_SCALE, and a full round 2 * EXCESS_SCALE.
+        // sold <= _maxTicketsPerRound, so sold > target implies _maxTicketsPerRound > target.
+        uint256 sold = _ticketsSoldThisRound;
+        uint256 target = _targetTicketsPerRound;
+        uint256 normalizedSold = sold > target
+            ? EXCESS_SCALE + (sold - target) * EXCESS_SCALE / (_maxTicketsPerRound - target)
+            : sold * EXCESS_SCALE / target;
+
+        uint256 gross = uint256(_excessTicketsSold) + normalizedSold;
+        uint256 consumed = elapsed * EXCESS_SCALE;
+        return gross > consumed ? Math.min(gross - consumed, EXCESS_TICKETS_SOLD_SENTINEL - 1) : 0;
     }
 
     /// @inheritdoc ITickets
@@ -419,6 +461,8 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     function setMaxTicketsPerRound(uint16 newMax) external onlyRole(MARKET_PARAMS_SETTER) {
         if (newMax == 0) revert MaxTicketsPerRoundZero();
         _lazyUpdateRoundState();
+        uint16 target = nextTargetTicketsPerRound != 0 ? nextTargetTicketsPerRound : _targetTicketsPerRound;
+        if (target >= newMax) revert TargetTicketsNotBelowMax(target, newMax);
         isAdminUpdateQueued = true;
         nextMaxTicketsPerRound = newMax;
         emit MaxTicketsPerRoundQueued(newMax);
@@ -428,6 +472,8 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
     function setTargetTicketsPerRound(uint16 newTarget) external onlyRole(MARKET_PARAMS_SETTER) {
         if (newTarget == 0) revert TargetTicketsPerRoundZero();
         _lazyUpdateRoundState();
+        uint16 max = nextMaxTicketsPerRound != 0 ? nextMaxTicketsPerRound : _maxTicketsPerRound;
+        if (newTarget >= max) revert TargetTicketsNotBelowMax(newTarget, max);
         isAdminUpdateQueued = true;
         nextTargetTicketsPerRound = newTarget;
         emit TargetTicketsPerRoundQueued(newTarget);
@@ -439,6 +485,14 @@ contract Tickets is ITickets, AccessControlEnumerableUpgradeable {
         uint40 newPriceUpdateFraction,
         uint56 newExcessTicketsSoldOverride
     ) external onlyRole(MARKET_PARAMS_SETTER) {
+        _setPricingParams(newMinimumPrice, newPriceUpdateFraction, newExcessTicketsSoldOverride);
+    }
+
+    function _setPricingParams(
+        uint64 newMinimumPrice,
+        uint40 newPriceUpdateFraction,
+        uint56 newExcessTicketsSoldOverride
+    ) internal {
         if (newMinimumPrice == 0) revert MinimumPriceZero();
         if (newPriceUpdateFraction == 0) revert PriceUpdateFractionZero();
         if (newExcessTicketsSoldOverride == EXCESS_TICKETS_SOLD_SENTINEL) revert ExcessTicketsSoldOverrideReserved();

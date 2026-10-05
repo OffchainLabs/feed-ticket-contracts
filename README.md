@@ -38,7 +38,7 @@ Admin setters queue their new values rather than applying them immediately. A va
 
 The mutative calls that _do not_ trigger lazy update are setting the beneficiary, distributing funds, and depositing/withdrawing payment tokens. For beneficiary/distribute this keeps a fund-rescue path live even if a bug in the lazy update would otherwise cause it to revert; for deposit/withdraw the round state is irrelevant to the operation, so we skip the work.
 
-Pricing follows EIP-4844's `fake_exponential`: `currentPrice = min(fake_exponential(minimumPrice, excessTicketsSold, priceUpdateFraction), type(uint72).max)`. `excessTicketsSold` is the running total of tickets sold above `targetTicketsPerRound` across all rounds, floored at zero. The cap (~4722e18) prevents the cached price from overflowing its slot; if the formula would exceed it, tickets are sold at the cap. See the "Base fee per blob gas update rule" in EIP-4844 for guidance on setting `priceUpdateFraction`. `setPricingParams` also installs an `excessTicketsSold` override, which the admin can choose to limit the price jump (see [ARCHITECTURE.md](./ARCHITECTURE.md#continuous-pricing-across-param-updates)).
+Pricing follows EIP-4844's `fake_exponential`: `currentPrice = min(fake_exponential(minimumPrice, excessTicketsSold, priceUpdateFraction), type(uint72).max)`. `excessTicketsSold` accumulates each round's sales relative to `targetTicketsPerRound`, floored at zero. It is normalized so a sold-out round adds 1e6 and an empty round subtracts 1e6, so a sold-out round raises the price by `e^(1e6 / priceUpdateFraction)` and an empty round lowers it by the same factor. The cap (~4722e18) prevents the cached price from overflowing its slot; if the formula would exceed it, tickets are sold at the cap. For a sold-out round to multiply the price by `f`, set `priceUpdateFraction = 1e6 / ln(f)` (e.g. 1442695 for 2x, 333808 for 20x). `setPricingParams` also installs an `excessTicketsSold` override, which the admin can choose to limit the price jump (see [ARCHITECTURE.md](./ARCHITECTURE.md#continuous-pricing-across-param-updates)).
 
 ### Admin Roles
 
@@ -78,6 +78,14 @@ The sequencer cannot allow more open connections per key than the number of acti
 cp .env.example .env  # edit as needed
 forge script script/DeployTickets.s.sol --rpc-url $RPC_URL --private-key $PRIVATE_KEY --broadcast
 ```
+
+### Upgrading from v1.0.0
+
+v1.0.0 stores `priceUpdateFraction` and `excessTicketsSold` in tickets. Upgrade with `ProxyAdmin.upgradeAndCall(proxy, newImpl, abi.encodeCall(Tickets.postUpgradeInit_v1_1_0, ()))`. This queues both, rescaled, for the next round, as `setPricingParams(minimumPrice, rescaledFraction, rescaledExcess)` would. They are multiplied by `1e6 / targetTicketsPerRound`, rounded down (144 becomes 1,440,000 at target 100). This keeps the price curve at or below target, and above it only when `maxTicketsPerRound == 2 * targetTicketsPerRound`. Since the rescaled excess is applied as an override, the upgrade round's sales do not move the price.
+
+`postUpgradeInit_v1_1_0` reverts if the current round is not committed, if an admin update is queued, or if `targetTicketsPerRound >= maxTicketsPerRound`. Call `commitRoundState()` earlier in the same round, which also commits updates queued in earlier rounds, and queue no admin updates in that round before the upgrade. Proxies deployed at v1.1.0 are initialized at version 2, so it reverts on them.
+
+`make test-upgrade` fuzzes the upgrade against a proxy running the 1.0.1 build. It checks out the `1.0.1` tag, so commit or stash tracked changes first.
 
 # Audits
 
